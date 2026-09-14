@@ -133,9 +133,13 @@ macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，由 `.github/wo
 所以任一平台挂掉时 release 会停在草稿状态，不会放出半套包。tag 与
 `tauri.conf.json` 里的 `version` 不一致会直接失败，避免发出版本号对不上的包。
 
+版本号只有一处：`src-tauri/Cargo.toml` 的 `[package] version`。`tauri.conf.json` 不写
+`version` 字段，Tauri 会回落到 Cargo.toml；`package.json` 是 `private` 的，也不带版本号。
+CI 就按这一处校验 tag。
+
 ```bash
-# 版本号改好后
-git tag v0.1.0 && git push origin v0.1.0
+# 改完 src-tauri/Cargo.toml 里的 version
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 | artifact | 内容 |
@@ -151,7 +155,7 @@ Linux 只出 `.deb`：它在 `tauri.conf.json` 里声明了 `libwebkit2gtk-4.1-0
 `libayatana-appindicator3-1`，装的时候 apt 会自己把依赖拉下来 ——
 
 ```bash
-sudo apt install ./realingo_0.1.0_amd64.deb   # 用 apt 而不是 dpkg -i，才会解析依赖
+sudo apt install ./realingo_0.2.0_amd64.deb   # 用 apt 而不是 dpkg -i，才会解析依赖
 ```
 
 不出 AppImage 是因为它存在的意义就是自带一份 WebKitGTK 去伺候没有该库的发行版，

@@ -141,9 +141,13 @@ failure on any platform leaves the release as a draft rather than shipping half 
 that disagrees with `version` in `tauri.conf.json` fails the run, so the binaries can never
 claim the wrong version.
 
+The version lives in exactly one place: `[package] version` in `src-tauri/Cargo.toml`.
+`tauri.conf.json` omits the `version` field so Tauri falls back to Cargo.toml, and
+`package.json` is `private` and carries none. CI checks the tag against that one place.
+
 ```bash
-# after bumping the version
-git tag v0.1.0 && git push origin v0.1.0
+# after bumping version in src-tauri/Cargo.toml
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 Packaging locally:

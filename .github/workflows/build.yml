@@ -26,7 +26,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           want="${GITHUB_REF_NAME#v}"
-          have=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          # Cargo.toml is the single source: tauri.conf.json omits `version` and falls back
+          # to it, and package.json (private, never published) carries none.
+          have=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
           if [ "$want" != "$have" ]; then
             echo "tag $GITHUB_REF_NAME does not match app version $have — bump the version or retag" >&2
             exit 1
