@@ -3,6 +3,7 @@ pub mod config;
 pub mod decode;
 mod realtime;
 pub mod resample;
+mod tray;
 
 use audio::DeviceInfo;
 use config::Settings;
@@ -126,7 +127,17 @@ pub fn run() {
             if let Some(w) = app.get_webview_window("subtitle") {
                 let _ = w.set_always_on_top(true);
             }
+            tray::init(app.handle())?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing the main window must end the app. The subtitle overlay is a second
+            // window with skipTaskbar set, so without this the process lingers with no way
+            // to reach it: the app looks closed but the overlay is still on screen.
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. })
+            {
+                window.app_handle().exit(0);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             list_devices,
@@ -135,7 +146,8 @@ pub fn run() {
             endpoint_url,
             start_stream,
             stop_stream,
-            write_text
+            write_text,
+            tray::sync_tray
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

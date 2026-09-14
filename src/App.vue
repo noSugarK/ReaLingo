@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { emitTo } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -142,6 +142,41 @@ const subModes: [SubMode, "subBoth" | "subTarget" | "subSource"][] = [
   ["source", "subSource"],
 ];
 
+/* ---------- system tray ---------- */
+async function syncTray() {
+  // Labels are sent from here because the zh/en dictionary lives in the frontend; Rust just
+  // rebuilds the menu from whatever it is given.
+  await invoke("sync_tray", {
+    menuState: {
+      tooltip: `ReaLingo · ${t(statusKey.value)}`,
+      showLabel: t("trayShow"),
+      runLabel: isRunning() ? t("stop") : t("start"),
+      overlayLabel: t("subShow"),
+      overlayOn: settings.sub.show,
+      clickThroughLabel: t("subLockShort"),
+      clickThroughOn: settings.sub.locked,
+      modeLabel: t("subMode"),
+      modes: subModes.map(([value, key]) => ({
+        id: value,
+        label: t(key),
+        on: settings.sub.mode === value,
+      })),
+      quitLabel: t("trayQuit"),
+    },
+  });
+}
+
+void listen<string>("tray://action", ({ payload: id }) => {
+  if (id === "run") void toggle();
+  else if (id === "overlay") settings.sub.show = !settings.sub.show;
+  else if (id === "click-through") settings.sub.locked = !settings.sub.locked;
+  else if (id.startsWith("mode:")) settings.sub.mode = id.slice(5) as SubMode;
+});
+
+// Deliberately not watching `speaking`: it flips on every VAD tick and rebuilding a native
+// menu that often is the same churn that broke focus for the overlay.
+watch([locale, status, () => settings.sub], syncTray, { deep: true });
+
 /* ---------- export ---------- */
 async function exportAs(kind: "txt" | "srt") {
   const path = await saveDialog({
@@ -160,6 +195,7 @@ onMounted(async () => {
   await refreshDevices();
   await setOverlayClickThrough(settings.sub.locked);
   await showOverlay(settings.sub.show);
+  await syncTray();
   levelTimer = window.setInterval(async () => {
     level.value = isRunning() ? await invoke<number>("input_level") : 0;
   }, 60);
@@ -218,6 +254,12 @@ watch([lines, current], async () => {
         </svg>
       </button>
       <div class="win-buttons">
+        <button class="btn-icon" :title="t('toTray')" :aria-label="t('toTray')" @click="win.hide()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M6.5 1v6.2M6.5 7.4L4.1 5M6.5 7.4L8.9 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M1.6 9.8v1.1a1 1 0 0 0 1 1h7.8a1 1 0 0 0 1-1V9.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </button>
         <button class="btn-icon" aria-label="Minimize" @click="win.minimize()">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
         </button>

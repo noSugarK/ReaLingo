@@ -54,6 +54,10 @@ const zh = {
   exportSrt: "导出 SRT",
   copied: "已复制",
 
+  trayShow: "显示主窗口",
+  trayQuit: "退出 ReaLingo",
+  toTray: "收起到托盘",
+
   settings: "设置",
   apiKey: "API Key",
   apiKeyHint: "百炼控制台 → API-KEY 页面获取，仅保存在本机",
@@ -130,6 +134,10 @@ const en: typeof zh = {
   exportTxt: "Export TXT",
   exportSrt: "Export SRT",
   copied: "Copied",
+
+  trayShow: "Show window",
+  trayQuit: "Quit ReaLingo",
+  toTray: "Minimize to tray",
 
   settings: "Settings",
   apiKey: "API Key",
