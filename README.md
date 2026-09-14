@@ -41,12 +41,24 @@ Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`
 
 | 项 | 说明 |
 |---|---|
-| API Key | [百炼控制台 → API-KEY](https://bailian.console.aliyun.com/?tab=model#/api-key)（新加坡地域用 [国际站控制台](https://bailian.console.alibabacloud.com/?tab=model#/api-key)）。只保存在本机 `settings.json`，设置页里也有直达按钮 |
+| API Key | [百炼控制台 → API-KEY](https://bailian.console.aliyun.com/?tab=model#/api-key)（新加坡地域用 [国际站控制台](https://bailian.console.alibabacloud.com/?tab=model#/api-key)），设置页里有直达按钮。存在系统凭据库里，见下 |
 | 翻译模型 | `qwen3.5-livetranslate-flash-realtime`（60 语种，默认）或 `qwen3-livetranslate-flash-realtime`（18 语种）。切到旧模型后语言选择器只列它支持的 18 种，当前选择不在其中会自动回退 |
 | 地域 | 华北2（北京）/ 新加坡 |
 | 业务空间 ID | **选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.cn-beijing.maas.aliyuncs.com`（性能更好），在百炼控制台业务空间详情页查看 |
 
 设置页底部实时显示最终会连接的 WebSocket 地址。
+
+**API Key 存哪儿**：交给操作系统的凭据库 —— Windows 凭据管理器（DPAPI）、macOS 钥匙串、
+Linux Secret Service，密钥由 OS 从你的登录凭据派生，磁盘上不存在可读形式；`settings.json`
+里只剩其余配置。旧版本留在配置文件里的 key 首次启动时会自动搬进去并清空原位置。
+
+自己拿 AES 加密没有意义：程序必须无人值守地解密，密钥只能随二进制分发，而这是开源仓库，
+`strings` 一下就有 —— 那是混淆不是加密，反而给人虚假的安全感。凭据库真正挡住的是配置文件外泄
+（被云盘同步、躺在备份里、贴进 issue、硬盘被拿走）；挡不住以你账号身份运行的恶意程序，
+那种情况下它直接调 API 就能取。
+
+Linux 上如果没有跑 Secret Service（无桌面环境或精简发行版），会退回明文存配置文件，
+设置页会直说，不会假装安全。
 
 ## 平台支持
 
@@ -223,7 +235,6 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 | Ubuntu 直接采集系统声音 | ALSA 无回录通道，需在 pavucontrol 转接，见「平台支持」 |
 | 双语互译（说中出英 / 说英出中） | 见下方「双语互译为什么还没做」 |
 | 断线自动重连 | 目前报错后需手动重新开始 —— 实时同传断线本就需要用户知情 |
-| API Key 加密存储 | 明文存本地配置，与多数桌面工具一致；要更严可换 `keyring` |
 
 ## 双语互译为什么还没做
 

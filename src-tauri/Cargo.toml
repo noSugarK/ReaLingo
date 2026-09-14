@@ -16,6 +16,7 @@ anyhow = "1.0.104"
 base64 = "0.23.1"
 cpal = "0.17.1"
 futures-util = "0.3.34"
+keyring = { version = "4.2.0", features = ["apple-native-keyring-store"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 symphonia = { version = "0.6.1", features = ["mp3", "aac", "isomp4", "flac", "vorbis", "ogg", "wav", "pcm"] }

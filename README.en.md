@@ -45,12 +45,26 @@ Open the gear icon in the top-right after first launch:
 
 | Setting | Notes |
 |---|---|
-| API Key | [Model Studio console → API-KEY](https://bailian.console.alibabacloud.com/?tab=model#/api-key) (China regions: [bailian.console.aliyun.com](https://bailian.console.aliyun.com/?tab=model#/api-key)). Stored only on this machine, in `settings.json`; the settings page has a direct link too |
+| API Key | [Model Studio console → API-KEY](https://bailian.console.alibabacloud.com/?tab=model#/api-key) (China regions: [bailian.console.aliyun.com](https://bailian.console.aliyun.com/?tab=model#/api-key)); the settings page has a direct link too. Kept in the OS credential store — see below |
 | Model | `qwen3.5-livetranslate-flash-realtime` (60 languages, default) or `qwen3-livetranslate-flash-realtime` (18). Switching to the older model narrows the language pickers to what it supports, and a language it cannot handle falls back automatically |
 | Region | China (Beijing) / Singapore |
 | Workspace ID | **Optional.** Leave blank for the shared endpoint `dashscope[-intl].aliyuncs.com`; filling it in uses your workspace's dedicated domain `{id}.cn-beijing.maas.aliyuncs.com` (better performance). Find it on the workspace detail page |
 
 The settings panel shows the exact WebSocket endpoint it will dial, live.
+
+**Where the API key lives**: in the OS credential store — Windows Credential Manager (DPAPI),
+macOS Keychain, Linux Secret Service. The OS derives the encryption key from your login, so no
+readable copy sits on disk; `settings.json` keeps everything else. A key left in the config file
+by an older build is moved across on first launch and cleared from the file.
+
+Encrypting it ourselves would be pointless: the app has to decrypt unattended, so the key would
+ship inside the binary — and this is an open-source repo, `strings` finds it. That is obfuscation,
+not encryption, and it buys false confidence. The credential store defends against the config file
+leaking (synced to a cloud drive, sitting in a backup, pasted into an issue, a disk walking away).
+It does not defend against malware running as you — that can just call the API itself.
+
+On Linux with no Secret Service running (headless, or a minimal distro) it falls back to plain
+text in the config file, and the settings page says so rather than pretending otherwise.
 
 ## Platform support
 
@@ -218,7 +232,6 @@ audio file ──┘   (cpal / symphonia)                                       
 | Capturing system audio directly on Ubuntu | ALSA has no loopback; route it in pavucontrol, see Platform support |
 | Two-way translation (speak Chinese → English, speak English → Chinese) | See below |
 | Automatic reconnection | You restart manually after an error — a dropped simultaneous-interpreting session is something the user should know about |
-| Encrypted API key storage | Plain text in the local config, as most desktop tools do; swap in `keyring` if you need more |
 
 ## Why two-way translation is not implemented
 

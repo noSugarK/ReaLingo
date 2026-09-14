@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { settings, type Region, type Theme } from "../store";
+import { keyringOk, settings, type Region, type Theme } from "../store";
 import { MODEL_LEGACY, MODEL_NEW } from "../languages";
 import { locale, setLocale, t, type Locale } from "../i18n";
 import Picker from "./Picker.vue";
@@ -62,7 +62,7 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
           <span class="label">{{ t("apiKey") }}</span>
           <input v-model="settings.apiKey" type="password" placeholder="sk-..." spellcheck="false" />
           <small>
-            {{ t("apiKeyHint") }}
+            {{ keyringOk ? t("apiKeyHint") : t("apiKeyPlain") }}
             <button class="link" @click.prevent="openConsole">{{ t("apiKeyGet") }} ↗</button>
           </small>
         </label>

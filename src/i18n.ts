@@ -63,7 +63,8 @@ const zh = {
 
   settings: "设置",
   apiKey: "API Key",
-  apiKeyHint: "仅保存在本机",
+  apiKeyHint: "存在系统凭据管理器里，不写入配置文件",
+  apiKeyPlain: "本机没有可用的系统密钥环，只能明文存在配置文件里",
   apiKeyGet: "去百炼控制台获取",
   workspace: "业务空间 ID",
   workspaceHint: "选填。留空使用公共域名；填写后走业务空间专属域名（性能更好），可在百炼控制台业务空间详情页查看",
@@ -152,7 +153,8 @@ const en: typeof zh = {
 
   settings: "Settings",
   apiKey: "API Key",
-  apiKeyHint: "Stored locally only.",
+  apiKeyHint: "Kept in the OS credential store, not in the config file.",
+  apiKeyPlain: "No OS keyring on this machine — stored as plain text in the config file.",
   apiKeyGet: "Get one from Model Studio",
   workspace: "Workspace ID",
   workspaceHint:

@@ -3,6 +3,7 @@ pub mod config;
 pub mod decode;
 mod realtime;
 pub mod resample;
+mod secret;
 mod tray;
 
 use audio::DeviceInfo;
@@ -37,11 +38,28 @@ fn list_devices() -> Vec<DeviceInfo> {
 pub struct Platform {
     pub os: &'static str,
     pub loopback: bool,
+    /// False on a Linux box with no Secret Service provider: the key then stays in
+    /// settings.json, and the settings page says so.
+    pub keyring: bool,
 }
 
 #[tauri::command]
 fn platform() -> Platform {
-    Platform { os: std::env::consts::OS, loopback: audio::LOOPBACK_SUPPORTED }
+    Platform {
+        os: std::env::consts::OS,
+        loopback: audio::LOOPBACK_SUPPORTED,
+        keyring: secret::available(),
+    }
+}
+
+#[tauri::command]
+fn get_api_key() -> String {
+    secret::get().unwrap_or_default()
+}
+
+#[tauri::command]
+fn set_api_key(key: String) -> Result<(), String> {
+    secret::set(&key)
 }
 
 #[tauri::command]
@@ -64,10 +82,16 @@ fn endpoint_url(settings: Settings) -> String {
 fn start_stream(
     app: AppHandle,
     state: State<AppState>,
-    settings: Settings,
+    mut settings: Settings,
     source: Source,
 ) -> Result<(), String> {
     halt(&state);
+
+    // The credential store wins over whatever the webview sent, so on a machine that has
+    // one the key never has to travel through the frontend at all.
+    if let Some(key) = secret::get() {
+        settings.api_key = key;
+    }
 
     let stop = Arc::new(AtomicBool::new(false));
     // ~6 s of audio in flight; enough to ride out a slow handshake, small enough that a
@@ -155,6 +179,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_devices,
             platform,
+            get_api_key,
+            set_api_key,
             default_device,
             input_level,
             endpoint_url,
