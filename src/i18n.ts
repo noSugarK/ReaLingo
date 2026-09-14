@@ -21,7 +21,7 @@ const zh = {
   to: "目标语言",
   swap: "互换",
   auto: "自动检测",
-  searchLang: "搜索语言…",
+  search: "搜索…",
 
   start: "开始翻译",
   stop: "停止",
@@ -107,7 +107,7 @@ const en: typeof zh = {
   to: "Target",
   swap: "Swap",
   auto: "Auto detect",
-  searchLang: "Search language…",
+  search: "Search…",
 
   start: "Start",
   stop: "Stop",

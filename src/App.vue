@@ -7,7 +7,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
 import Card from "./components/Card.vue";
-import LangSelect from "./components/LangSelect.vue";
+import Picker from "./components/Picker.vue";
 import Settings from "./components/Settings.vue";
 import { locale, setLocale, t } from "./i18n";
 import { langName, languageCodes } from "./languages";
@@ -57,6 +57,9 @@ const visibleDevices = computed(() =>
   devices.value.filter((d) => d.loopback === wantLoopback.value)
 );
 const fileName = computed(() => filePath.value.split(/[\\/]/).pop() ?? "");
+const deviceOptions = computed(() =>
+  visibleDevices.value.map((d) => ({ value: d.id, label: d.name }))
+);
 const canStart = computed(() =>
   sourceKind.value === "file" ? !!filePath.value : !!deviceId.value
 );
@@ -145,6 +148,20 @@ watch(() => settings.sub.locked, setOverlayClickThrough);
 
 /* ---------- model / languages ---------- */
 const langCodes = computed(() => languageCodes(settings.model));
+
+/** The picker matches on both UI languages, so a zh user can still type "japanese". */
+const langOptions = computed(() =>
+  langCodes.value.map((c) => ({
+    value: c,
+    label: langName(c, locale.value),
+    note: c,
+    keywords: `${langName(c, "zh")} ${langName(c, "en")}`,
+  }))
+);
+const sourceLangOptions = computed(() => [
+  { value: "auto", label: langName("auto", locale.value) },
+  ...langOptions.value,
+]);
 
 // Switching to the smaller model can strand a language it cannot translate into; the
 // session would then be refused server-side, so repair the selection here instead.
@@ -289,130 +306,150 @@ watch([lines, current], async () => {
 
     <main class="grid">
       <aside class="side">
-        <!-- audio source -->
-        <Card :title="t('srcTitle')">
-          <div class="seg">
-            <button :class="{ on: sourceKind === 'mic' }" @click="sourceKind = 'mic'">{{ t("srcMic") }}</button>
-            <button :class="{ on: sourceKind === 'system' }" @click="sourceKind = 'system'">{{ t("srcSystem") }}</button>
-            <button :class="{ on: sourceKind === 'file' }" @click="sourceKind = 'file'">{{ t("srcFile") }}</button>
-          </div>
+        <div class="side-scroll">
+          <!-- audio source -->
+          <Card :title="t('srcTitle')">
+            <div class="seg">
+              <button :class="{ on: sourceKind === 'mic' }" @click="sourceKind = 'mic'">{{ t("srcMic") }}</button>
+              <button :class="{ on: sourceKind === 'system' }" @click="sourceKind = 'system'">{{ t("srcSystem") }}</button>
+              <button :class="{ on: sourceKind === 'file' }" @click="sourceKind = 'file'">{{ t("srcFile") }}</button>
+            </div>
 
-          <template v-if="sourceKind !== 'file'">
-            <div class="row">
-              <select v-model="deviceId" :disabled="isRunning()">
-                <option v-if="!visibleDevices.length" value="">{{ t("noDevice") }}</option>
-                <option v-for="d in visibleDevices" :key="d.id" :value="d.id">{{ d.name }}</option>
-              </select>
-              <button class="btn-icon" :aria-label="t('device')" @click="refreshDevices">
+            <template v-if="sourceKind !== 'file'">
+              <div class="row">
+                <Picker
+                  v-model="deviceId"
+                  :options="deviceOptions"
+                  :placeholder="t('noDevice')"
+                  :disabled="isRunning()"
+                />
+                <button class="btn-icon" :aria-label="t('device')" @click="refreshDevices">
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                    <path d="M13 7.5a5.5 5.5 0 1 1-1.7-3.9M13 1.5V5H9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+              <div class="meter" :title="t('level')">
+                <i :style="{ transform: `scaleX(${Math.min(1, level * 1.6)})` }" />
+              </div>
+              <p v-if="sourceKind === 'system' && !caps.loopback" class="hint notice">
+                {{ caps.os === "macos" ? t("loopbackMacOld") : t("loopbackLinux") }}
+              </p>
+            </template>
+
+            <template v-else>
+              <button class="btn drop" :disabled="isRunning()" @click="chooseFile">
+                <span v-if="fileName" class="fname">{{ fileName }}</span>
+                <span v-else>{{ t("pickFile") }}</span>
+              </button>
+              <small class="hint">{{ t("fileFormats") }}</small>
+              <div v-if="fileProgress" class="meter">
+                <i :style="{ transform: `scaleX(${fileProgress.total ? fileProgress.sent / fileProgress.total : 0.5})` }" />
+              </div>
+            </template>
+          </Card>
+
+          <!-- languages -->
+          <Card :title="t('langTitle')">
+            <div class="langs">
+              <div class="col grow">
+                <span class="mini">
+                  {{ t("from") }}
+                  <em v-if="settings.sourceLang === 'auto' && detectedLang" class="detected">
+                    {{ langName(detectedLang, locale) }}
+                  </em>
+                </span>
+                <Picker v-model="settings.sourceLang" :options="sourceLangOptions" :disabled="isRunning()" />
+              </div>
+              <button
+                class="btn-icon swap"
+                :aria-label="t('swap')"
+                :disabled="settings.sourceLang === 'auto' || isRunning()"
+                @click="[settings.sourceLang, settings.targetLang] = [settings.targetLang, settings.sourceLang]"
+              >
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                  <path d="M13 7.5a5.5 5.5 0 1 1-1.7-3.9M13 1.5V5H9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M4 2.5v10M4 12.5L1.8 10.3M4 12.5l2.2-2.2M11 12.5v-10M11 2.5L8.8 4.7M11 2.5l2.2 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </button>
+              <div class="col grow">
+                <span class="mini">{{ t("to") }}</span>
+                <Picker v-model="settings.targetLang" :options="langOptions" :disabled="isRunning()" />
+              </div>
             </div>
-            <div class="meter" :title="t('level')">
-              <i :style="{ transform: `scaleX(${Math.min(1, level * 1.6)})` }" />
-            </div>
-            <p v-if="sourceKind === 'system' && !caps.loopback" class="hint notice">
-              {{ caps.os === "macos" ? t("loopbackMacOld") : t("loopbackLinux") }}
-            </p>
-          </template>
+          </Card>
 
-          <template v-else>
-            <button class="btn drop" :disabled="isRunning()" @click="chooseFile">
-              <span v-if="fileName" class="fname">{{ fileName }}</span>
-              <span v-else>{{ t("pickFile") }}</span>
-            </button>
-            <small class="hint">{{ t("fileFormats") }}</small>
-            <div v-if="fileProgress" class="meter">
-              <i :style="{ transform: `scaleX(${fileProgress.total ? fileProgress.sent / fileProgress.total : 0.5})` }" />
-            </div>
-          </template>
-        </Card>
-
-        <!-- languages -->
-        <Card :title="t('langTitle')">
-          <div class="langs">
-            <div class="col grow">
-              <span class="mini">
-                {{ t("from") }}
-                <em v-if="settings.sourceLang === 'auto' && detectedLang" class="detected">
-                  {{ langName(detectedLang, locale) }}
-                </em>
-              </span>
-              <LangSelect v-model="settings.sourceLang" :codes="langCodes" allow-auto :disabled="isRunning()" />
-            </div>
-            <button
-              class="btn-icon swap"
-              :aria-label="t('swap')"
-              :disabled="settings.sourceLang === 'auto' || isRunning()"
-              @click="[settings.sourceLang, settings.targetLang] = [settings.targetLang, settings.sourceLang]"
-            >
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <path d="M4 2.5v10M4 12.5L1.8 10.3M4 12.5l2.2-2.2M11 12.5v-10M11 2.5L8.8 4.7M11 2.5l2.2 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-            <div class="col grow">
-              <span class="mini">{{ t("to") }}</span>
-              <LangSelect v-model="settings.targetLang" :codes="langCodes" :disabled="isRunning()" />
-            </div>
-          </div>
-        </Card>
-
-        <!-- subtitle overlay -->
-        <Card :title="t('subTitle')">
-          <label class="line">
-            <span>{{ t("subShow") }}</span>
-            <button class="sw" :class="{ on: settings.sub.show }" @click="settings.sub.show = !settings.sub.show" />
-          </label>
-
-          <div class="seg">
-            <button
-              v-for="[value, key] in subModes"
-              :key="value"
-              :class="{ on: settings.sub.mode === value }"
-              @click="settings.sub.mode = value"
-            >
-              {{ t(key) }}
-            </button>
-          </div>
-
-          <label class="line stack">
-            <span class="mini">{{ t("subOpacity") }} · {{ Math.round(settings.sub.opacity * 100) }}%</span>
-            <input
-              v-model.number="settings.sub.opacity"
-              type="range" min="0" max="1" step="0.01"
-              :style="{ '--fill': settings.sub.opacity * 100 + '%' }"
-            />
-          </label>
-
-          <label class="line stack">
-            <span class="mini">{{ t("subFontSize") }} · {{ settings.sub.fontSize }}px</span>
-            <input
-              v-model.number="settings.sub.fontSize"
-              type="range" min="14" max="72" step="1"
-              :style="{ '--fill': ((settings.sub.fontSize - 14) / 58) * 100 + '%' }"
-            />
-          </label>
-
-          <div class="line">
-            <span>{{ t("subColors") }}</span>
-            <div class="row">
-              <input v-model="settings.sub.color" type="color" :title="t('subColor')" />
-              <input v-model="settings.sub.srcColor" type="color" :title="t('subSrcColor')" />
-            </div>
-          </div>
-
-          <div class="pair">
+          <!-- subtitle overlay -->
+          <Card :title="t('subTitle')">
             <label class="line">
-              <span>{{ t("subOutline") }}</span>
-              <button class="sw" :class="{ on: settings.sub.outline }" @click="settings.sub.outline = !settings.sub.outline" />
+              <span>{{ t("subShow") }}</span>
+              <button class="sw" :class="{ on: settings.sub.show }" @click="settings.sub.show = !settings.sub.show" />
             </label>
-            <label class="line">
-              <span>{{ t("subLockShort") }}</span>
-              <button class="sw" :class="{ on: settings.sub.locked }" @click="settings.sub.locked = !settings.sub.locked" />
+
+            <div class="seg">
+              <button
+                v-for="[value, key] in subModes"
+                :key="value"
+                :class="{ on: settings.sub.mode === value }"
+                @click="settings.sub.mode = value"
+              >
+                {{ t(key) }}
+              </button>
+            </div>
+
+            <label class="line stack">
+              <span class="mini">{{ t("subOpacity") }} · {{ Math.round(settings.sub.opacity * 100) }}%</span>
+              <input
+                v-model.number="settings.sub.opacity"
+                type="range" min="0" max="1" step="0.01"
+                :style="{ '--fill': settings.sub.opacity * 100 + '%' }"
+              />
             </label>
-          </div>
-        </Card>
+
+            <label class="line stack">
+              <span class="mini">{{ t("subFontSize") }} · {{ settings.sub.fontSize }}px</span>
+              <input
+                v-model.number="settings.sub.fontSize"
+                type="range" min="14" max="72" step="1"
+                :style="{ '--fill': ((settings.sub.fontSize - 14) / 58) * 100 + '%' }"
+              />
+            </label>
+
+            <div class="line">
+              <span>{{ t("subColors") }}</span>
+              <div class="row">
+                <input v-model="settings.sub.color" type="color" :title="t('subColor')" />
+                <input v-model="settings.sub.srcColor" type="color" :title="t('subSrcColor')" />
+              </div>
+            </div>
+
+            <div class="pair">
+              <label class="line">
+                <span>{{ t("subOutline") }}</span>
+                <button class="sw" :class="{ on: settings.sub.outline }" @click="settings.sub.outline = !settings.sub.outline" />
+              </label>
+              <label class="line">
+                <span>{{ t("subLockShort") }}</span>
+                <button class="sw" :class="{ on: settings.sub.locked }" @click="settings.sub.locked = !settings.sub.locked" />
+              </label>
+            </div>
+          </Card>
+        </div>
+
+        <footer class="dock">
+          <p v-if="errorMsg" class="err">{{ errorMsg }}</p>
+          <p v-else-if="warnMsg" class="warn">{{ warnMsg }}</p>
+          <button
+            class="go"
+            :class="{ running: isRunning() }"
+            :disabled="!canStart && !isRunning()"
+            @click="toggle"
+          >
+            <span class="go-ring" />
+            <svg v-if="!isRunning()" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.6v10.8L13 8z" /></svg>
+            <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="2" /></svg>
+            {{ isRunning() ? t("stop") : t("start") }}
+          </button>
+        </footer>
       </aside>
 
       <!-- translation stream -->
@@ -453,21 +490,6 @@ watch([lines, current], async () => {
       </Card>
     </main>
 
-    <footer class="dock">
-      <p v-if="errorMsg" class="err">{{ errorMsg }}</p>
-      <p v-else-if="warnMsg" class="warn">{{ warnMsg }}</p>
-      <button
-        class="go"
-        :class="{ running: isRunning() }"
-        :disabled="!canStart && !isRunning()"
-        @click="toggle"
-      >
-        <span class="go-ring" />
-        <svg v-if="!isRunning()" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.6v10.8L13 8z" /></svg>
-        <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="2" /></svg>
-        {{ isRunning() ? t("stop") : t("start") }}
-      </button>
-    </footer>
   </div>
 
   <Settings v-if="showSettings" @close="showSettings = false" />
@@ -479,7 +501,7 @@ watch([lines, current], async () => {
   z-index: 1;
   height: 100%;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   padding: 0 14px 14px;
 }
 
@@ -515,13 +537,17 @@ watch([lines, current], async () => {
 
 /* ---------- layout ---------- */
 .grid { display: grid; grid-template-columns: 336px 1fr; gap: 14px; min-height: 0; }
-.side {
+/* The sidebar scrolls, the run button below it does not — it stays reachable whatever the
+   window height, and lets the stream column run all the way to the bottom edge. */
+.side { display: flex; flex-direction: column; min-height: 0; }
+.side-scroll {
+  flex: 1; min-height: 0;
   display: flex; flex-direction: column; gap: 10px;
   overflow-y: auto; padding-right: 4px; padding-bottom: 6px;
   /* Fade the last few pixels so a clipped card reads as "scroll for more". */
   mask-image: linear-gradient(#000 calc(100% - 18px), transparent);
 }
-.side > * { flex: none; }
+.side-scroll > * { flex: none; }
 
 .mini { font-size: 11px; font-weight: 600; color: var(--ink-3); margin-bottom: 5px; }
 .hint { font-size: 11.5px; color: var(--ink-3); }
@@ -613,21 +639,18 @@ watch([lines, current], async () => {
 }
 
 /* ---------- dock ---------- */
-.dock { display: flex; align-items: center; justify-content: center; gap: 14px; height: 70px; position: relative; }
-.err {
-  position: absolute; left: 0; right: 0; bottom: 56px;
-  margin: 0; text-align: center; font-size: 12px; color: var(--danger); font-weight: 600;
+.dock { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 4px 0 0; }
+.err, .warn {
+  margin: 0; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.45;
 }
-.warn {
-  position: absolute; left: 0; right: 0; bottom: 56px;
-  margin: 0; text-align: center; font-size: 12px; color: #b7791f; font-weight: 600;
-}
+.err { color: var(--danger); }
+.warn { color: #b7791f; }
 :root[data-theme="dark"] .warn { color: #ffd60a; }
 
 .go {
   position: relative;
-  display: flex; align-items: center; gap: 9px;
-  height: 46px; padding: 0 30px;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; height: 46px; padding: 0 30px;
   border-radius: 999px;
   font-size: 14.5px; font-weight: 700; color: #fff;
   background: var(--accent-grad);

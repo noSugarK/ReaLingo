@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import { LANGUAGES, langName } from "../languages";
-import { locale, t } from "../i18n";
+import { t } from "../i18n";
+
+export type PickerOption = {
+  value: string;
+  label: string;
+  /** Trailing muted text — a language code, a device kind, … */
+  note?: string;
+  /** Extra text the search box matches on, e.g. the same name in the other UI language. */
+  keywords?: string;
+};
 
 const props = defineProps<{
   modelValue: string;
-  /** Codes to offer; defaults to every language. The active model narrows this. */
-  codes?: string[];
-  allowAuto?: boolean;
+  options: PickerOption[];
+  /** Shown when nothing is selected, or when the list is empty. */
+  placeholder?: string;
   disabled?: boolean;
 }>();
 const emit = defineEmits<{ "update:modelValue": [string] }>();
@@ -20,20 +28,19 @@ const search = ref<HTMLInputElement | null>(null);
 const popStyle = ref<Record<string, string>>({});
 
 const MAX_POP_H = 300;
+/** A handful of audio devices needs no search box; 60+ languages very much does. */
+const SEARCH_FROM = 10;
 
-const options = computed(() => {
-  const list = props.codes ?? LANGUAGES.map((l) => l.code);
-  return props.allowAuto ? ["auto", ...list] : list;
-});
+const searchable = computed(() => props.options.length > SEARCH_FROM);
+const label = computed(
+  () => props.options.find((o) => o.value === props.modelValue)?.label ?? props.placeholder ?? ""
+);
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
-  if (!q) return options.value;
-  return options.value.filter(
-    (c) =>
-      c.includes(q) ||
-      langName(c, "zh").toLowerCase().includes(q) ||
-      langName(c, "en").toLowerCase().includes(q)
+  if (!q) return props.options;
+  return props.options.filter((o) =>
+    `${o.value} ${o.label} ${o.note ?? ""} ${o.keywords ?? ""}`.toLowerCase().includes(q)
   );
 });
 
@@ -85,49 +92,50 @@ watch(open, async (v) => {
   place();
   await nextTick();
   place();
-  search.value?.focus();
+  if (searchable.value) search.value?.focus();
 });
 
 onBeforeUnmount(() => bind(false));
 
-function pick(code: string) {
-  emit("update:modelValue", code);
+function pick(value: string) {
+  emit("update:modelValue", value);
   open.value = false;
 }
 </script>
 
 <template>
-  <div ref="box" class="ls">
-    <button class="ls-trigger" :disabled="disabled" @click="open = !open">
-      <span class="ls-value">{{ langName(modelValue, locale) }}</span>
+  <div ref="box" class="pk">
+    <button class="pk-trigger" :disabled="disabled" @click="open = !open">
+      <span class="pk-value" :class="{ dim: !label || modelValue === '' }">{{ label }}</span>
       <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
         <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
       </svg>
     </button>
 
     <Teleport to="body">
-      <div v-if="open" ref="pop" class="ls-pop" :style="popStyle">
+      <div v-if="open" ref="pop" class="pk-pop" :style="popStyle">
         <input
+          v-if="searchable"
           ref="search"
           v-model="query"
           type="search"
-          class="ls-search"
-          :placeholder="t('searchLang')"
+          class="pk-search"
+          :placeholder="t('search')"
           @keydown.esc="open = false"
-          @keydown.enter="filtered[0] && pick(filtered[0])"
+          @keydown.enter="filtered[0] && pick(filtered[0].value)"
         />
-        <div class="ls-list">
+        <div class="pk-list">
           <button
-            v-for="code in filtered"
-            :key="code"
-            class="ls-opt"
-            :class="{ on: code === modelValue }"
-            @click="pick(code)"
+            v-for="o in filtered"
+            :key="o.value"
+            class="pk-opt"
+            :class="{ on: o.value === modelValue }"
+            @click="pick(o.value)"
           >
-            <span>{{ langName(code, locale) }}</span>
-            <span class="ls-code">{{ code }}</span>
+            <span>{{ o.label }}</span>
+            <span v-if="o.note" class="pk-note">{{ o.note }}</span>
           </button>
-          <div v-if="!filtered.length" class="ls-none">—</div>
+          <div v-if="!filtered.length" class="pk-none">{{ placeholder || "—" }}</div>
         </div>
       </div>
     </Teleport>
@@ -135,9 +143,9 @@ function pick(code: string) {
 </template>
 
 <style scoped>
-.ls { position: relative; }
+.pk { position: relative; }
 
-.ls-trigger {
+.pk-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -152,15 +160,16 @@ function pick(code: string) {
   border: 1px solid var(--hairline);
   transition: border-color 0.2s, background 0.2s var(--ease);
 }
-.ls-trigger:hover:not(:disabled) { background: var(--glass-2); }
-.ls-trigger:disabled { opacity: 0.45; cursor: not-allowed; }
-.ls-trigger svg { color: var(--ink-3); flex: none; }
-.ls-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-trigger:hover:not(:disabled) { background: var(--glass-2); }
+.pk-trigger:disabled { opacity: 0.45; cursor: not-allowed; }
+.pk-trigger svg { color: var(--ink-3); flex: none; }
+.pk-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-value.dim { color: var(--ink-3); font-weight: 500; }
 </style>
 
 <!-- Teleported to <body>, so the popup cannot be scoped to this component. -->
 <style>
-.ls-pop {
+.pk-pop {
   /* Deliberately NOT `.glass`: that utility sets `position: relative` at the same
      specificity as this rule, and because main.ts imports App.vue (which injects component
      styles) before glass.css, it won.  The popup then laid out in flow at the end of <body>
@@ -173,16 +182,16 @@ function pick(code: string) {
   background: var(--glass);
   backdrop-filter: blur(34px) saturate(185%);
   box-shadow: 0 20px 44px -14px rgba(10, 16, 40, 0.5), inset 0 1px 0 var(--glass-hi);
-  animation: ls-pop-in 0.18s var(--ease);
+  animation: pk-pop-in 0.18s var(--ease);
 }
-@keyframes ls-pop-in {
+@keyframes pk-pop-in {
   from { opacity: 0; transform: translateY(-6px) scale(0.97); }
 }
 
-.ls-pop .ls-search { height: 32px; margin-bottom: 6px; }
-.ls-pop .ls-search::-webkit-search-cancel-button { display: none; }
+.pk-pop .pk-search { height: 32px; margin-bottom: 6px; }
+.pk-pop .pk-search::-webkit-search-cancel-button { display: none; }
 
-.ls-pop .ls-list {
+.pk-pop .pk-list {
   max-height: 244px;
   overflow-y: auto;
   display: flex;
@@ -190,7 +199,7 @@ function pick(code: string) {
   gap: 1px;
 }
 
-.ls-pop .ls-opt {
+.pk-pop .pk-opt {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -201,9 +210,10 @@ function pick(code: string) {
   text-align: left;
   transition: background 0.14s;
 }
-.ls-pop .ls-opt:hover { background: var(--shade); }
-.ls-pop .ls-opt.on { background: var(--accent); color: #fff; }
-.ls-pop .ls-opt.on .ls-code { color: rgba(255, 255, 255, 0.7); }
-.ls-pop .ls-code { font-size: 11px; color: var(--ink-3); font-variant: small-caps; }
-.ls-pop .ls-none { padding: 14px; text-align: center; color: var(--ink-3); font-size: 13px; }
+.pk-pop .pk-opt > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-pop .pk-opt:hover { background: var(--shade); }
+.pk-pop .pk-opt.on { background: var(--accent); color: #fff; }
+.pk-pop .pk-opt.on .pk-note { color: rgba(255, 255, 255, 0.7); }
+.pk-pop .pk-note { flex: none; font-size: 11px; color: var(--ink-3); font-variant: small-caps; }
+.pk-pop .pk-none { padding: 14px; text-align: center; color: var(--ink-3); font-size: 13px; }
 </style>

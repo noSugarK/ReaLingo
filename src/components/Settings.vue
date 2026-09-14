@@ -124,10 +124,6 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
           </div>
         </label>
       </div>
-
-      <footer class="sheet-foot">
-        <button class="btn btn-primary" @click="$emit('close')">{{ t("close") }}</button>
-      </footer>
     </div>
   </div>
 </template>
@@ -166,14 +162,13 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
 .sheet-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
 
 .sheet-body {
-  padding: 12px 20px;
+  padding: 12px 20px 18px;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
-.sheet-foot { padding: 8px 20px 18px; display: flex; justify-content: flex-end; }
 
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field small { font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
