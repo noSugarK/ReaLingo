@@ -176,7 +176,8 @@ function pick(value: string) {
      — present in the DOM, ~300px below the fold, which read as "the dropdown won't open".
      It carries its own plate styles below, so the utility buys nothing here. */
   position: fixed;
-  z-index: 80;
+  /* Above the settings scrim (100) — a picker inside that sheet must not open behind it. */
+  z-index: 120;
   padding: 8px;
   border-radius: var(--r-md);
   background: var(--glass);

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, toRaw } from "vue";
+import { computed, ref, watch, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { settings, type Region, type Theme } from "../store";
 import { MODEL_LEGACY, MODEL_NEW } from "../languages";
 import { locale, setLocale, t, type Locale } from "../i18n";
+import Picker from "./Picker.vue";
 
 defineEmits<{ close: [] }>();
 
@@ -19,10 +20,19 @@ watch(
   { immediate: true }
 );
 
-const models: [string, "modelNew" | "modelLegacy"][] = [
-  [MODEL_NEW, "modelNew"],
-  [MODEL_LEGACY, "modelLegacy"],
-];
+const modelOptions = computed(() => [
+  { value: MODEL_NEW, label: t("modelNew"), note: "60" },
+  { value: MODEL_LEGACY, label: t("modelLegacy"), note: "18" },
+]);
+
+/** The console page differs per region, and the intl one is English-only. */
+const keyConsole = computed(() =>
+  settings.region === "singapore"
+    ? "https://bailian.console.alibabacloud.com/?tab=model#/api-key"
+    : "https://bailian.console.aliyun.com/?tab=model#/api-key"
+);
+// The opener plugin, not an <a href>: a plain link navigates the app's own webview away.
+const openConsole = () => invoke("plugin:opener|open_url", { url: keyConsole.value });
 
 const regions: [Region, "regionBJ" | "regionSG"][] = [
   ["beijing", "regionBJ"],
@@ -51,23 +61,17 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
         <label class="field">
           <span class="label">{{ t("apiKey") }}</span>
           <input v-model="settings.apiKey" type="password" placeholder="sk-..." spellcheck="false" />
-          <small>{{ t("apiKeyHint") }}</small>
+          <small>
+            {{ t("apiKeyHint") }}
+            <button class="link" @click.prevent="openConsole">{{ t("apiKeyGet") }} ↗</button>
+          </small>
         </label>
 
-        <label class="field">
+        <div class="field">
           <span class="label">{{ t("model") }}</span>
-          <div class="seg">
-            <button
-              v-for="[value, key] in models"
-              :key="value"
-              :class="{ on: settings.model === value }"
-              @click="settings.model = value"
-            >
-              {{ t(key) }}
-            </button>
-          </div>
+          <Picker v-model="settings.model" :options="modelOptions" />
           <small>{{ t("modelHint") }}</small>
-        </label>
+        </div>
 
         <label class="field">
           <span class="label">{{ t("region") }}</span>
@@ -184,6 +188,15 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
   word-break: break-all;
   user-select: text;
 }
+
+.link {
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link:hover { filter: brightness(1.15); }
 
 hr { border: none; border-top: 1px solid var(--hairline); margin: 0; }
 </style>

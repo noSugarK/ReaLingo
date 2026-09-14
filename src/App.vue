@@ -8,6 +8,7 @@ import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialo
 
 import Card from "./components/Card.vue";
 import Picker from "./components/Picker.vue";
+import Slider from "./components/Slider.vue";
 import Settings from "./components/Settings.vue";
 import { locale, setLocale, t } from "./i18n";
 import { langName, languageCodes } from "./languages";
@@ -42,6 +43,14 @@ const level = ref(0);
 /** What the host OS can do; decides whether the "system audio" tab has real devices. */
 const caps = ref({ os: "", loopback: true });
 const streamEl = ref<HTMLElement | null>(null);
+
+const maximized = ref(false);
+/** The window draws its own rounded edge, which has to go flat when it fills the screen. */
+async function syncMaximized() {
+  maximized.value = await win.isMaximized();
+  document.documentElement.toggleAttribute("data-maximized", maximized.value);
+}
+void win.onResized(syncMaximized);
 
 const isDark = computed(() => resolvedTheme.value === "dark");
 function cycleTheme() {
@@ -171,6 +180,12 @@ watch(langCodes, (codes) => {
   if (!ok.has(settings.targetLang)) settings.targetLang = ok.has("en") ? "en" : codes[0];
 });
 
+/** Stored 0–1, edited as whole percent — "0.53" in a number field reads badly. */
+const subOpacityPct = computed({
+  get: () => Math.round(settings.sub.opacity * 100),
+  set: (v: number) => (settings.sub.opacity = v / 100),
+});
+
 const subModes: [SubMode, "subBoth" | "subTarget" | "subSource"][] = [
   ["both", "subBoth"],
   ["target", "subTarget"],
@@ -298,6 +313,20 @@ watch([lines, current], async () => {
         <button class="btn-icon" aria-label="Minimize" @click="win.minimize()">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
         </button>
+        <button
+          class="btn-icon"
+          :aria-label="maximized ? t('restore') : t('maximize')"
+          :title="maximized ? t('restore') : t('maximize')"
+          @click="win.toggleMaximize()"
+        >
+          <svg v-if="maximized" width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="1.5" y="3.5" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.3" />
+            <path d="M4 3.2V2.9a1.4 1.4 0 0 1 1.4-1.4h4.2A1.4 1.4 0 0 1 11 2.9v4.2A1.4 1.4 0 0 1 9.6 8.5h-.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+          </svg>
+          <svg v-else width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="1.5" y="1.5" width="9" height="9" rx="1.6" stroke="currentColor" stroke-width="1.3" />
+          </svg>
+        </button>
         <button class="btn-icon danger" aria-label="Close" @click="win.close()">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
         </button>
@@ -396,23 +425,15 @@ watch([lines, current], async () => {
               </button>
             </div>
 
-            <label class="line stack">
-              <span class="mini">{{ t("subOpacity") }} · {{ Math.round(settings.sub.opacity * 100) }}%</span>
-              <input
-                v-model.number="settings.sub.opacity"
-                type="range" min="0" max="1" step="0.01"
-                :style="{ '--fill': settings.sub.opacity * 100 + '%' }"
-              />
-            </label>
+            <div class="line">
+              <span>{{ t("subOpacity") }}</span>
+              <Slider v-model="subOpacityPct" :min="0" :max="100" :step="1" unit="%" />
+            </div>
 
-            <label class="line stack">
-              <span class="mini">{{ t("subFontSize") }} · {{ settings.sub.fontSize }}px</span>
-              <input
-                v-model.number="settings.sub.fontSize"
-                type="range" min="14" max="72" step="1"
-                :style="{ '--fill': ((settings.sub.fontSize - 14) / 58) * 100 + '%' }"
-              />
-            </label>
+            <div class="line">
+              <span>{{ t("subFontSize") }}</span>
+              <Slider v-model="settings.sub.fontSize" :min="14" :max="72" :step="1" unit="px" />
+            </div>
 
             <div class="line">
               <span>{{ t("subColors") }}</span>
@@ -561,7 +582,6 @@ watch([lines, current], async () => {
 }
 
 .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; cursor: pointer; }
-.line.stack { flex-direction: column; align-items: stretch; gap: 0; cursor: default; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .pair .line { gap: 6px; }
 

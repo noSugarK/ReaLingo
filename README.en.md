@@ -45,7 +45,7 @@ Open the gear icon in the top-right after first launch:
 
 | Setting | Notes |
 |---|---|
-| API Key | Model Studio console → API-KEY. Stored only on this machine, in `settings.json` |
+| API Key | [Model Studio console → API-KEY](https://bailian.console.alibabacloud.com/?tab=model#/api-key) (China regions: [bailian.console.aliyun.com](https://bailian.console.aliyun.com/?tab=model#/api-key)). Stored only on this machine, in `settings.json`; the settings page has a direct link too |
 | Model | `qwen3.5-livetranslate-flash-realtime` (60 languages, default) or `qwen3-livetranslate-flash-realtime` (18). Switching to the older model narrows the language pickers to what it supports, and a language it cannot handle falls back automatically |
 | Region | China (Beijing) / Singapore |
 | Workspace ID | **Optional.** Leave blank for the shared endpoint `dashscope[-intl].aliyuncs.com`; filling it in uses your workspace's dedicated domain `{id}.cn-beijing.maas.aliyuncs.com` (better performance). Find it on the workspace detail page |
@@ -61,6 +61,9 @@ The settings panel shows the exact WebSocket endpoint it will dial, live.
 | macOS 12–14.3 | ✅ | ❌ | Process taps are a 14.4 API |
 | Ubuntu 22.04+ | ✅ | ⚠️ | ALSA has no loopback; route it in pavucontrol (below) |
 
+<details>
+<summary><b>Platform details: Ubuntu routing, macOS permissions, Linux tray</b></summary>
+
 **System audio on Ubuntu**: ALSA does not enumerate PulseAudio/PipeWire monitor sources, so the
 app cannot offer "system audio" devices. Pick any input device on the System audio tab, start
 translating, then open `pavucontrol` → *Recording* and point ReaLingo's source at your output's
@@ -74,12 +77,17 @@ of silence. The prompt also only appears for a properly signed binary.
 **Linux tray**: AppIndicator has no left-click event, so clicking the tray icon will not restore
 the window on Ubuntu. Use "Show window" in the right-click menu.
 
+</details>
+
 ## Development
 
 ```bash
 npm install
 npm run tauri dev
 ```
+
+<details>
+<summary><b>Building, releasing and icon generation (rarely needed)</b></summary>
 
 Build prerequisites per platform:
 
@@ -172,7 +180,13 @@ palette bands the gradient wordmark and its 1-bit transparency leaves white frin
 backgrounds. APNG keeps full colour and alpha, the extension is still `.png`, and anything
 that cannot animate it shows frame one — the static logo.
 
+</details>
+
 ## Architecture
+
+
+<details>
+<summary><b>Data flow, why the WebSocket lives in Rust, resampling</b></summary>
 
 ```
 microphone ──┐
@@ -193,6 +207,8 @@ audio file ──┘   (cpal / symphonia)                                       
 - **Resampling** is a direct windowed sinc with the cutoff pinned to the lower of the two
   Nyquist frequencies, so any ratio is anti-aliased (48000/16000 = 3, 44100/16000 = 2.75625).
 
+</details>
+
 ## Known limits
 
 | Not supported | Why / when it would be added |
@@ -205,6 +221,10 @@ audio file ──┘   (cpal / symphonia)                                       
 | Encrypted API key storage | Plain text in the local config, as most desktop tools do; swap in `keyring` if you need more |
 
 ## Why two-way translation is not implemented
+
+
+<details>
+<summary><b>Measured result: translation.language is immutable per session</b></summary>
 
 The obvious approach is to watch `language` on the transcript events and, when the speaker
 switches to the target language, send another `session.update` flipping `translation.language`.
@@ -226,6 +246,8 @@ The workable design is **two lanes**: fan the same audio out to two parallel ses
 B→A) and take whichever one is not translating into the language being spoken. The cost is
 double the input audio tokens (7 → 14 per second) and double the output. It will be built when
 conversational two-way interpreting is actually needed.
+
+</details>
 
 ## License
 

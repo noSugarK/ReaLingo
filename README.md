@@ -41,7 +41,7 @@ Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`
 
 | 项 | 说明 |
 |---|---|
-| API Key | 百炼控制台 → API-KEY。只保存在本机 `settings.json` |
+| API Key | [百炼控制台 → API-KEY](https://bailian.console.aliyun.com/?tab=model#/api-key)（新加坡地域用 [国际站控制台](https://bailian.console.alibabacloud.com/?tab=model#/api-key)）。只保存在本机 `settings.json`，设置页里也有直达按钮 |
 | 翻译模型 | `qwen3.5-livetranslate-flash-realtime`（60 语种，默认）或 `qwen3-livetranslate-flash-realtime`（18 语种）。切到旧模型后语言选择器只列它支持的 18 种，当前选择不在其中会自动回退 |
 | 地域 | 华北2（北京）/ 新加坡 |
 | 业务空间 ID | **选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.cn-beijing.maas.aliyuncs.com`（性能更好），在百炼控制台业务空间详情页查看 |
@@ -57,6 +57,9 @@ Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`
 | macOS 12–14.3 | ✅ | ❌ | process tap 是 14.4 才有的 API |
 | Ubuntu 22.04+ | ✅ | ⚠️ | ALSA 没有回录通道，需在 pavucontrol 里转接（见下） |
 
+<details>
+<summary><b>平台细节：Ubuntu 转接、macOS 权限、Linux 托盘</b></summary>
+
 **Ubuntu 的系统声音**：ALSA 不枚举 PulseAudio/PipeWire 的 monitor 源，所以应用里给不出「系统声音」设备。
 做法是在「系统声音」页随便选一个输入设备，开始翻译后打开 `pavucontrol` →「录制」标签，
 把 ReaLingo 的来源改成输出设备的 **Monitor**。界面里也有这段提示。
@@ -68,12 +71,17 @@ Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`
 **Linux 托盘**：AppIndicator 不支持左键单击事件，所以左键唤回主窗在 Ubuntu 上不生效，
 用右键菜单里的「显示主窗口」。
 
+</details>
+
 ## 开发
 
 ```bash
 npm install
 npm run tauri dev
 ```
+
+<details>
+<summary><b>构建、发布与图标生成（平时用不到）</b></summary>
 
 各平台构建依赖：
 
@@ -179,7 +187,13 @@ README 默认用静态版（117 KB）。动图版 `brand/banner-animated.png`（
 GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留白边；APNG 全彩 + 完整 alpha，
 后缀仍是 `.png`，不支持动画的地方退化成第一帧（即静态 logo）。
 
+</details>
+
 ## 架构
+
+
+<details>
+<summary><b>数据流、为什么 WebSocket 在 Rust 侧、重采样</b></summary>
 
 ```
 麦克风 ──┐
@@ -198,6 +212,8 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 - **重采样**：直接窗化 sinc，截止频率取两端奈奎斯特的较小者，任意比率都抗混叠
   （48000/16000 = 3，44100/16000 = 2.75625）。
 
+</details>
+
 ## 已知边界
 
 | 不支持 | 原因 / 何时加 |
@@ -210,6 +226,10 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 | API Key 加密存储 | 明文存本地配置，与多数桌面工具一致；要更严可换 `keyring` |
 
 ## 双语互译为什么还没做
+
+
+<details>
+<summary><b>实测结论：translation.language 是会话级不可变</b></summary>
 
 直觉做法是监听转写事件里的 `language`，发现说的是目标语言就补发一条 `session.update`
 把 `translation.language` 换到另一边。**实测不行** —— 用 `examples/probe.rs` 打真实端点：
@@ -228,6 +248,8 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 可行方案是**双通道**：同一份音频扇出喂两条并行会话（A→B 和 B→A），按 ASR 报的语种采纳
 其中一条的输出。代价是输入音频 token 翻倍（7 → 14 token/秒），输出也是双份。
 设计细节记在项目计划里，等确有对话式互译需求时再做。
+
+</details>
 
 ## 许可
 
