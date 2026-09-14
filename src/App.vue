@@ -10,7 +10,7 @@ import Card from "./components/Card.vue";
 import LangSelect from "./components/LangSelect.vue";
 import Settings from "./components/Settings.vue";
 import { locale, setLocale, t } from "./i18n";
-import { langName } from "./languages";
+import { langName, languageCodes } from "./languages";
 import { settings, initSettings, resolvedTheme, type SubMode } from "./store";
 import {
   current,
@@ -142,6 +142,17 @@ async function setOverlayClickThrough(locked: boolean) {
 watch(() => settings.sub, pushOverlayStyle, { deep: true });
 watch(() => settings.sub.show, showOverlay);
 watch(() => settings.sub.locked, setOverlayClickThrough);
+
+/* ---------- model / languages ---------- */
+const langCodes = computed(() => languageCodes(settings.model));
+
+// Switching to the smaller model can strand a language it cannot translate into; the
+// session would then be refused server-side, so repair the selection here instead.
+watch(langCodes, (codes) => {
+  const ok = new Set(codes);
+  if (settings.sourceLang !== "auto" && !ok.has(settings.sourceLang)) settings.sourceLang = "auto";
+  if (!ok.has(settings.targetLang)) settings.targetLang = ok.has("en") ? "en" : codes[0];
+});
 
 const subModes: [SubMode, "subBoth" | "subTarget" | "subSource"][] = [
   ["both", "subBoth"],
@@ -328,7 +339,7 @@ watch([lines, current], async () => {
                   {{ langName(detectedLang, locale) }}
                 </em>
               </span>
-              <LangSelect v-model="settings.sourceLang" allow-auto :disabled="isRunning()" />
+              <LangSelect v-model="settings.sourceLang" :codes="langCodes" allow-auto :disabled="isRunning()" />
             </div>
             <button
               class="btn-icon swap"
@@ -342,7 +353,7 @@ watch([lines, current], async () => {
             </button>
             <div class="col grow">
               <span class="mini">{{ t("to") }}</span>
-              <LangSelect v-model="settings.targetLang" :disabled="isRunning()" />
+              <LangSelect v-model="settings.targetLang" :codes="langCodes" :disabled="isRunning()" />
             </div>
           </div>
         </Card>

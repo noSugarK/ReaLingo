@@ -29,6 +29,7 @@ async fn main() -> anyhow::Result<()> {
         region: Region::Beijing,
         source_lang: "auto".into(),
         target_lang: target,
+        model: realingo_lib::config::MODEL.into(),
     };
 
     println!("→ {}", settings.ws_url());

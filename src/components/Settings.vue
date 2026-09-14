@@ -1,17 +1,28 @@
 <script setup lang="ts">
-import { ref, watchEffect, toRaw } from "vue";
+import { ref, watch, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { settings, type Region, type Theme } from "../store";
+import { MODEL_LEGACY, MODEL_NEW } from "../languages";
 import { locale, setLocale, t, type Locale } from "../i18n";
 
 defineEmits<{ close: [] }>();
 
 const endpoint = ref("");
-watchEffect(async () => {
-  // Touch the fields the URL depends on so the preview re-runs when they change.
-  void [settings.region, settings.workspaceId];
-  endpoint.value = await invoke<string>("endpoint_url", { settings: toRaw(settings) });
-});
+// An explicit source list, not watchEffect: the call awaits before touching anything else,
+// so only what is read synchronously is tracked — and a field missing from that list makes
+// the preview silently lag one change behind.
+watch(
+  () => [settings.region, settings.workspaceId, settings.model],
+  async () => {
+    endpoint.value = await invoke<string>("endpoint_url", { settings: toRaw(settings) });
+  },
+  { immediate: true }
+);
+
+const models: [string, "modelNew" | "modelLegacy"][] = [
+  [MODEL_NEW, "modelNew"],
+  [MODEL_LEGACY, "modelLegacy"],
+];
 
 const regions: [Region, "regionBJ" | "regionSG"][] = [
   ["beijing", "regionBJ"],
@@ -41,6 +52,21 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
           <span class="label">{{ t("apiKey") }}</span>
           <input v-model="settings.apiKey" type="password" placeholder="sk-..." spellcheck="false" />
           <small>{{ t("apiKeyHint") }}</small>
+        </label>
+
+        <label class="field">
+          <span class="label">{{ t("model") }}</span>
+          <div class="seg">
+            <button
+              v-for="[value, key] in models"
+              :key="value"
+              :class="{ on: settings.model === value }"
+              @click="settings.model = value"
+            >
+              {{ t(key) }}
+            </button>
+          </div>
+          <small>{{ t("modelHint") }}</small>
         </label>
 
         <label class="field">

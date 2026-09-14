@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 pub const MODEL: &str = "qwen3.5-livetranslate-flash-realtime";
+/// The previous generation. Same protocol, but only 18 languages — the UI narrows the
+/// pickers accordingly so a session cannot be opened with a target it will reject.
+pub const MODEL_LEGACY: &str = "qwen3-livetranslate-flash-realtime";
 pub const ASR_MODEL: &str = "qwen3-asr-flash-realtime";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
@@ -26,10 +29,15 @@ pub struct Settings {
     pub source_lang: String,
     #[serde(default = "en")]
     pub target_lang: String,
+    #[serde(default = "default_model")]
+    pub model: String,
 }
 
 fn auto() -> String {
     "auto".into()
+}
+fn default_model() -> String {
+    MODEL.into()
 }
 fn en() -> String {
     "en".into()
@@ -44,7 +52,8 @@ impl Settings {
             (Region::Singapore, true) => "dashscope-intl.aliyuncs.com".to_string(),
             (Region::Singapore, false) => format!("{ws}.ap-southeast-1.maas.aliyuncs.com"),
         };
-        format!("wss://{host}/api-ws/v1/realtime?model={MODEL}")
+        let model = if self.model.is_empty() { MODEL } else { &self.model };
+        format!("wss://{host}/api-ws/v1/realtime?model={model}")
     }
 
     /// The `session.update` payload. Text-only: we render subtitles, we don't speak.
@@ -90,6 +99,7 @@ mod tests {
             region,
             source_lang: "auto".into(),
             target_lang: "en".into(),
+            model: MODEL.into(),
         }
     }
 
@@ -112,8 +122,19 @@ mod tests {
     }
 
     #[test]
-    fn url_always_carries_the_model() {
+    fn url_carries_the_selected_model() {
         assert!(s(Region::Beijing, "").ws_url().ends_with(&format!("?model={MODEL}")));
+
+        let mut legacy = s(Region::Beijing, "");
+        legacy.model = MODEL_LEGACY.into();
+        assert!(legacy.ws_url().ends_with(&format!("?model={MODEL_LEGACY}")));
+    }
+
+    #[test]
+    fn empty_model_falls_back_to_the_current_one() {
+        let mut blank = s(Region::Beijing, "");
+        blank.model = String::new();
+        assert!(blank.ws_url().ends_with(&format!("?model={MODEL}")));
     }
 
     #[test]

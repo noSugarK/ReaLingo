@@ -3,7 +3,13 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { LANGUAGES, langName } from "../languages";
 import { locale, t } from "../i18n";
 
-const props = defineProps<{ modelValue: string; allowAuto?: boolean; disabled?: boolean }>();
+const props = defineProps<{
+  modelValue: string;
+  /** Codes to offer; defaults to every language. The active model narrows this. */
+  codes?: string[];
+  allowAuto?: boolean;
+  disabled?: boolean;
+}>();
 const emit = defineEmits<{ "update:modelValue": [string] }>();
 
 const open = ref(false);
@@ -16,7 +22,7 @@ const popStyle = ref<Record<string, string>>({});
 const MAX_POP_H = 300;
 
 const options = computed(() => {
-  const list = LANGUAGES.map((l) => l.code);
+  const list = props.codes ?? LANGUAGES.map((l) => l.code);
   return props.allowAuto ? ["auto", ...list] : list;
 });
 

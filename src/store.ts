@@ -1,5 +1,6 @@
 import { reactive, ref, watch } from "vue";
 import { load, type Store } from "@tauri-apps/plugin-store";
+import { MODEL_NEW } from "./languages";
 
 export type Region = "beijing" | "singapore";
 export type Theme = "system" | "light" | "dark";
@@ -22,6 +23,7 @@ export interface Settings {
   region: Region;
   sourceLang: string;
   targetLang: string;
+  model: string;
   theme: Theme;
   sub: SubtitleStyle;
 }
@@ -32,6 +34,7 @@ export const settings = reactive<Settings>({
   region: "beijing",
   sourceLang: "auto",
   targetLang: "en",
+  model: MODEL_NEW,
   theme: "system",
   sub: {
     show: false,
