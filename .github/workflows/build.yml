@@ -1,7 +1,7 @@
 name: build
 
-# Inert until this repo has a remote. It exists because macOS and Linux bundles cannot be
-# produced from a Windows machine — pushing is the only practical way to get those binaries.
+# macOS and Linux bundles cannot be produced from a Windows machine, so this is how those
+# binaries get made.
 on:
   workflow_dispatch:
   push:
@@ -15,16 +15,24 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            rust-targets: x86_64-pc-windows-msvc
+
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-          - os: macos-latest # Apple Silicon
-            target: aarch64-apple-darwin
-          - os: macos-13 # Intel
-            target: x86_64-apple-darwin
+            rust-targets: x86_64-unknown-linux-gnu
+            # rpm would be a third copy of the same app for a distro we do not target.
+            bundles: --bundles deb,appimage
+
+          # One universal binary instead of separate Intel/ARM jobs: the macos-13 runner was
+          # retired in Dec 2025 (an x86_64 job just queues forever), and Apple Silicon hosts
+          # can cross-compile x86_64 anyway. The resulting .dmg runs on both.
+          - os: macos-latest
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-22.04'
@@ -36,15 +44,15 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust-targets }}
 
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -55,10 +63,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ matrix.bundles }}
 
-      - uses: actions/upload-artifact@v4
+      # Only the installers. `bundle/**/*` also sweeps up the unpacked AppDir and .deb trees
+      # that the bundlers leave behind, which is what made the Linux artifact 192 MB —
+      # the same payload three times over.
+      - uses: actions/upload-artifact@v6
         with:
           name: realingo-${{ matrix.target }}
+          if-no-files-found: error
           path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*-setup.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage

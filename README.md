@@ -82,7 +82,19 @@ node tools/cdp.mjs probe.js subtitle      # 在字幕窗求值
 ```
 
 macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，`.github/workflows/build.yml`
-用 GitHub Actions 四个 target 各出一份：打个 `v*` tag，或在仓库 Actions 页手动触发。
+用 GitHub Actions 出三份：打个 `v*` tag，或在仓库 Actions 页手动触发。
+
+| artifact | 内容 |
+|---|---|
+| `realingo-x86_64-pc-windows-msvc` | `.msi` + NSIS `.exe` |
+| `realingo-universal-apple-darwin` | `.dmg`，**Intel 与 Apple Silicon 通用** |
+| `realingo-x86_64-unknown-linux-gnu` | `.deb`（约 6 MB）+ `.AppImage`（约 90 MB） |
+
+macOS 不再单独跑 Intel job —— `macos-13` runner 已于 2025-12 退役，x86_64 的 job 只会一直排队；
+改为在 Apple Silicon 上交叉编译出 universal 二进制，一个 DMG 通吃。
+
+AppImage 自带整套 WebKitGTK，九十多 MB 是它的固有体积。只要 `.deb` 的话，把 workflow 里
+`--bundles deb,appimage` 改成 `--bundles deb` 即可。
 
 打包：
 
