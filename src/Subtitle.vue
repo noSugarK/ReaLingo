@@ -75,6 +75,15 @@ const outline = computed(() =>
   padding: 8px;
 }
 
+/* While interactive the window intercepts clicks across its whole rect, transparent parts
+   included — so make that rect visible instead of leaving an invisible dead zone. */
+.wrap:not(.locked) {
+  background: rgba(10, 132, 255, 0.07);
+  outline: 1.5px dashed rgba(10, 132, 255, 0.55);
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+
 .bar {
   width: 100%;
   padding: 14px 26px;
@@ -91,7 +100,10 @@ const outline = computed(() =>
 }
 .wrap:not(.locked) .bar:active { cursor: grabbing; }
 
-p { margin: 0; line-height: 1.4; word-break: break-word; }
+/* Tauri starts a window drag only when the mousedown target itself carries
+   data-tauri-drag-region. Letting pointer events fall through the text makes the whole
+   plate draggable instead of just its padding. */
+p { margin: 0; line-height: 1.4; word-break: break-word; pointer-events: none; }
 
 .src { font-size: 0.62em; font-weight: 500; margin-bottom: 0.2em; opacity: 0.92; }
 .tgt { font-size: 1em; font-weight: 700; letter-spacing: -0.01em; }

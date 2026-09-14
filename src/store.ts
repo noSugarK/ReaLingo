@@ -41,7 +41,9 @@ export const settings = reactive<Settings>({
     color: "#ffffff",
     srcColor: "#a8c0dd",
     outline: true,
-    locked: false,
+    // Default to click-through: an always-on-top overlay otherwise eats every click inside
+    // its window rect, transparent parts included. Turn it off to reposition the bar.
+    locked: true,
   },
 });
 

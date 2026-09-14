@@ -109,14 +109,32 @@ async function subtitleWindow() {
   return await WebviewWindow.getByLabel("subtitle");
 }
 
-async function syncOverlay() {
-  const w = await subtitleWindow();
-  if (!w) return;
-  await (settings.sub.show ? w.show() : w.hide());
-  await w.setIgnoreCursorEvents(settings.sub.locked);
+async function pushOverlayStyle() {
   await emitTo("subtitle", "sub://style", JSON.parse(JSON.stringify(settings.sub)));
 }
-watch(() => settings.sub, syncOverlay, { deep: true });
+
+async function showOverlay(show: boolean) {
+  const w = await subtitleWindow();
+  if (!w) return;
+  if (!show) return w.hide();
+  await w.show();
+  await pushOverlayStyle();
+  // An always-on-top overlay appearing must not pull focus away from the window the user
+  // is actually clicking in.
+  await win.setFocus();
+}
+
+async function setOverlayClickThrough(locked: boolean) {
+  const w = await subtitleWindow();
+  await w?.setIgnoreCursorEvents(locked);
+}
+
+// Styling is cheap to push on every tick; show/hide and click-through are window calls that
+// must fire only on a real change. Dragging a slider used to re-`show()` an already visible
+// always-on-top window dozens of times a second, which is what made focus feel broken.
+watch(() => settings.sub, pushOverlayStyle, { deep: true });
+watch(() => settings.sub.show, showOverlay);
+watch(() => settings.sub.locked, setOverlayClickThrough);
 
 const subModes: [SubMode, "subBoth" | "subTarget" | "subSource"][] = [
   ["both", "subBoth"],
@@ -140,7 +158,8 @@ let levelTimer: number | undefined;
 onMounted(async () => {
   await initSettings();
   await refreshDevices();
-  await syncOverlay();
+  await setOverlayClickThrough(settings.sub.locked);
+  await showOverlay(settings.sub.show);
   levelTimer = window.setInterval(async () => {
     level.value = isRunning() ? await invoke<number>("input_level") : 0;
   }, 60);
