@@ -61,7 +61,14 @@ impl Settings {
                 "input_audio_format": "pcm",
                 "translation": { "language": self.target_lang },
                 "input_audio_transcription": transcription,
-                "turn_detection": {}
+                // An empty object leaves VAD unconfigured: the server never closes a turn,
+                // so the text accumulates into one endless paragraph and later audio collides
+                // with the still-running turn. Spell the parameters out.
+                "turn_detection": {
+                    "type": "server_vad",
+                    "threshold": 0.2,
+                    "silence_duration_ms": 800
+                }
             }
         })
     }
@@ -102,6 +109,13 @@ mod tests {
     #[test]
     fn url_always_carries_the_model() {
         assert!(s(Region::Beijing, "").ws_url().ends_with(&format!("?model={MODEL}")));
+    }
+
+    #[test]
+    fn turn_detection_is_configured_not_empty() {
+        let vad = &s(Region::Beijing, "").session_update()["session"]["turn_detection"];
+        assert_eq!(vad["type"], "server_vad");
+        assert!(vad["silence_duration_ms"].as_u64().unwrap() > 0);
     }
 
     #[test]

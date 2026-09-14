@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { LANGUAGES, langName } from "../languages";
 import { locale, t } from "../i18n";
 
@@ -9,7 +9,11 @@ const emit = defineEmits<{ "update:modelValue": [string] }>();
 const open = ref(false);
 const query = ref("");
 const box = ref<HTMLElement | null>(null);
+const pop = ref<HTMLElement | null>(null);
 const search = ref<HTMLInputElement | null>(null);
+const popStyle = ref<Record<string, string>>({});
+
+const MAX_POP_H = 300;
 
 const options = computed(() => {
   const list = LANGUAGES.map((l) => l.code);
@@ -27,25 +31,63 @@ const filtered = computed(() => {
   );
 });
 
+/**
+ * The popup is teleported to <body> and positioned by hand. It has to be: every card is a
+ * `.glass` (own stacking context) inside a scrolling sidebar, so an in-flow popup gets both
+ * clipped by the scroller and painted under the card below it, whatever its z-index.
+ */
+function place() {
+  const r = box.value?.getBoundingClientRect();
+  if (!r) return;
+  const below = window.innerHeight - r.bottom;
+  const flipUp = below < MAX_POP_H && r.top > below;
+  popStyle.value = {
+    left: `${r.left}px`,
+    width: `${r.width}px`,
+    ...(flipUp
+      ? { bottom: `${window.innerHeight - r.top + 6}px` }
+      : { top: `${r.bottom + 6}px` }),
+  };
+}
+
+function onPointerDown(e: PointerEvent) {
+  const target = e.target as Node;
+  if (!box.value?.contains(target) && !pop.value?.contains(target)) open.value = false;
+}
+const close = () => (open.value = false);
+
 watch(open, async (v) => {
-  if (!v) return;
-  query.value = "";
-  await nextTick();
-  search.value?.focus();
+  if (v) {
+    query.value = "";
+    place();
+    document.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("resize", close);
+    // Any scroll invalidates the anchor; closing beats chasing it.
+    window.addEventListener("scroll", close, true);
+    await nextTick();
+    place();
+    search.value?.focus();
+  } else {
+    document.removeEventListener("pointerdown", onPointerDown, true);
+    window.removeEventListener("resize", close);
+    window.removeEventListener("scroll", close, true);
+  }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", onPointerDown, true);
+  window.removeEventListener("resize", close);
+  window.removeEventListener("scroll", close, true);
 });
 
 function pick(code: string) {
   emit("update:modelValue", code);
   open.value = false;
 }
-
-function onBlur(e: FocusEvent) {
-  if (!box.value?.contains(e.relatedTarget as Node)) open.value = false;
-}
 </script>
 
 <template>
-  <div ref="box" class="ls" @focusout="onBlur">
+  <div ref="box" class="ls">
     <button class="ls-trigger" :disabled="disabled" @click="open = !open">
       <span class="ls-value">{{ langName(modelValue, locale) }}</span>
       <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
@@ -53,30 +95,32 @@ function onBlur(e: FocusEvent) {
       </svg>
     </button>
 
-    <div v-if="open" class="ls-pop glass">
-      <input
-        ref="search"
-        v-model="query"
-        type="search"
-        class="ls-search"
-        :placeholder="t('searchLang')"
-        @keydown.esc="open = false"
-        @keydown.enter="filtered[0] && pick(filtered[0])"
-      />
-      <div class="ls-list">
-        <button
-          v-for="code in filtered"
-          :key="code"
-          class="ls-opt"
-          :class="{ on: code === modelValue }"
-          @click="pick(code)"
-        >
-          <span>{{ langName(code, locale) }}</span>
-          <span class="ls-code">{{ code }}</span>
-        </button>
-        <div v-if="!filtered.length" class="ls-none">—</div>
+    <Teleport to="body">
+      <div v-if="open" ref="pop" class="ls-pop glass" :style="popStyle">
+        <input
+          ref="search"
+          v-model="query"
+          type="search"
+          class="ls-search"
+          :placeholder="t('searchLang')"
+          @keydown.esc="open = false"
+          @keydown.enter="filtered[0] && pick(filtered[0])"
+        />
+        <div class="ls-list">
+          <button
+            v-for="code in filtered"
+            :key="code"
+            class="ls-opt"
+            :class="{ on: code === modelValue }"
+            @click="pick(code)"
+          >
+            <span>{{ langName(code, locale) }}</span>
+            <span class="ls-code">{{ code }}</span>
+          </button>
+          <div v-if="!filtered.length" class="ls-none">—</div>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -102,27 +146,37 @@ function onBlur(e: FocusEvent) {
 .ls-trigger:disabled { opacity: 0.45; cursor: not-allowed; }
 .ls-trigger svg { color: var(--ink-3); flex: none; }
 .ls-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
 
+<!-- Teleported to <body>, so the popup cannot be scoped to this component. -->
+<style>
 .ls-pop {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
+  position: fixed;
+  z-index: 80;
   padding: 8px;
   border-radius: var(--r-md);
-  animation: pop 0.18s var(--ease);
+  /* Teleported out of the glass card, so it needs its own opaque-enough plate. */
+  background: var(--glass);
+  backdrop-filter: blur(34px) saturate(185%);
+  box-shadow: 0 20px 44px -14px rgba(10, 16, 40, 0.5), inset 0 1px 0 var(--glass-hi);
+  animation: ls-pop-in 0.18s var(--ease);
 }
-@keyframes pop {
+@keyframes ls-pop-in {
   from { opacity: 0; transform: translateY(-6px) scale(0.97); }
 }
 
-.ls-search { height: 32px; margin-bottom: 6px; }
-.ls-search::-webkit-search-cancel-button { display: none; }
+.ls-pop .ls-search { height: 32px; margin-bottom: 6px; }
+.ls-pop .ls-search::-webkit-search-cancel-button { display: none; }
 
-.ls-list { max-height: 244px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.ls-pop .ls-list {
+  max-height: 244px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 
-.ls-opt {
+.ls-pop .ls-opt {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -133,9 +187,9 @@ function onBlur(e: FocusEvent) {
   text-align: left;
   transition: background 0.14s;
 }
-.ls-opt:hover { background: var(--shade); }
-.ls-opt.on { background: var(--accent); color: #fff; }
-.ls-opt.on .ls-code { color: rgba(255, 255, 255, 0.7); }
-.ls-code { font-size: 11px; color: var(--ink-3); font-variant: small-caps; }
-.ls-none { padding: 14px; text-align: center; color: var(--ink-3); font-size: 13px; }
+.ls-pop .ls-opt:hover { background: var(--shade); }
+.ls-pop .ls-opt.on { background: var(--accent); color: #fff; }
+.ls-pop .ls-opt.on .ls-code { color: rgba(255, 255, 255, 0.7); }
+.ls-pop .ls-code { font-size: 11px; color: var(--ink-3); font-variant: small-caps; }
+.ls-pop .ls-none { padding: 14px; text-align: center; color: var(--ink-3); font-size: 13px; }
 </style>

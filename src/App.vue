@@ -26,6 +26,7 @@ import {
   start,
   status,
   stop,
+  warnMsg,
 } from "./stream";
 
 type SourceKind = "mic" | "system" | "file";
@@ -374,6 +375,7 @@ watch([lines, current], async () => {
 
     <footer class="dock">
       <p v-if="errorMsg" class="err">{{ errorMsg }}</p>
+      <p v-else-if="warnMsg" class="warn">{{ warnMsg }}</p>
       <button
         class="go"
         :class="{ running: isRunning() }"
@@ -527,6 +529,11 @@ watch([lines, current], async () => {
   position: absolute; left: 0; right: 0; bottom: 56px;
   margin: 0; text-align: center; font-size: 12px; color: var(--danger); font-weight: 600;
 }
+.warn {
+  position: absolute; left: 0; right: 0; bottom: 56px;
+  margin: 0; text-align: center; font-size: 12px; color: #b7791f; font-weight: 600;
+}
+:root[data-theme="dark"] .warn { color: #ffd60a; }
 
 .go {
   position: relative;

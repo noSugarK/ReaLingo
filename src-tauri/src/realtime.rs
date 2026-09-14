@@ -187,8 +187,10 @@ fn classify(v: &Value) -> Option<Event> {
         "input_audio_buffer.speech_stopped" => Event { kind: "speech", text: "stop".into(), ..Default::default() },
         "session.created" | "session.updated" => Event { kind: "status", text: "connected".into(), ..Default::default() },
         "session.finished" => Event { kind: "status", text: "closed".into(), ..Default::default() },
+        // A server `error` frame (e.g. "previous turn is still processing") does not end
+        // the session — surfacing it as a fatal error would wrongly stop the stream.
         "error" => Event {
-            kind: "error",
+            kind: "warn",
             text: v
                 .pointer("/error/message")
                 .and_then(Value::as_str)

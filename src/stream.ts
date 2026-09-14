@@ -23,6 +23,9 @@ export const current = reactive({ source: "", sourceStash: "", target: "", targe
 export const detectedLang = ref("");
 export const status = ref<Status>("idle");
 export const errorMsg = ref("");
+/** Non-fatal server notices (e.g. "previous turn is still processing"); auto-clears. */
+export const warnMsg = ref("");
+let warnTimer: number | undefined;
 export const speaking = ref(false);
 export const fileProgress = ref<{ sent: number; total: number | null } | null>(null);
 /** Raw server frames, newest last — the diagnostics drawer. */
@@ -45,7 +48,7 @@ function clearCurrent() {
 }
 
 interface RtEvent {
-  kind: "status" | "target" | "source" | "speech" | "error" | "progress";
+  kind: "status" | "target" | "source" | "speech" | "error" | "warn" | "progress";
   text: string;
   stash: string;
   lang: string;
@@ -92,6 +95,12 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
         fileProgress.value = { sent: Number(sent), total: total === "?" ? null : Number(total) };
       }
       break;
+    case "warn":
+      // The session is still alive — say so and keep streaming.
+      warnMsg.value = e.text;
+      window.clearTimeout(warnTimer);
+      warnTimer = window.setTimeout(() => (warnMsg.value = ""), 6000);
+      break;
     case "error":
       errorMsg.value = e.text;
       status.value = "error";
@@ -108,6 +117,7 @@ export type Source = { kind: "device"; id: string } | { kind: "file"; path: stri
 
 export async function start(source: Source) {
   errorMsg.value = "";
+  warnMsg.value = "";
   lines.value = [];
   detectedLang.value = "";
   clearCurrent();
