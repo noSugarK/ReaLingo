@@ -26,7 +26,7 @@ Grab the installer for your platform from the
 ## Features
 
 - **Three audio sources**: microphone / system audio / a local audio file
-  (Windows, macOS, Ubuntu — see [Platform support](#platform-support))
+  (Windows, macOS and Ubuntu can all capture system audio directly)
 - **60 languages**, with automatic source detection; switchable to the older Qwen3 model (18 languages)
 - **Standalone subtitle overlay**: always on top, bilingual / translation only / source only,
   with adjustable background opacity, font size, colours and outline. Lock it to make clicks
@@ -73,15 +73,28 @@ text in the config file, and the settings page says so rather than pretending ot
 | Windows 10/11 | ✅ | ✅ | WASAPI loopback, nothing to configure |
 | macOS 14.4+ | ✅ | ✅ | Core Audio process tap; macOS asks for permission on first use |
 | macOS 12–14.3 | ✅ | ❌ | Process taps are a 14.4 API |
-| Ubuntu 22.04+ | ✅ | ⚠️ | ALSA has no loopback; route it in pavucontrol (below) |
+| Ubuntu 22.04+ | ✅ | ✅ | Goes around ALSA and asks PulseAudio / PipeWire for monitor sources (below) |
 
 <details>
-<summary><b>Platform details: Ubuntu routing, macOS permissions, Linux tray</b></summary>
+<summary><b>Platform details: Linux system audio, macOS permissions, Linux tray</b></summary>
 
-**System audio on Ubuntu**: ALSA does not enumerate PulseAudio/PipeWire monitor sources, so the
-app cannot offer "system audio" devices. Pick any input device on the System audio tab, start
-translating, then open `pavucontrol` → *Recording* and point ReaLingo's source at your output's
-**Monitor**. The app shows this hint inline.
+**System audio on Ubuntu**: ALSA has neither a loopback flag nor any knowledge of the
+PulseAudio/PipeWire *monitor* sources — and a monitor is exactly the "record what this output
+is playing" device you pick in pavucontrol. So system audio on Linux does not go through cpal;
+it talks to the sound server directly (`src-tauri/src/pulse.rs`):
+
+- `pactl list sources` lists every source; the ones carrying `Monitor of Sink` go straight
+  into the device picker
+- `parec` records one and writes raw PCM to stdout. Asking it for s16le/16000/mono has the
+  sound server do the downmix and resampling, so samples land in the exact shape the uplink
+  wants and skip our own pipeline
+
+Both tools speak the PulseAudio protocol, which PipeWire also serves (`pipewire-pulse`), so
+one path covers both. They come from `pulseaudio-utils`, now in the `.deb` `depends`.
+
+Only when **no sound server answers** (a headless box) does the old story apply: no system
+audio entries, and the app tells you to point ReaLingo at your output's Monitor in
+pavucontrol's Recording tab.
 
 **macOS permissions**: microphone and system audio are two separate TCC permissions, backed by
 `NSMicrophoneUsageDescription` and `NSAudioCaptureUsageDescription` in `src-tauri/Info.plist`.
@@ -240,7 +253,6 @@ audio file ──┘   (cpal / symphonia)                                       
 |---|---|
 | Spoken translation output (TTS) | Currently `modalities: ["text"]`. Add `"audio"` plus a Web Audio playback queue |
 | Video files (extracting the audio track from mp4/mkv) | Needs an ffmpeg sidecar, +40–80 MB to the installer |
-| Capturing system audio directly on Ubuntu | ALSA has no loopback; route it in pavucontrol, see Platform support |
 | Two-way translation (speak Chinese → English, speak English → Chinese) | See below |
 | Automatic reconnection | You restart manually after an error — a dropped simultaneous-interpreting session is something the user should know about |
 

@@ -2,6 +2,7 @@ mod audio;
 pub mod config;
 pub mod decode;
 mod realtime;
+pub mod pulse;
 pub mod resample;
 mod secret;
 mod tray;
@@ -47,7 +48,7 @@ pub struct Platform {
 fn platform() -> Platform {
     Platform {
         os: std::env::consts::OS,
-        loopback: audio::LOOPBACK_SUPPORTED,
+        loopback: audio::loopback_supported(),
         keyring: secret::available(),
     }
 }

@@ -24,7 +24,7 @@ Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`
 
 ## 功能
 
-- **三种音频来源**：麦克风 / 系统声音 / 本地音频文件（Windows、macOS、Ubuntu，见「平台支持」）
+- **三种音频来源**：麦克风 / 系统声音 / 本地音频文件（Windows、macOS、Ubuntu 三平台都能直接采系统声音）
 - **60 种语言互译**，源语言可自动检测；可切换到旧模型 Qwen3（18 语种）
 - **独立字幕窗**：默认置顶，双语 / 仅译文 / 仅原文，背景不透明度、字号、字体颜色、描边可调，
   锁定后鼠标点击穿透（不挡住下面的播放器）
@@ -68,14 +68,24 @@ Linux 上如果没有跑 Secret Service（无桌面环境或精简发行版）�
 | Windows 10/11 | ✅ | ✅ | WASAPI loopback，无需额外配置 |
 | macOS 14.4+ | ✅ | ✅ | Core Audio process tap；首次使用会弹权限申请 |
 | macOS 12–14.3 | ✅ | ❌ | process tap 是 14.4 才有的 API |
-| Ubuntu 22.04+ | ✅ | ⚠️ | ALSA 没有回录通道，需在 pavucontrol 里转接（见下） |
+| Ubuntu 22.04+ | ✅ | ✅ | 绕开 ALSA，直接向 PulseAudio / PipeWire 要 monitor 源（见下） |
 
 <details>
-<summary><b>平台细节：Ubuntu 转接、macOS 权限、Linux 托盘</b></summary>
+<summary><b>平台细节：Linux 系统声音、macOS 权限、Linux 托盘</b></summary>
 
-**Ubuntu 的系统声音**：ALSA 不枚举 PulseAudio/PipeWire 的 monitor 源，所以应用里给不出「系统声音」设备。
-做法是在「系统声音」页随便选一个输入设备，开始翻译后打开 `pavucontrol` →「录制」标签，
-把 ReaLingo 的来源改成输出设备的 **Monitor**。界面里也有这段提示。
+**Ubuntu 的系统声音**：ALSA 既没有回录标志，也不枚举 PulseAudio/PipeWire 的 monitor 源 ——
+monitor 正是「录下这个输出在放什么」的设备，pavucontrol 里能选到的就是它。所以 Linux 的系统声音
+不走 cpal，而是直接跟声音服务器说话（`src-tauri/src/pulse.rs`）：
+
+- `pactl list sources` 列出全部源，带 `Monitor of Sink` 的就是 monitor，直接进设备下拉框
+- `parec` 录其中一个，raw PCM 走 stdout。直接问它要 s16le/16000/mono，降混和重采样由声音
+  服务器做完，样本到手就是上行要的形状，跳过我们自己那套管线
+
+这俩工具说的是 PulseAudio 协议，PipeWire 也提供（`pipewire-pulse`），一条路覆盖两个声音服务器。
+它们来自 `pulseaudio-utils`，已写进 `.deb` 的 `depends`。
+
+只有在**没有声音服务器应答**时（无桌面环境的机器）才回到老办法：设备列表里不给系统声音，
+界面提示你自己在 `pavucontrol` →「录制」标签把 ReaLingo 的来源改成输出设备的 Monitor。
 
 **macOS 权限**：麦克风和系统声音是两个独立的 TCC 权限，分别对应 `src-tauri/Info.plist` 里的
 `NSMicrophoneUsageDescription` 和 `NSAudioCaptureUsageDescription`。后者缺失时 macOS
@@ -243,7 +253,6 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 |---|---|
 | 译文语音输出（TTS） | 当前 `modalities: ["text"]`。加 `"audio"` + 前端 Web Audio 播放队列即可 |
 | 视频文件（mp4/mkv 抽音轨） | 需打包 ffmpeg sidecar，安装包 +40~80MB |
-| Ubuntu 直接采集系统声音 | ALSA 无回录通道，需在 pavucontrol 转接，见「平台支持」 |
 | 双语互译（说中出英 / 说英出中） | 见下方「双语互译为什么还没做」 |
 | 断线自动重连 | 目前报错后需手动重新开始 —— 实时同传断线本就需要用户知情 |
 

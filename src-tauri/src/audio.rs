@@ -10,9 +10,10 @@
 //!   `NSAudioCaptureUsageDescription` (see `Info.plist`) — without it TCC denies access
 //!   *silently*, handing back perfectly valid buffers full of zeros.
 //! - **Linux / ALSA**: there is no loopback flag, and the monitor sources that would serve
-//!   the purpose belong to PulseAudio/PipeWire, which ALSA does not enumerate. So no system
-//!   audio entries are offered; the user routes our recording stream to a monitor in
-//!   pavucontrol instead, which needs no code on our side.
+//!   the purpose belong to PulseAudio/PipeWire, which ALSA does not enumerate. cpal
+//!   therefore cannot reach them at all, so system audio here does not go through cpal: see
+//!   [`crate::pulse`], which asks the sound server directly. Only when no sound server
+//!   answers does the old story hold — no system-audio entries, route it in pavucontrol.
 
 use anyhow::{anyhow, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -35,8 +36,21 @@ pub struct DeviceInfo {
 const MIC: &str = "mic";
 const SYS: &str = "sys";
 
-/// Whether this platform can capture what the speakers are playing. See the module docs.
-pub const LOOPBACK_SUPPORTED: bool = cfg!(any(target_os = "windows", target_os = "macos"));
+/// Whether this machine can capture what the speakers are playing. See the module docs.
+///
+/// A function, not a constant, because on Linux the answer is a runtime one: it depends on
+/// a sound server being up, which can change while the app is open. Elsewhere it folds to a
+/// compile-time fact.
+pub fn loopback_supported() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        crate::pulse::available()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        cfg!(any(target_os = "windows", target_os = "macos"))
+    }
+}
 /// `DeviceId`'s own Display already contains ':', so separate our prefix with something else.
 const SEP: char = '|';
 
@@ -57,7 +71,14 @@ pub fn list_devices() -> Vec<DeviceInfo> {
     }
     // Listing output devices where loopback is impossible would only offer the user streams
     // that fail to build.
-    if LOOPBACK_SUPPORTED {
+    #[cfg(target_os = "linux")]
+    out.extend(crate::pulse::monitors().into_iter().map(|m| DeviceInfo {
+        id: format!("{SYS}{SEP}{}", m.name),
+        name: m.label,
+        loopback: true,
+    }));
+    #[cfg(not(target_os = "linux"))]
+    if loopback_supported() {
         if let Ok(devices) = host.output_devices() {
             out.extend(devices.filter_map(|d| describe(&d, SYS)));
         }
@@ -68,13 +89,27 @@ pub fn list_devices() -> Vec<DeviceInfo> {
 /// Best guess for the initial UI selection: default mic, else default output (loopback).
 pub fn default_device_id(loopback: bool) -> Option<String> {
     let host = cpal::default_host();
-    if loopback {
-        if !LOOPBACK_SUPPORTED {
+    if !loopback {
+        return host.default_input_device().and_then(|d| describe(&d, MIC)).map(|d| d.id);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Fall back to the first monitor: `pactl get-default-sink` can name a sink whose
+        // monitor is not actually offered (a just-removed device), and an id that matches
+        // nothing leaves the picker looking empty.
+        let all = crate::pulse::monitors();
+        let preferred = crate::pulse::default_monitor()
+            .filter(|n| all.iter().any(|m| &m.name == n))
+            .or_else(|| all.first().map(|m| m.name.clone()))?;
+        Some(format!("{SYS}{SEP}{preferred}"))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        if !loopback_supported() {
             return None;
         }
         host.default_output_device().and_then(|d| describe(&d, SYS)).map(|d| d.id)
-    } else {
-        host.default_input_device().and_then(|d| describe(&d, MIC)).map(|d| d.id)
     }
 }
 
@@ -108,6 +143,13 @@ pub fn start(
     level: Arc<AtomicU32>,
     stop: Arc<AtomicBool>,
 ) -> Result<()> {
+    // Linux system audio never reaches cpal — it is a `parec` pipe, which owns its own
+    // thread and reports failure synchronously already.
+    #[cfg(target_os = "linux")]
+    if let Some(source) = id.strip_prefix(SYS).and_then(|r| r.strip_prefix(SEP)) {
+        return crate::pulse::start(source, tx, level, stop);
+    }
+
     let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
     let id = id.to_string();
 
