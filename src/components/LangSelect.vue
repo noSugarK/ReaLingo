@@ -54,31 +54,35 @@ function onPointerDown(e: PointerEvent) {
   const target = e.target as Node;
   if (!box.value?.contains(target) && !pop.value?.contains(target)) open.value = false;
 }
-const close = () => (open.value = false);
+
+/**
+ * Keep the popup glued to its trigger while things move — never close on scroll.
+ *
+ * The picker lives in a scrolling sidebar, and the browser scrolls a freshly focused
+ * trigger into view. A close-on-scroll handler therefore shot the popup down in the very
+ * frame it opened, which looked like the dropdown refusing to open at all; one pixel of
+ * scroll anywhere on the page was enough. Closing is left to an outside click or Esc.
+ */
+function bind(on: boolean) {
+  const fn = on ? window.addEventListener : window.removeEventListener;
+  const doc = on ? document.addEventListener : document.removeEventListener;
+  doc.call(document, "pointerdown", onPointerDown as EventListener, true);
+  fn.call(window, "resize", place);
+  // Capture, so scrolls inside any nested scroller reach us too.
+  fn.call(window, "scroll", place, true);
+}
 
 watch(open, async (v) => {
-  if (v) {
-    query.value = "";
-    place();
-    document.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("resize", close);
-    // Any scroll invalidates the anchor; closing beats chasing it.
-    window.addEventListener("scroll", close, true);
-    await nextTick();
-    place();
-    search.value?.focus();
-  } else {
-    document.removeEventListener("pointerdown", onPointerDown, true);
-    window.removeEventListener("resize", close);
-    window.removeEventListener("scroll", close, true);
-  }
+  bind(v);
+  if (!v) return;
+  query.value = "";
+  place();
+  await nextTick();
+  place();
+  search.value?.focus();
 });
 
-onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", onPointerDown, true);
-  window.removeEventListener("resize", close);
-  window.removeEventListener("scroll", close, true);
-});
+onBeforeUnmount(() => bind(false));
 
 function pick(code: string) {
   emit("update:modelValue", code);
