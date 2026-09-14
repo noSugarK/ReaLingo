@@ -33,6 +33,7 @@ Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`
   Windows 11 默认把新托盘图标折叠进 `^` 里，想常驻就从溢出区拖到任务栏上
 - **界面中英文切换**，浅色 / 深色 / 跟随系统
 - 译文导出 TXT / SRT
+- **关于面板**：点标题栏左上角 logo 打开，显示版本、检查更新（比对 GitHub 最新 release）、仓库与作者链接
 - 内置 `rt://raw` 事件查看器（标题栏 `< >` 按钮），用于排查协议字段
 
 ## 配置
@@ -176,8 +177,14 @@ cd src-tauri && cargo test
 
 ```bash
 node tools/make-icon.mjs brand/ReaLingo.png app-icon.png 1024
-node tools/make-icon.mjs brand/ReaLingo.png src/assets/mark.png 256
 npx tauri icon app-icon.png
+```
+
+应用内标题栏的 logo 不走这条路：白底板是给 OS 图标网格用的，放进界面里就是块贴在标题栏上的
+白卡片，深色主题下尤其突兀。它由 `make-banner.mjs` 的 `--mark` 模式出，只取图形、透明底：
+
+```bash
+node tools/make-banner.mjs brand/ReaLingo.png src/assets/mark.png 256 --mark
 ```
 
 README 顶部的横版 logo 由 `make-banner.mjs` 把上下堆叠的原 logo 重排成「图形在左、彩色字在右」，

@@ -5,6 +5,7 @@ import { keyringOk, settings, type Region, type Theme } from "../store";
 import { MODEL_LEGACY, MODEL_NEW } from "../languages";
 import { locale, setLocale, t, type Locale } from "../i18n";
 import Picker from "./Picker.vue";
+import Sheet from "./Sheet.vue";
 
 defineEmits<{ close: [] }>();
 
@@ -46,18 +47,7 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
 </script>
 
 <template>
-  <div class="scrim" @click.self="$emit('close')">
-    <div class="sheet glass">
-      <header class="sheet-head">
-        <h2>{{ t("settings") }}</h2>
-        <button class="btn-icon" :aria-label="t('close')" @click="$emit('close')">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-          </svg>
-        </button>
-      </header>
-
-      <div class="sheet-body">
+  <Sheet :title="t('settings')" @close="$emit('close')">
         <label class="field">
           <span class="label">{{ t("apiKey") }}</span>
           <input v-model="settings.apiKey" type="password" placeholder="sk-..." spellcheck="false" />
@@ -127,53 +117,10 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
             </button>
           </div>
         </label>
-      </div>
-    </div>
-  </div>
+  </Sheet>
 </template>
 
 <style scoped>
-.scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: min(40px, 4vh) 24px;
-  background: rgba(8, 10, 16, 0.34);
-  backdrop-filter: blur(6px);
-  animation: fade 0.2s var(--ease);
-}
-@keyframes fade { from { opacity: 0; } }
-
-.sheet {
-  width: min(520px, 100%);
-  max-height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--r-xl);
-  animation: rise 0.28s var(--ease);
-}
-@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
-
-.sheet-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 20px 6px;
-}
-.sheet-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-
-.sheet-body {
-  padding: 12px 20px 18px;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field small { font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
 

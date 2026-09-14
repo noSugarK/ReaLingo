@@ -165,8 +165,15 @@ Re-run after changing the logo:
 
 ```bash
 node tools/make-icon.mjs brand/ReaLingo.png app-icon.png 1024
-node tools/make-icon.mjs brand/ReaLingo.png src/assets/mark.png 256
 npx tauri icon app-icon.png
+```
+
+The in-app titlebar logo does not use that path: the white plate is for OS icon grids, and
+inside the UI it reads as a white card stuck on the header — glaringly so in dark mode. It
+comes from `make-banner.mjs` in `--mark` mode: graphic only, transparent background.
+
+```bash
+node tools/make-banner.mjs brand/ReaLingo.png src/assets/mark.png 256 --mark
 ```
 
 The horizontal lockup at the top of this file is produced by `make-banner.mjs`, which re-lays

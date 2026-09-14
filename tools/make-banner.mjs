@@ -3,10 +3,15 @@
 // equally well on GitHub's light and dark themes.
 //
 //   node tools/make-banner.mjs brand/ReaLingo.png brand/banner.png [height]
+//
+// Pass `--mark` to emit only the graphic, square and transparent — that is the in-app
+// titlebar logo. The white-plate version `make-icon.mjs` produces is for OS icon grids,
+// where a plate is expected; inside the app it reads as a white card stuck on the header.
 import { decode, encode } from "./png.mjs";
 
 const [src, dst, heightArg] = process.argv.slice(2);
 const H = Number(heightArg || 240);
+const markOnly = process.argv.includes("--mark");
 
 const { w, h, rgba } = decode(src);
 const at = (x, y) => (y * w + x) * 4;
@@ -65,7 +70,7 @@ const markW = Math.round((mark.w / mark.h) * markH);
 const wordH = Math.round(H * 0.46);
 const wordW = Math.round((word.w / word.h) * wordH);
 const gapX = Math.round(H * 0.2);
-const W = markW + gapX + wordW;
+const W = markOnly ? markW : markW + gapX + wordW;
 
 const out = Buffer.alloc(W * H * 4);
 
@@ -180,7 +185,7 @@ function blit(region, dx, dy, dw, dh, { alpha: A, color: C }) {
 }
 
 blit(mark, 0, 0, markW, markH, GRAPHIC);
-blit(word, markW + gapX, Math.round((H - wordH) / 2), wordW, wordH, WORDMARK);
+if (!markOnly) blit(word, markW + gapX, Math.round((H - wordH) / 2), wordW, wordH, WORDMARK);
 
 encode(W, H, out, dst);
 console.log(

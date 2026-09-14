@@ -10,6 +10,7 @@ import Card from "./components/Card.vue";
 import Picker from "./components/Picker.vue";
 import Slider from "./components/Slider.vue";
 import Settings from "./components/Settings.vue";
+import About from "./components/About.vue";
 import { locale, setLocale, t } from "./i18n";
 import { langName, languageCodes } from "./languages";
 import { settings, initSettings, resolvedTheme, type SubMode } from "./store";
@@ -34,6 +35,7 @@ type SourceKind = "mic" | "system" | "file";
 
 const win = getCurrentWindow();
 const showSettings = ref(false);
+const showAbout = ref(false);
 const showDiag = ref(false);
 const sourceKind = ref<SourceKind>("mic");
 const devices = ref<{ id: string; name: string; loopback: boolean }[]>([]);
@@ -264,13 +266,16 @@ watch([lines, current], async () => {
 
   <div class="shell">
     <header class="titlebar" data-tauri-drag-region>
-      <div class="brand" data-tauri-drag-region>
+      <!-- Opens About rather than jumping straight to the browser: this sits inside the
+           drag region, and a mis-aimed window drag should not launch a browser tab. The
+           repository link lives one click away, in the sheet. -->
+      <button class="brand" :title="t('about')" @click="showAbout = true">
         <img class="mark" src="./assets/mark.png" alt="" draggable="false" />
-        <div class="brand-text" data-tauri-drag-region>
+        <div class="brand-text">
           <strong>{{ t("appTitle") }}</strong>
           <small>{{ t("appSub") }}</small>
         </div>
-      </div>
+      </button>
 
       <div class="pill glass-thin" :class="status">
         <span class="dot" />
@@ -514,6 +519,7 @@ watch([lines, current], async () => {
   </div>
 
   <Settings v-if="showSettings" @close="showSettings = false" />
+  <About v-if="showAbout" @close="showAbout = false" />
 </template>
 
 <style scoped>
@@ -528,13 +534,16 @@ watch([lines, current], async () => {
 
 /* ---------- titlebar ---------- */
 .titlebar { display: flex; align-items: center; gap: 8px; height: 52px; }
-.brand { display: flex; align-items: center; gap: 10px; padding-left: 4px; }
-.mark {
-  width: 26px; height: 26px;
-  border-radius: 7px;
-  box-shadow: 0 3px 10px -3px rgba(10, 16, 40, 0.45);
-  -webkit-user-drag: none;
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 8px 4px 4px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background 0.2s;
 }
+.brand:hover { background: var(--shade); }
+/* No plate, no shadow: the mark is transparent artwork now, not a white icon tile. */
+.mark { width: 26px; height: auto; -webkit-user-drag: none; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-text strong { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
 .brand-text small { font-size: 10px; color: var(--ink-3); }
