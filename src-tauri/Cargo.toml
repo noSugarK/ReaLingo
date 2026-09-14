@@ -1,11 +1,11 @@
 [package]
-name = "realtime-translator"
+name = "realingo"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.90"
 
 [lib]
-name = "realtime_translator_lib"
+name = "realingo_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

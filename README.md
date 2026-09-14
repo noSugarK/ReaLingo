@@ -1,4 +1,4 @@
-# Realtime Translator · 实时语音翻译
+# ReaLingo · 实时语音翻译
 
 基于阿里云百炼 `qwen3.5-livetranslate-flash-realtime` 的桌面同声传译工具。
 Tauri 2 + Rust 内核，Vue 3 前端，苹果液态玻璃风格界面。
@@ -42,6 +42,16 @@ npm run tauri build
 
 ```bash
 cd src-tauri && cargo test
+```
+
+图标：源文件是 `brand/ReaLingo.png`（完整 logo，带文字）。应用图标只取上半部分的图形标 ——
+「ReaLingo」那行字在 32×32 任务栏尺寸下会糊成一团，所以裁掉，并把图形放到白色圆角底板上
+（直接抠白底会在抗锯齿边缘留白边）。logo 换了就重跑：
+
+```bash
+node tools/make-icon.mjs brand/ReaLingo.png app-icon.png 1024
+node tools/make-icon.mjs brand/ReaLingo.png src/assets/mark.png 256
+npx tauri icon app-icon.png
 ```
 
 ## 架构

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Realtime Translator",
+  "productName": "ReaLingo",
   "version": "0.1.0",
-  "identifier": "com.nosugark.realtime-translator",
+  "identifier": "com.nosugark.realingo",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Realtime Translator",
+        "title": "ReaLingo",
         "width": 1180,
         "height": 780,
         "minWidth": 960,
@@ -26,7 +26,7 @@
       {
         "label": "subtitle",
         "url": "subtitle.html",
-        "title": "Subtitle",
+        "title": "ReaLingo Subtitle",
         "width": 960,
         "height": 220,
         "x": 200,

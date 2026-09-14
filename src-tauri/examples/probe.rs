@@ -5,8 +5,8 @@
 //!   set DASHSCOPE_API_KEY=sk-...
 //!   cargo run --example probe -- path\to\audio.wav [target_lang]
 
-use realtime_translator_lib::config::{Region, Settings};
-use realtime_translator_lib::decode;
+use realingo_lib::config::{Region, Settings};
+use realingo_lib::decode;
 
 use base64::prelude::{Engine, BASE64_STANDARD};
 use futures_util::{SinkExt, StreamExt};

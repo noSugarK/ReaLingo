@@ -1,1 +1,1 @@
-fn main() { realtime_translator_lib::run() }
+fn main() { realingo_lib::run() }

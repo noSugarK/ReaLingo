@@ -160,7 +160,7 @@ watch([lines, current], async () => {
   <div class="shell">
     <header class="titlebar" data-tauri-drag-region>
       <div class="brand" data-tauri-drag-region>
-        <span class="mark" />
+        <img class="mark" src="./assets/mark.png" alt="" draggable="false" />
         <div class="brand-text" data-tauri-drag-region>
           <strong>{{ t("appTitle") }}</strong>
           <small>{{ t("appSub") }}</small>
@@ -407,9 +407,10 @@ watch([lines, current], async () => {
 .titlebar { display: flex; align-items: center; gap: 8px; height: 52px; }
 .brand { display: flex; align-items: center; gap: 10px; padding-left: 4px; }
 .mark {
-  width: 26px; height: 26px; border-radius: 8px;
-  background: var(--accent-grad);
-  box-shadow: 0 4px 12px -4px rgba(94, 92, 230, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  box-shadow: 0 3px 10px -3px rgba(10, 16, 40, 0.45);
+  -webkit-user-drag: none;
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-text strong { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }

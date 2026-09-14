@@ -1,7 +1,7 @@
 import { ref } from "vue";
 
 const zh = {
-  appTitle: "实时语音翻译",
+  appTitle: "ReaLingo",
   appSub: "Qwen3.5 LiveTranslate",
 
   srcTitle: "音频来源",
@@ -78,7 +78,7 @@ const zh = {
 };
 
 const en: typeof zh = {
-  appTitle: "Realtime Translator",
+  appTitle: "ReaLingo",
   appSub: "Qwen3.5 LiveTranslate",
 
   srcTitle: "Audio source",
