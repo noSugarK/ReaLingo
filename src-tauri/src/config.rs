@@ -59,6 +59,11 @@ impl Settings {
             "session": {
                 "modalities": ["text"],
                 "input_audio_format": "pcm",
+                // ponytail: session-scoped and immutable. Sending a second `session.update`
+                // to retarget a live session is rejected with "session already started or
+                // finished or failed" AND closes the socket — verified against the endpoint
+                // with examples/probe.rs. Two-way translation therefore needs two parallel
+                // sessions (one per direction), not a mid-flight switch. See README.
                 "translation": { "language": self.target_lang },
                 "input_audio_transcription": transcription,
                 // An empty object leaves VAD unconfigured: the server never closes a turn,

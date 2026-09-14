@@ -69,5 +69,26 @@ cd src-tauri && cargo test
 | 译文语音输出（TTS） | 当前 `modalities: ["text"]`。加 `"audio"` + 前端 Web Audio 播放队列即可 |
 | 视频文件（mp4/mkv 抽音轨） | 需打包 ffmpeg sidecar，安装包 +40~80MB |
 | macOS / Linux 系统声音 | loopback 是 WASAPI 特性；macOS 需 ScreenCaptureKit |
+| 双语互译（说中出英 / 说英出中） | 见下方「双语互译为什么还没做」 |
 | 断线自动重连 | 目前报错后需手动重新开始 —— 实时同传断线本就需要用户知情 |
 | API Key 加密存储 | 明文存本地配置，与多数桌面工具一致；要更严可换 `keyring` |
+
+## 双语互译为什么还没做
+
+直觉做法是监听转写事件里的 `language`，发现说的是目标语言就补发一条 `session.update`
+把 `translation.language` 换到另一边。**实测不行** —— 用 `examples/probe.rs` 打真实端点：
+
+```
+-> {"type":"session.update","session":{...,"translation":{"language":"en"},...}}
+← {"type":"error","error":{"code":"invalid_value",
+   "message":"Session update error: session already started or finished or failed."}}
+← close  (服务端直接断开连接)
+```
+
+`translation.language` 是**会话级不可变**配置；错误里的 "started" 指会话已开始送音频，
+不是当前 turn，所以「等这句 done 了再改」同样会被拒。而且它不只是报错，是会把正在跑的
+会话打断。
+
+可行方案是**双通道**：同一份音频扇出喂两条并行会话（A→B 和 B→A），按 ASR 报的语种采纳
+其中一条的输出。代价是输入音频 token 翻倍（7 → 14 token/秒），输出也是双份。
+设计细节记在项目计划里，等确有对话式互译需求时再做。
