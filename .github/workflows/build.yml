@@ -20,8 +20,11 @@ jobs:
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             rust-targets: x86_64-unknown-linux-gnu
-            # rpm would be a third copy of the same app for a distro we do not target.
-            bundles: --bundles deb,appimage
+            # .deb only. Its Depends (see tauri.conf.json) let apt pull webkit2gtk and
+            # appindicator in, so the ~90 MB AppImage — which exists to carry its own copy
+            # of WebKitGTK for distros without it — buys nothing on our stated target of
+            # Ubuntu 22.04+. Add `,appimage` or `,rpm` here if other distros ever matter.
+            bundles: --bundles deb
 
           # One universal binary instead of separate Intel/ARM jobs: the macos-13 runner was
           # retired in Dec 2025 (an x86_64 job just queues forever), and Apple Silicon hosts
@@ -65,9 +68,9 @@ jobs:
         with:
           args: --target ${{ matrix.target }} ${{ matrix.bundles }}
 
-      # Only the installers. `bundle/**/*` also sweeps up the unpacked AppDir and .deb trees
-      # that the bundlers leave behind, which is what made the Linux artifact 192 MB —
-      # the same payload three times over.
+      # Only the installers. `bundle/**/*` also sweeps up the unpacked trees the bundlers
+      # leave behind, which is half of why the Linux artifact was 192 MB — the same payload
+      # uploaded twice over.
       - uses: actions/upload-artifact@v6
         with:
           name: realingo-${{ matrix.target }}
@@ -78,4 +81,3 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage

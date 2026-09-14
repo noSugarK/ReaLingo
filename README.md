@@ -88,13 +88,22 @@ macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，`.github/workfl
 |---|---|
 | `realingo-x86_64-pc-windows-msvc` | `.msi` + NSIS `.exe` |
 | `realingo-universal-apple-darwin` | `.dmg`，**Intel 与 Apple Silicon 通用** |
-| `realingo-x86_64-unknown-linux-gnu` | `.deb`（约 6 MB）+ `.AppImage`（约 90 MB） |
+| `realingo-x86_64-unknown-linux-gnu` | `.deb`（约 6 MB） |
 
 macOS 不再单独跑 Intel job —— `macos-13` runner 已于 2025-12 退役，x86_64 的 job 只会一直排队；
 改为在 Apple Silicon 上交叉编译出 universal 二进制，一个 DMG 通吃。
 
-AppImage 自带整套 WebKitGTK，九十多 MB 是它的固有体积。只要 `.deb` 的话，把 workflow 里
-`--bundles deb,appimage` 改成 `--bundles deb` 即可。
+Linux 只出 `.deb`：它在 `tauri.conf.json` 里声明了 `libwebkit2gtk-4.1-0` 与
+`libayatana-appindicator3-1`，装的时候 apt 会自己把依赖拉下来 ——
+
+```bash
+sudo apt install ./realingo_0.1.0_amd64.deb   # 用 apt 而不是 dpkg -i，才会解析依赖
+```
+
+不出 AppImage 是因为它存在的意义就是自带一份 WebKitGTK 去伺候没有该库的发行版，
+而我们的目标是 Ubuntu 22.04+（`libwebkit2gtk-4.1-0` 从 22.04 起就在源里），
+那 90 MB 纯属白背。要覆盖 Fedora/Arch 的话，workflow 里 `--bundles deb` 后面
+补 `,rpm` 或 `,appimage` 即可。
 
 打包：
 
