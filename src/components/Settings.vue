@@ -139,7 +139,7 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
   z-index: 100;
   display: grid;
   place-items: center;
-  padding: 40px 24px;
+  padding: min(40px, 4vh) 24px;
   background: rgba(8, 10, 16, 0.34);
   backdrop-filter: blur(6px);
   animation: fade 0.2s var(--ease);
@@ -149,6 +149,7 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
 .sheet {
   width: min(520px, 100%);
   max-height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   border-radius: var(--r-xl);
@@ -166,6 +167,7 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
 
 .sheet-body {
   padding: 12px 20px;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
