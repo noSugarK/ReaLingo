@@ -160,7 +160,7 @@ The version lives in exactly one place: `[package] version` in `src-tauri/Cargo.
 
 ```bash
 # after bumping version in src-tauri/Cargo.toml
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.2.1 && git push origin v0.2.1
 ```
 
 Packaging locally:

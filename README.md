@@ -149,7 +149,7 @@ CI 就按这一处校验 tag。
 
 ```bash
 # 改完 src-tauri/Cargo.toml 里的 version
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.2.1 && git push origin v0.2.1
 ```
 
 | artifact | 内容 |
@@ -165,7 +165,7 @@ Linux 只出 `.deb`：它在 `tauri.conf.json` 里声明了 `libwebkit2gtk-4.1-0
 `libayatana-appindicator3-1`，装的时候 apt 会自己把依赖拉下来 ——
 
 ```bash
-sudo apt install ./realingo_0.2.0_amd64.deb   # 用 apt 而不是 dpkg -i，才会解析依赖
+sudo apt install ./realingo_0.2.1_amd64.deb   # 用 apt 而不是 dpkg -i，才会解析依赖
 ```
 
 不出 AppImage 是因为它存在的意义就是自带一份 WebKitGTK 去伺候没有该库的发行版，
