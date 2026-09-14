@@ -68,6 +68,18 @@ xcode-select --install
 # Windows：Visual Studio Build Tools（C++ 桌面开发）+ WebView2（Win11 自带）
 ```
 
+调试运行中的界面（`tools/cdp.mjs`）—— WebView2 里看不到 DevTools 时很有用，
+可以直接在真实应用的页面里求值，而不是靠猜：
+
+```bash
+# 带远程调试端口启动
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222 npm run tauri dev
+# 另开一个终端
+node tools/cdp.mjs --list                 # 列出可调试页面
+node tools/cdp.mjs probe.js               # 在主窗口求值
+node tools/cdp.mjs probe.js subtitle      # 在字幕窗求值
+```
+
 macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，`.github/workflows/build.yml`
 用 GitHub Actions 四个 target 各出一份（仓库还没配 remote，推上去才会跑）。
 

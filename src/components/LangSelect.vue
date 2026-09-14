@@ -100,7 +100,7 @@ function pick(code: string) {
     </button>
 
     <Teleport to="body">
-      <div v-if="open" ref="pop" class="ls-pop glass" :style="popStyle">
+      <div v-if="open" ref="pop" class="ls-pop" :style="popStyle">
         <input
           ref="search"
           v-model="query"
@@ -155,11 +155,15 @@ function pick(code: string) {
 <!-- Teleported to <body>, so the popup cannot be scoped to this component. -->
 <style>
 .ls-pop {
+  /* Deliberately NOT `.glass`: that utility sets `position: relative` at the same
+     specificity as this rule, and because main.ts imports App.vue (which injects component
+     styles) before glass.css, it won.  The popup then laid out in flow at the end of <body>
+     — present in the DOM, ~300px below the fold, which read as "the dropdown won't open".
+     It carries its own plate styles below, so the utility buys nothing here. */
   position: fixed;
   z-index: 80;
   padding: 8px;
   border-radius: var(--r-md);
-  /* Teleported out of the glass card, so it needs its own opaque-enough plate. */
   background: var(--glass);
   backdrop-filter: blur(34px) saturate(185%);
   box-shadow: 0 20px 44px -14px rgba(10, 16, 40, 0.5), inset 0 1px 0 var(--glass-hi);
