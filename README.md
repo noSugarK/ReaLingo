@@ -1,7 +1,26 @@
-# ReaLingo · 实时语音翻译
+<p align="center">
+  <img src="brand/banner-animated.png" width="380" alt="ReaLingo" />
+</p>
 
-基于阿里云百炼 `qwen3.5-livetranslate-flash-realtime` 的桌面同声传译工具。
+<p align="center"><b>实时语音翻译</b> — 基于阿里云百炼 Qwen3.5-LiveTranslate 的桌面同声传译工具</p>
+
+<p align="center">
+  <a href="https://github.com/noSugarK/ReaLingo/actions/workflows/build.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/noSugarK/ReaLingo/build.yml?style=flat-square&label=build" /></a>
+  <a href="https://github.com/noSugarK/ReaLingo/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/noSugarK/ReaLingo?style=flat-square&color=0a84ff" /></a>
+  <a href="https://github.com/noSugarK/ReaLingo/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/noSugarK/ReaLingo/total?style=flat-square&color=5e5ce6" /></a>
+  <a href="https://github.com/noSugarK/ReaLingo/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/noSugarK/ReaLingo?style=flat-square&color=bf5af2" /></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/noSugarK/ReaLingo?style=flat-square" /></a>
+  <a href="#平台支持"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-8a8f98?style=flat-square" /></a>
+</p>
+
+<p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
+
 Tauri 2 + Rust 内核，Vue 3 前端，苹果液态玻璃风格界面。
+
+## 下载
+
+从 [Releases](https://github.com/noSugarK/ReaLingo/releases/latest) 取对应平台的安装包：
+Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`。
 
 ## 功能
 
@@ -141,6 +160,18 @@ node tools/make-icon.mjs brand/ReaLingo.png src/assets/mark.png 256
 npx tauri icon app-icon.png
 ```
 
+README 顶部的横版 logo 由 `make-banner.mjs` 把上下堆叠的原 logo 重排成「图形在左、彩色字在右」，
+并按**连通性**（从边缘 flood fill）抠掉白底 —— 不能按颜色抠，否则气泡里白色的 A 和 文 会一起没掉，
+在深色主题下变成黑窟窿。`make-anim.mjs` 再给它加一道循环掠过的高光：
+
+```bash
+node tools/make-banner.mjs brand/ReaLingo.png brand/banner.png 160
+node tools/make-anim.mjs brand/banner.png brand/banner-animated.png
+```
+
+动图用 APNG 而不是 GIF：GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色主题下留白边。
+APNG 全彩 + 完整 alpha，后缀仍是 `.png`，不支持动画的地方退化成第一帧（即静态 logo）。
+
 ## 架构
 
 ```
@@ -190,3 +221,7 @@ npx tauri icon app-icon.png
 可行方案是**双通道**：同一份音频扇出喂两条并行会话（A→B 和 B→A），按 ASR 报的语种采纳
 其中一条的输出。代价是输入音频 token 翻倍（7 → 14 token/秒），输出也是双份。
 设计细节记在项目计划里，等确有对话式互译需求时再做。
+
+## 许可
+
+[MIT](LICENSE)
