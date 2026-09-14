@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brand/banner-animated.png" width="380" alt="ReaLingo" />
+  <img src="brand/banner.png" width="380" alt="ReaLingo" />
 </p>
 
 <p align="center"><b>实时语音翻译</b> — 基于阿里云百炼 Qwen3.5-LiveTranslate 的桌面同声传译工具</p>
@@ -169,8 +169,15 @@ node tools/make-banner.mjs brand/ReaLingo.png brand/banner.png 160
 node tools/make-anim.mjs brand/banner.png brand/banner-animated.png
 ```
 
-动图用 APNG 而不是 GIF：GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色主题下留白边。
-APNG 全彩 + 完整 alpha，后缀仍是 `.png`，不支持动画的地方退化成第一帧（即静态 logo）。
+抠白底对两半用了**不同规则**，因为没有单一规则能同时做对：图形里气泡中的白色 A / 文 是**内容**，
+按连通性（从边缘 flood fill）保留；而文字里 R、e、a、o 的内腔是**背景**，只是恰好被笔画围住，
+连通性会把它们留成白块，所以那一半按颜色全抠。两边都按白底解算出**渐变 alpha** 而不是非黑即白 ——
+二值遮罩会让抗锯齿的那圈薄边保持不透明的近白色，在深色主题下就是一圈光晕。
+
+README 默认用静态版（117 KB）。动图版 `brand/banner-animated.png`（478 KB）也在仓库里，
+把头部的 `banner.png` 换成 `banner-animated.png` 即可启用。用 APNG 而不是 GIF：
+GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留白边；APNG 全彩 + 完整 alpha，
+后缀仍是 `.png`，不支持动画的地方退化成第一帧（即静态 logo）。
 
 ## 架构
 

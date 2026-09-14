@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brand/banner-animated.png" width="380" alt="ReaLingo" />
+  <img src="brand/banner.png" width="380" alt="ReaLingo" />
 </p>
 
 <p align="center"><b>Realtime speech translation</b> — a desktop simultaneous interpreter built on Qwen3.5-LiveTranslate</p>
@@ -158,10 +158,19 @@ node tools/make-banner.mjs brand/ReaLingo.png brand/banner.png 160
 node tools/make-anim.mjs brand/banner.png brand/banner-animated.png
 ```
 
-The animation is APNG rather than GIF: GIF's 256-colour palette bands the gradient wordmark and
-its 1-bit transparency leaves white fringes on dark backgrounds. APNG keeps full colour and
-alpha, the extension is still `.png`, and anything that cannot animate it shows frame one —
-the static logo.
+Background removal uses **two different rules**, because no single one gets both halves right:
+the white A and 文 inside the bubbles are *content*, kept by connectivity (flood fill from the
+border), while the counters in R, e, a and o are *background* that merely happens to be
+enclosed — connectivity would leave them as white blobs, so that half is keyed by colour.
+Both halves get a *gradual* alpha from un-matting rather than a yes/no mask: a binary mask
+leaves the antialiased rim opaque and near-white, which shows as a halo on a dark page.
+
+The README uses the static banner (117 KB) by default. The animated build
+`brand/banner-animated.png` (478 KB) is in the repo too — swap `banner.png` for
+`banner-animated.png` in the header to use it. It is APNG rather than GIF: GIF's 256-colour
+palette bands the gradient wordmark and its 1-bit transparency leaves white fringes on dark
+backgrounds. APNG keeps full colour and alpha, the extension is still `.png`, and anything
+that cannot animate it shows frame one — the static logo.
 
 ## Architecture
 

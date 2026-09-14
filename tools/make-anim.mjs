@@ -13,12 +13,14 @@ import { decode, chunk, rawIdat, ihdr, SIGNATURE } from "./png.mjs";
 const [src, dst] = process.argv.slice(2);
 const { w, h, rgba } = decode(src);
 
-const SWEEP_FRAMES = 14;
-const FRAME_MS = 55;
+const SWEEP_FRAMES = 10;
+const FRAME_MS = 70;
 const HOLD_MS = 2600; // the still pause between sweeps — one frame, not dozens
-const BAND = w * 0.16; // half-width of the highlight
-const STRENGTH = 0.5; // peak lift toward white
-const SKEW = 0.45; // diagonal, so it reads as a light source rather than a wiper
+const BAND = w * 0.11; // half-width of the highlight
+// Kept low on purpose: the sweep lifts colours toward white, and on a light page a
+// strong lift washes the thin letterforms out entirely — it read as the logo blanking.
+const STRENGTH = 0.22;
+const SKEW = 0.2; // diagonal, so it reads as a light source rather than a wiper
 
 const span = w + h * SKEW + BAND * 2;
 
@@ -44,13 +46,23 @@ function sweep(t) {
   return out;
 }
 
-/** Exact changed region between two full frames — cheaper than deriving it from the maths. */
+/**
+ * Changed region between two full frames, ignoring differences of a single code value.
+ * The soft-alpha edges leave a wide skirt of ±1 noise that is invisible but would otherwise
+ * push every frame's rectangle out to the full canvas.
+ */
+const NOISE = 1;
+
 function dirty(prev, next) {
   let x0 = w, y0 = h, x1 = -1, y1 = -1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) << 2;
-      if (prev.readUInt32LE(i) === next.readUInt32LE(i)) continue;
+      let moved = false;
+      for (let c = 0; c < 4; c++) {
+        if (Math.abs(prev[i + c] - next[i + c]) > NOISE) { moved = true; break; }
+      }
+      if (!moved) continue;
       if (x < x0) x0 = x;
       if (x > x1) x1 = x;
       if (y < y0) y0 = y;
