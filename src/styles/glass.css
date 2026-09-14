@@ -1,7 +1,10 @@
 /* ---------- Liquid Glass design tokens ---------- */
 :root {
+  /* macOS -> Windows -> Linux, then CJK faces for each. */
   --font: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display",
-    "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", system-ui, sans-serif;
+    "Segoe UI", "Ubuntu", "Cantarell", "Noto Sans", "PingFang SC", "HarmonyOS Sans SC",
+    "Microsoft YaHei UI", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei",
+    system-ui, sans-serif;
 
   --r-xl: 28px;
   --r-lg: 22px;
@@ -143,6 +146,13 @@ body {
   pointer-events: none;
   z-index: 1;
 }
+/* WebKitGTK support for backdrop-filter is patchy; without it a 46%-opaque panel is just
+   a washed-out rectangle over the mesh, so fall back to a solid plate. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --glass: rgba(255, 255, 255, 0.9); --glass-2: rgba(255, 255, 255, 0.82); }
+  :root[data-theme="dark"] { --glass: rgba(26, 29, 38, 0.94); --glass-2: rgba(38, 42, 54, 0.9); }
+}
+
 .glass-thin {
   background: var(--glass-2);
   backdrop-filter: blur(20px) saturate(160%);

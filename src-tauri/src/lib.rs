@@ -31,6 +31,19 @@ fn list_devices() -> Vec<DeviceInfo> {
     audio::list_devices()
 }
 
+/// What the host platform can and cannot do, so the UI can say why a list is empty.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Platform {
+    pub os: &'static str,
+    pub loopback: bool,
+}
+
+#[tauri::command]
+fn platform() -> Platform {
+    Platform { os: std::env::consts::OS, loopback: audio::LOOPBACK_SUPPORTED }
+}
+
 #[tauri::command]
 fn default_device(loopback: bool) -> Option<String> {
     audio::default_device_id(loopback)
@@ -141,6 +154,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_devices,
+            platform,
             default_device,
             input_level,
             endpoint_url,

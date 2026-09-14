@@ -28,12 +28,48 @@ Tauri 2 + Rust 内核，Vue 3 前端，苹果液态玻璃风格界面。
 
 设置页底部实时显示最终会连接的 WebSocket 地址。
 
+## 平台支持
+
+| | 麦克风 | 系统声音 | 说明 |
+|---|---|---|---|
+| Windows 10/11 | ✅ | ✅ | WASAPI loopback，无需额外配置 |
+| macOS 14.4+ | ✅ | ✅ | Core Audio process tap；首次使用会弹权限申请 |
+| macOS 12–14.3 | ✅ | ❌ | process tap 是 14.4 才有的 API |
+| Ubuntu 22.04+ | ✅ | ⚠️ | ALSA 没有回录通道，需在 pavucontrol 里转接（见下） |
+
+**Ubuntu 的系统声音**：ALSA 不枚举 PulseAudio/PipeWire 的 monitor 源，所以应用里给不出「系统声音」设备。
+做法是在「系统声音」页随便选一个输入设备，开始翻译后打开 `pavucontrol` →「录制」标签，
+把 ReaLingo 的来源改成输出设备的 **Monitor**。界面里也有这段提示。
+
+**macOS 权限**：麦克风和系统声音是两个独立的 TCC 权限，分别对应 `src-tauri/Info.plist` 里的
+`NSMicrophoneUsageDescription` 和 `NSAudioCaptureUsageDescription`。后者缺失时 macOS
+**不会报错**，只会一直给全静音的音频缓冲区；而且权限弹窗只对已签名的二进制出现。
+
+**Linux 托盘**：AppIndicator 不支持左键单击事件，所以左键唤回主窗在 Ubuntu 上不生效，
+用右键菜单里的「显示主窗口」。
+
 ## 开发
 
 ```bash
 npm install
 npm run tauri dev
 ```
+
+各平台构建依赖：
+
+```bash
+# Ubuntu
+sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+                 libasound2-dev libssl-dev build-essential curl wget file
+
+# macOS
+xcode-select --install
+
+# Windows：Visual Studio Build Tools（C++ 桌面开发）+ WebView2（Win11 自带）
+```
+
+macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，`.github/workflows/build.yml`
+用 GitHub Actions 四个 target 各出一份（仓库还没配 remote，推上去才会跑）。
 
 打包：
 

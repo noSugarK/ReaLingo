@@ -1,8 +1,18 @@
-//! Live capture: microphones, and system audio via WASAPI loopback.
+//! Live capture: microphones, and system audio where the platform allows it.
 //!
-//! cpal's WASAPI backend sets `AUDCLNT_STREAMFLAGS_LOOPBACK` whenever you call
-//! `build_input_stream` on a *render* (output) device, so "record what the speakers play"
-//! needs no extra crate — just point an input stream at an output device.
+//! "Record what the speakers play" is the same cpal call everywhere — `build_input_stream`
+//! on an *output* device — but the backends get there differently:
+//!
+//! - **Windows / WASAPI**: cpal adds `AUDCLNT_STREAMFLAGS_LOOPBACK` when the endpoint is a
+//!   render device. Works on any supported Windows version.
+//! - **macOS / CoreAudio**: for a device with no input, cpal creates a Core Audio *process
+//!   tap* plus a private aggregate device. Needs macOS 14.4+, and the app bundle must carry
+//!   `NSAudioCaptureUsageDescription` (see `Info.plist`) — without it TCC denies access
+//!   *silently*, handing back perfectly valid buffers full of zeros.
+//! - **Linux / ALSA**: there is no loopback flag, and the monitor sources that would serve
+//!   the purpose belong to PulseAudio/PipeWire, which ALSA does not enumerate. So no system
+//!   audio entries are offered; the user routes our recording stream to a monitor in
+//!   pavucontrol instead, which needs no code on our side.
 
 use anyhow::{anyhow, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -24,6 +34,9 @@ pub struct DeviceInfo {
 
 const MIC: &str = "mic";
 const SYS: &str = "sys";
+
+/// Whether this platform can capture what the speakers are playing. See the module docs.
+pub const LOOPBACK_SUPPORTED: bool = cfg!(any(target_os = "windows", target_os = "macos"));
 /// `DeviceId`'s own Display already contains ':', so separate our prefix with something else.
 const SEP: char = '|';
 
@@ -42,9 +55,9 @@ pub fn list_devices() -> Vec<DeviceInfo> {
     if let Ok(devices) = host.input_devices() {
         out.extend(devices.filter_map(|d| describe(&d, MIC)));
     }
-    // Loopback capture of a render endpoint is a Windows/WASAPI trick; elsewhere this list
-    // would produce streams that fail to build, so don't offer them.
-    if cfg!(target_os = "windows") {
+    // Listing output devices where loopback is impossible would only offer the user streams
+    // that fail to build.
+    if LOOPBACK_SUPPORTED {
         if let Ok(devices) = host.output_devices() {
             out.extend(devices.filter_map(|d| describe(&d, SYS)));
         }
@@ -56,7 +69,7 @@ pub fn list_devices() -> Vec<DeviceInfo> {
 pub fn default_device_id(loopback: bool) -> Option<String> {
     let host = cpal::default_host();
     if loopback {
-        if !cfg!(target_os = "windows") {
+        if !LOOPBACK_SUPPORTED {
             return None;
         }
         host.default_output_device().and_then(|d| describe(&d, SYS)).map(|d| d.id)

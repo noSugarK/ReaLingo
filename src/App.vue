@@ -39,6 +39,8 @@ const devices = ref<{ id: string; name: string; loopback: boolean }[]>([]);
 const deviceId = ref("");
 const filePath = ref("");
 const level = ref(0);
+/** What the host OS can do; decides whether the "system audio" tab has real devices. */
+const caps = ref({ os: "", loopback: true });
 const streamEl = ref<HTMLElement | null>(null);
 
 const isDark = computed(() => resolvedTheme.value === "dark");
@@ -48,8 +50,11 @@ function cycleTheme() {
 
 const AUDIO_EXT = ["mp3", "wav", "m4a", "mp4", "aac", "flac", "ogg", "oga"];
 
+// Where loopback is unavailable (Linux), the "system audio" tab still lists ordinary inputs:
+// the user routes our recording stream to a monitor source outside the app.
+const wantLoopback = computed(() => sourceKind.value === "system" && caps.value.loopback);
 const visibleDevices = computed(() =>
-  devices.value.filter((d) => d.loopback === (sourceKind.value === "system"))
+  devices.value.filter((d) => d.loopback === wantLoopback.value)
 );
 const fileName = computed(() => filePath.value.split(/[\\/]/).pop() ?? "");
 const canStart = computed(() =>
@@ -65,15 +70,17 @@ const statusKey = computed(() => {
 });
 
 async function refreshDevices() {
+  caps.value = await invoke("platform");
   devices.value = await invoke("list_devices");
   await pickDefaultDevice();
 }
 
 async function pickDefaultDevice() {
   if (sourceKind.value === "file") return;
-  const wantLoopback = sourceKind.value === "system";
   if (visibleDevices.value.some((d) => d.id === deviceId.value)) return;
-  const preferred = await invoke<string | null>("default_device", { loopback: wantLoopback });
+  const preferred = await invoke<string | null>("default_device", {
+    loopback: wantLoopback.value,
+  });
   deviceId.value = preferred ?? visibleDevices.value[0]?.id ?? "";
 }
 
@@ -282,9 +289,7 @@ watch([lines, current], async () => {
           <template v-if="sourceKind !== 'file'">
             <div class="row">
               <select v-model="deviceId" :disabled="isRunning()">
-                <option v-if="!visibleDevices.length" value="">
-                  {{ sourceKind === "system" ? t("loopbackOnlyWin") : t("noDevice") }}
-                </option>
+                <option v-if="!visibleDevices.length" value="">{{ t("noDevice") }}</option>
                 <option v-for="d in visibleDevices" :key="d.id" :value="d.id">{{ d.name }}</option>
               </select>
               <button class="btn-icon" :aria-label="t('device')" @click="refreshDevices">
@@ -296,6 +301,9 @@ watch([lines, current], async () => {
             <div class="meter" :title="t('level')">
               <i :style="{ transform: `scaleX(${Math.min(1, level * 1.6)})` }" />
             </div>
+            <p v-if="sourceKind === 'system' && !caps.loopback" class="hint notice">
+              {{ caps.os === "macos" ? t("loopbackMacOld") : t("loopbackLinux") }}
+            </p>
           </template>
 
           <template v-else>
@@ -506,6 +514,14 @@ watch([lines, current], async () => {
 
 .mini { font-size: 11px; font-weight: 600; color: var(--ink-3); margin-bottom: 5px; }
 .hint { font-size: 11.5px; color: var(--ink-3); }
+.notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  line-height: 1.5;
+  color: var(--ink-2);
+  background: rgba(255, 214, 10, 0.14);
+}
 
 .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; cursor: pointer; }
 .line.stack { flex-direction: column; align-items: stretch; gap: 0; cursor: default; }

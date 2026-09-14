@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS TCC usage strings. Both are required, and they are separate permissions:
+
+  - NSMicrophoneUsageDescription  — the "Microphone" source.
+  - NSAudioCaptureUsageDescription — the "System audio" source, which cpal implements with a
+    Core Audio process tap (macOS 14.4+). If this key is missing, TCC denies access WITHOUT
+    an error: the stream builds, the callbacks fire, and every buffer is silence. The prompt
+    only appears for a properly signed binary.
+-->
+<plist version="1.0">
+  <dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>ReaLingo needs the microphone to translate what you say in real time.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>ReaLingo needs system audio to translate what is playing on your Mac in real time.</string>
+  </dict>
+</plist>
