@@ -81,8 +81,22 @@ node tools/cdp.mjs probe.js               # 在主窗口求值
 node tools/cdp.mjs probe.js subtitle      # 在字幕窗求值
 ```
 
-macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，`.github/workflows/build.yml`
-用 GitHub Actions 出三份：打个 `v*` tag，或在仓库 Actions 页手动触发。
+macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，由 `.github/workflows/build.yml`
+（**build & release**）在 GitHub Actions 上出三份：
+
+| 触发方式 | 结果 |
+|---|---|
+| Actions 页手动运行 | 三个平台各出一份 workflow artifact |
+| 推 `v*` tag | 同上，外加一个 GitHub Release，安装包作为附件 |
+
+发布流程是「先建草稿 → 各平台分别上传 → **三个平台全部成功后**才转正式发布」，
+所以任一平台挂掉时 release 会停在草稿状态，不会放出半套包。tag 与
+`tauri.conf.json` 里的 `version` 不一致会直接失败，避免发出版本号对不上的包。
+
+```bash
+# 版本号改好后
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 | artifact | 内容 |
 |---|---|

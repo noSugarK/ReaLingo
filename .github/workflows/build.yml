@@ -1,14 +1,51 @@
-name: build
+name: build & release
 
 # macOS and Linux bundles cannot be produced from a Windows machine, so this is how those
 # binaries get made.
+#
+#   workflow_dispatch  -> build all three, attach as workflow artifacts
+#   push tag v*        -> the same, plus a GitHub release the bundles are uploaded to
 on:
   workflow_dispatch:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 jobs:
+  # Runs on every trigger but does its work only for a tag, so `bundle` can depend on it
+  # unconditionally instead of juggling always()/skipped results.
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        if: startsWith(github.ref, 'refs/tags/v')
+
+      - name: Tag must match the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$want" != "$have" ]; then
+            echo "tag $GITHUB_REF_NAME does not match app version $have — bump the version or retag" >&2
+            exit 1
+          fi
+
+      # Draft: bundles are attached as each platform finishes, and it only goes public once
+      # every platform has succeeded.
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && exit 0
+          gh release create "$GITHUB_REF_NAME" \
+            --draft --title "ReaLingo $GITHUB_REF_NAME" --generate-notes
+
   bundle:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -79,5 +116,33 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*-setup.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+
+      # bash on every runner (Windows included) so one glob works across all three.
+      - name: Attach bundles to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          files=(src-tauri/target/${{ matrix.target }}/release/bundle/*/*.{msi,exe,dmg,deb})
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no installers produced for ${{ matrix.target }}" >&2
+            exit 1
+          fi
+          printf 'uploading %s\n' "${files[@]}"
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+
+  publish-release:
+    needs: bundle
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      # `needs` already guarantees every platform succeeded, so the draft can go public.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
