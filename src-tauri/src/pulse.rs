@@ -25,11 +25,24 @@ use tokio::sync::mpsc::Sender;
 
 use crate::resample::{CHUNK_SAMPLES, TARGET_RATE};
 
+/// `pactl` with translation switched off.
+///
+/// Its `list` output labels go through gettext, so on a zh_CN desktop "Name:" is printed as
+/// "名称：" — full-width colon, no space — and every prefix match below silently fails: the
+/// system-audio picker comes up empty on a machine that has monitors. Asking for the C
+/// locale is what keeps the keys we parse in the spelling we parse. (LANGUAGE would
+/// otherwise win over LC_ALL, but gettext ignores it once the locale is C.)
+fn pactl() -> Command {
+    let mut c = Command::new("pactl");
+    c.env("LC_ALL", "C");
+    c
+}
+
 /// Whether a sound server we can talk to is actually reachable. Both halves matter: pactl
 /// present but no server running (a headless box) must read as "unavailable", not as an
 /// empty device list that looks like broken hardware.
 pub fn available() -> bool {
-    Command::new("pactl")
+    pactl()
         .arg("info")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -45,7 +58,7 @@ pub struct Monitor {
 }
 
 pub fn monitors() -> Vec<Monitor> {
-    match Command::new("pactl").arg("list").arg("sources").output() {
+    match pactl().arg("list").arg("sources").output() {
         Ok(o) if o.status.success() => parse_sources(&String::from_utf8_lossy(&o.stdout)),
         _ => Vec::new(),
     }
@@ -57,7 +70,7 @@ pub fn monitors() -> Vec<Monitor> {
 /// device by id and needs that id to equal one of the entries [`monitors`] returned, which
 /// an alias never does — the picker would show its placeholder over a valid selection.
 pub fn default_monitor() -> Option<String> {
-    let out = Command::new("pactl").arg("get-default-sink").output().ok()?;
+    let out = pactl().arg("get-default-sink").output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -67,8 +80,8 @@ pub fn default_monitor() -> Option<String> {
 
 /// Parse `pactl list sources`. A "Source #N" header starts each record; within one, "Name"
 /// is the id, "Description" the human label, and "Monitor of Sink" marks it as a monitor
-/// (plain inputs carry `n/a`). Localised pactl output translates the *values*, never these
-/// keys, so keying off them is safe.
+/// (plain inputs carry `n/a`). The keys are themselves translated, so this only holds for
+/// output produced through [`pactl`], which pins the locale to C.
 fn parse_sources(text: &str) -> Vec<Monitor> {
     let mut out: Vec<Monitor> = Vec::new();
     let (mut name, mut desc, mut is_monitor) = (None::<String>, None::<String>, false);
@@ -207,6 +220,18 @@ Source #2
 \tDriver: PipeWire
 \tMonitor of Sink: alsa_output.usb-Generic_USB_Audio-00.analog-stereo
 ";
+
+    /// The parser keys off English labels, so pinning the locale is not cosmetic: without it
+    /// a zh_CN desktop prints "名称：" and the picker shows no devices at all.
+    #[test]
+    fn pactl_runs_in_the_c_locale() {
+        let cmd = pactl();
+        assert!(
+            cmd.get_envs()
+                .any(|(k, v)| k == "LC_ALL" && v == Some("C".as_ref())),
+            "pactl output must not be translated, or parse_sources matches nothing"
+        );
+    }
 
     #[test]
     fn keeps_only_monitor_sources() {
