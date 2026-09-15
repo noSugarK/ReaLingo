@@ -154,6 +154,15 @@ fn halt(state: &State<AppState>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebKitGTK's DMA-BUF renderer produces nothing on software GL (VMs) and on some
+    // proprietary drivers: the window is created and focused but never painted, which with
+    // `transparent: true` looks like the app failed to start. Losing the DMA-BUF path costs
+    // a buffer copy; losing the whole UI costs the app. Respect an explicit override.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
