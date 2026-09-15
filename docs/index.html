@@ -8,39 +8,48 @@
 <link rel="icon" href="mark.png" />
 <meta property="og:title" content="ReaLingo — 实时语音翻译" />
 <meta property="og:description" content="基于 Qwen3.5-LiveTranslate 的桌面同声传译工具，60 种语言，独立字幕窗。" />
-<meta property="og:image" content="https://nosugark.github.io/ReaLingo/screenshot.png" />
+<meta property="og:image" content="https://nosugark.github.io/ReaLingo/promo-poster.jpg" />
 <meta property="og:type" content="website" />
 <style>
 :root {
   --bg: #f6f7fb;
-  --wash-a: #dbe6ff;
-  --wash-b: #e9dcff;
+  --wash-a: #cfe0ff;
+  --wash-b: #e4d6ff;
+  --wash-c: #cdf3ec;
   --card: rgba(255, 255, 255, 0.72);
+  --card-hi: rgba(255, 255, 255, 0.92);
   --ink-1: #14161a;
   --ink-2: #4a505a;
   --ink-3: #868d99;
   --hairline: rgba(20, 22, 26, 0.09);
   --accent: #0a84ff;
   --accent-2: #7c5cff;
-  --shadow: 0 1px 2px rgba(20, 22, 26, .05), 0 12px 32px rgba(20, 22, 26, .07);
+  --accent-3: #00c7a8;
+  --shadow: 0 1px 2px rgba(20, 22, 26, .05), 0 14px 40px rgba(20, 22, 26, .09);
+  --shadow-lg: 0 2px 4px rgba(20, 22, 26, .06), 0 30px 70px rgba(20, 22, 26, .13);
+  --bar: rgba(246, 247, 251, .74);
   --r: 18px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0e1014;
-    --wash-a: #16233f;
-    --wash-b: #221a3d;
-    --card: rgba(255, 255, 255, 0.045);
+    --bg: #0d0f13;
+    --wash-a: #16294e;
+    --wash-b: #281c4d;
+    --wash-c: #0e3b38;
+    --card: rgba(255, 255, 255, 0.05);
+    --card-hi: rgba(255, 255, 255, 0.085);
     --ink-1: #f2f4f8;
     --ink-2: #b3bac6;
     --ink-3: #7b828f;
-    --hairline: rgba(255, 255, 255, 0.10);
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .35);
+    --hairline: rgba(255, 255, 255, 0.11);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 14px 40px rgba(0, 0, 0, .45);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, .4), 0 30px 70px rgba(0, 0, 0, .55);
+    --bar: rgba(13, 15, 19, .72);
   }
 }
 
 * { box-sizing: border-box; }
-html { color-scheme: light dark; }
+html { color-scheme: light dark; scroll-behavior: smooth; }
 body {
   margin: 0;
   background: var(--bg);
@@ -48,37 +57,61 @@ body {
   font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
         "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
-/* One wash behind everything, same palette as the app's window. */
+/* Three washes that drift slowly past each other — the app's own window palette, moving. */
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: -20%;
   z-index: -1;
   background:
-    radial-gradient(1100px 520px at 12% -10%, var(--wash-a), transparent 65%),
-    radial-gradient(900px 480px at 88% 4%, var(--wash-b), transparent 62%);
+    radial-gradient(760px 520px at 18% 12%, var(--wash-a), transparent 62%),
+    radial-gradient(680px 480px at 82% 6%, var(--wash-b), transparent 60%),
+    radial-gradient(720px 520px at 55% 88%, var(--wash-c), transparent 62%);
+  animation: drift 26s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to   { transform: translate3d(3%, 2%, 0) scale(1.08); }
 }
 
 .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-/* ---- language toggle: both languages ship, CSS picks one ---- */
+/* ---- both languages ship; CSS picks one ---- */
 html[lang="en"] .zh { display: none; }
 html[lang="zh"] .en { display: none; }
 
+/* ---- reveal on scroll ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity .7s cubic-bezier(.2, .7, .3, 1), transform .7s cubic-bezier(.2, .7, .3, 1);
+  transition-delay: var(--d, 0s);
+}
+.reveal.in { opacity: 1; transform: none; }
+
 /* ---- top bar ---- */
 header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 18px 0;
+  /* Full-bleed bar, contents still aligned to the 980px column. */
+  padding: 14px max(20px, calc((100% - 980px) / 2 + 20px));
+  background: var(--bar);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
 }
 header img { width: 28px; height: 28px; border-radius: 7px; }
 header .name { font-weight: 640; letter-spacing: .2px; }
 header nav { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 13.5px; }
 header nav a { color: var(--ink-2); }
+header nav a:hover { color: var(--ink-1); }
 #lang {
   font: inherit;
   font-size: 13px;
@@ -88,66 +121,192 @@ header nav a { color: var(--ink-2); }
   background: var(--card);
   color: var(--ink-2);
   cursor: pointer;
+  transition: color .2s, border-color .2s;
 }
-#lang:hover { color: var(--ink-1); }
+#lang:hover { color: var(--ink-1); border-color: var(--accent); }
 
 /* ---- hero ---- */
-.hero { padding: 40px 0 8px; text-align: center; }
+.hero { padding: 42px 0 10px; text-align: center; }
+.hero > * { animation: rise .9s cubic-bezier(.2, .7, .3, 1) both; }
+.hero > *:nth-child(2) { animation-delay: .08s; }
+.hero > *:nth-child(3) { animation-delay: .16s; }
+.hero > *:nth-child(4) { animation-delay: .24s; }
+.hero > *:nth-child(5) { animation-delay: .32s; }
+.hero > *:nth-child(6) { animation-delay: .40s; }
+@keyframes rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
 .hero img.banner { width: min(340px, 72vw); height: auto; }
 .hero h1 {
   margin: 22px 0 0;
-  font-size: clamp(28px, 5vw, 42px);
+  font-size: clamp(28px, 5.2vw, 44px);
   line-height: 1.2;
   letter-spacing: -0.5px;
   font-weight: 680;
 }
+.hero h1 em {
+  font-style: normal;
+  background: linear-gradient(100deg, var(--accent), var(--accent-2) 55%, var(--accent-3));
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: hue 9s ease-in-out infinite alternate;
+}
+@keyframes hue { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+
 .hero p.sub {
   margin: 14px auto 0;
   max-width: 34em;
   font-size: clamp(15px, 2.2vw, 17px);
   color: var(--ink-2);
 }
-.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 28px; }
+
+/* ---- the live subtitle bar: what the app actually looks like in use ---- */
+.demo {
+  margin: 30px auto 0;
+  max-width: 620px;
+  padding: 16px 20px 18px;
+  border-radius: var(--r);
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  text-align: left;
+}
+.demo .top { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent-3);
+  box-shadow: 0 0 0 0 rgba(0, 199, 168, .55);
+  animation: pulse 2s ease-out infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 199, 168, .5); }
+  70%  { box-shadow: 0 0 0 9px rgba(0, 199, 168, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 199, 168, 0); }
+}
+.demo .tag { font-size: 11.5px; color: var(--ink-3); letter-spacing: .3px; }
+.wave { margin-left: auto; display: flex; align-items: flex-end; gap: 2.5px; height: 15px; }
+.wave i {
+  width: 2.5px;
+  border-radius: 2px;
+  background: linear-gradient(var(--accent), var(--accent-2));
+  animation: bounce 1.1s ease-in-out infinite;
+}
+@keyframes bounce { 0%, 100% { height: 3px; opacity: .55; } 50% { height: 15px; opacity: 1; } }
+
+.demo .src {
+  min-height: 1.6em;
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+.demo .src::after {
+  content: "";
+  display: inline-block;
+  width: 1.5px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--accent);
+  animation: caret 1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
+.demo .dst {
+  min-height: 1.45em;
+  margin-top: 7px;
+  font-size: clamp(19px, 3.4vw, 24px);
+  font-weight: 620;
+  letter-spacing: -0.2px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .45s, transform .45s;
+}
+.demo .dst.show { opacity: 1; transform: none; }
+
+/* ---- buttons ---- */
+.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 30px; }
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 11px 22px;
+  padding: 12px 24px;
   border-radius: 999px;
   border: 1px solid transparent;
   font-weight: 560;
   font-size: 14.5px;
+  transition: transform .22s cubic-bezier(.2, .7, .3, 1), box-shadow .22s, filter .22s;
 }
-.btn:hover { text-decoration: none; }
+.btn:hover { text-decoration: none; transform: translateY(-2px); }
 .btn.primary {
   color: #fff;
   background: linear-gradient(100deg, var(--accent), var(--accent-2));
-  box-shadow: 0 6px 18px rgba(10, 132, 255, .28);
+  box-shadow: 0 6px 20px rgba(10, 132, 255, .3);
 }
-.btn.primary:hover { filter: brightness(1.07); }
+.btn.primary:hover { box-shadow: 0 12px 30px rgba(10, 132, 255, .38); filter: brightness(1.06); }
 .btn.ghost { color: var(--ink-1); background: var(--card); border-color: var(--hairline); }
-.badges { margin-top: 20px; display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
+.btn.ghost:hover { border-color: var(--accent); }
+.badges { margin-top: 22px; display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
 .badges img { height: 20px; }
 
-/* ---- screenshot ---- */
-.shot { margin: 46px 0 8px; }
-.shot img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: var(--r);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--shadow);
-}
-
 /* ---- sections ---- */
-section { padding: 46px 0; }
+section { padding: 52px 0; }
 h2 {
   margin: 0 0 22px;
   font-size: 21px;
   font-weight: 640;
   letter-spacing: -0.2px;
 }
+
+/* ---- video ---- */
+.player {
+  position: relative;
+  border-radius: var(--r);
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lg);
+  background: #000;
+  aspect-ratio: 16 / 9;
+}
+.player video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.player button.play {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(10, 12, 16, .14);
+  display: grid;
+  place-items: center;
+  transition: background .25s;
+}
+.player button.play:hover { background: rgba(10, 12, 16, .05); }
+.player button.play span {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .3);
+  transition: transform .25s cubic-bezier(.2, .7, .3, 1);
+}
+.player button.play:hover span { transform: scale(1.09); }
+.player button.play svg { width: 22px; height: 22px; margin-left: 4px; fill: #14161a; }
+.player.playing button.play { display: none; }
+
+/* ---- screenshot ---- */
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ---- feature cards ---- */
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
 .card {
   padding: 18px 20px;
@@ -156,11 +315,18 @@ h2 {
   border: 1px solid var(--hairline);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
+  transition: transform .25s cubic-bezier(.2, .7, .3, 1), background .25s, border-color .25s, box-shadow .25s;
+}
+.card:hover {
+  transform: translateY(-3px);
+  background: var(--card-hi);
+  border-color: rgba(10, 132, 255, .35);
+  box-shadow: var(--shadow);
 }
 .card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 620; }
 .card p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
 
-/* ---- download table ---- */
+/* ---- download ---- */
 .dl { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .dl a {
   display: block;
@@ -169,8 +335,14 @@ h2 {
   background: var(--card);
   border: 1px solid var(--hairline);
   color: inherit;
+  transition: transform .25s cubic-bezier(.2, .7, .3, 1), border-color .25s, box-shadow .25s;
 }
-.dl a:hover { border-color: var(--accent); text-decoration: none; }
+.dl a:hover {
+  text-decoration: none;
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
 .dl strong { display: block; font-size: 14.5px; font-weight: 620; }
 .dl span { font-size: 12.5px; color: var(--ink-3); font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace; }
 .note { margin-top: 14px; font-size: 13px; color: var(--ink-3); }
@@ -194,32 +366,54 @@ footer {
   align-items: center;
 }
 footer .spacer { margin-left: auto; }
+
+/* Motion is decoration here; none of it carries meaning on its own. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}
 </style>
 </head>
 <body>
 
-<div class="wrap">
+<header>
+  <img src="mark.png" alt="" />
+  <span class="name">ReaLingo</span>
+  <nav>
+    <a href="#download"><span class="zh">下载</span><span class="en">Download</span></a>
+    <a href="https://github.com/noSugarK/ReaLingo">GitHub</a>
+    <button id="lang" type="button"><span class="zh">English</span><span class="en">中文</span></button>
+  </nav>
+</header>
 
-  <header>
-    <img src="mark.png" alt="" />
-    <span class="name">ReaLingo</span>
-    <nav>
-      <a href="https://github.com/noSugarK/ReaLingo">GitHub</a>
-      <a href="https://github.com/noSugarK/ReaLingo/releases"><span class="zh">版本</span><span class="en">Releases</span></a>
-      <button id="lang" type="button"><span class="zh">English</span><span class="en">中文</span></button>
-    </nav>
-  </header>
+<div class="wrap">
 
   <div class="hero">
     <img class="banner" src="banner.png" alt="ReaLingo" />
     <h1>
-      <span class="zh">把听到的，立刻变成看得懂的</span>
-      <span class="en">Hear one language, read another</span>
+      <span class="zh">把听到的，立刻变成<em>看得懂的</em></span>
+      <span class="en">Hear one language, <em>read another</em></span>
     </h1>
     <p class="sub">
       <span class="zh">基于阿里云百炼 Qwen3.5-LiveTranslate 的桌面同声传译工具。麦克风、系统声音或本地音频进去，译文实时出现在一个可以浮在任何窗口上的字幕条里。</span>
       <span class="en">A desktop simultaneous interpreter built on Qwen3.5-LiveTranslate. Feed it your microphone, your system audio or a local file; the translation appears live in a subtitle bar that floats over anything.</span>
     </p>
+
+    <div class="demo" aria-hidden="true">
+      <div class="top">
+        <i class="dot"></i>
+        <span class="tag"><span class="zh">系统声音 · 自动检测</span><span class="en">System audio · auto-detect</span></span>
+        <span class="wave" id="wave"></span>
+      </div>
+      <div class="src" id="demo-src"></div>
+      <div class="dst" id="demo-dst"></div>
+    </div>
+
     <div class="cta">
       <a class="btn primary" href="https://github.com/noSugarK/ReaLingo/releases/latest">
         <span class="zh">下载最新版</span><span class="en">Download</span>
@@ -228,6 +422,7 @@ footer .spacer { margin-left: auto; }
         <span class="zh">源码与文档</span><span class="en">Source &amp; docs</span>
       </a>
     </div>
+
     <div class="badges">
       <a href="https://github.com/noSugarK/ReaLingo/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/noSugarK/ReaLingo?style=flat-square&color=0a84ff" /></a>
       <a href="https://github.com/noSugarK/ReaLingo/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/noSugarK/ReaLingo/total?style=flat-square&color=5e5ce6" /></a>
@@ -236,49 +431,57 @@ footer .spacer { margin-left: auto; }
     </div>
   </div>
 
-  <div class="shot">
-    <img src="screenshot.png" alt="ReaLingo 主界面 / ReaLingo main window" />
-  </div>
+  <section>
+    <h2 class="reveal"><span class="zh">一分钟看懂</span><span class="en">See it in a minute</span></h2>
+    <div class="player reveal" id="player">
+      <video id="video" poster="promo-poster.jpg" preload="none" playsinline>
+        <source src="promo.mp4" type="video/mp4" />
+      </video>
+      <button class="play" type="button" id="play" aria-label="Play">
+        <span><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg></span>
+      </button>
+    </div>
+  </section>
 
   <section>
-    <h2><span class="zh">能做什么</span><span class="en">What it does</span></h2>
+    <h2 class="reveal"><span class="zh">能做什么</span><span class="en">What it does</span></h2>
     <div class="grid">
-      <div class="card">
+      <div class="card reveal" style="--d:.00s">
         <h3><span class="zh">三种音频来源</span><span class="en">Three audio sources</span></h3>
         <p>
           <span class="zh">麦克风、系统声音、本地音频文件。Windows、macOS、Ubuntu 三个平台都能直接采系统声音，不用手动转接。</span>
           <span class="en">Microphone, system audio, or a local file. Windows, macOS and Ubuntu all capture system audio directly — no manual routing.</span>
         </p>
       </div>
-      <div class="card">
+      <div class="card reveal" style="--d:.06s">
         <h3><span class="zh">60 种语言互译</span><span class="en">60 languages</span></h3>
         <p>
           <span class="zh">源语言可自动检测。也能切回旧模型 Qwen3（18 语种），语言选择器会跟着收窄。</span>
           <span class="en">Source language auto-detected. Switchable to the older Qwen3 model (18 languages); the pickers narrow to match.</span>
         </p>
       </div>
-      <div class="card">
+      <div class="card reveal" style="--d:.12s">
         <h3><span class="zh">独立字幕窗</span><span class="en">Floating subtitles</span></h3>
         <p>
           <span class="zh">默认置顶，双语 / 仅译文 / 仅原文可选，不透明度、字号、颜色、描边都能调。锁定后鼠标点击穿透，不挡住下面的播放器。</span>
           <span class="en">Always on top; bilingual, translation-only or source-only. Opacity, size, colour and outline are adjustable. Lock it and clicks pass straight through to the player underneath.</span>
         </p>
       </div>
-      <div class="card">
+      <div class="card reveal" style="--d:.00s">
         <h3><span class="zh">系统托盘</span><span class="en">Tray control</span></h3>
         <p>
           <span class="zh">主窗可收进托盘，翻译和字幕照常跑。右键菜单直接开始 / 停止、开关字幕窗、切换点击穿透。</span>
           <span class="en">Tuck the main window into the tray and keep translating. The right-click menu starts and stops, toggles the overlay and its click-through.</span>
         </p>
       </div>
-      <div class="card">
+      <div class="card reveal" style="--d:.06s">
         <h3><span class="zh">API Key 存在凭据库</span><span class="en">Key in the OS keychain</span></h3>
         <p>
           <span class="zh">Windows 凭据管理器、macOS 钥匙串、Linux Secret Service —— 磁盘上不存在可读形式，配置文件里只剩其余设置。</span>
           <span class="en">Windows Credential Manager, macOS Keychain, Linux Secret Service. Nothing readable is left on disk; the config file keeps only the rest.</span>
         </p>
       </div>
-      <div class="card">
+      <div class="card reveal" style="--d:.12s">
         <h3><span class="zh">导出与排查</span><span class="en">Export &amp; inspect</span></h3>
         <p>
           <span class="zh">译文导出 TXT / SRT。内置原始事件查看器，能直接看到服务端回了什么。</span>
@@ -289,21 +492,28 @@ footer .spacer { margin-left: auto; }
   </section>
 
   <section>
-    <h2><span class="zh">下载</span><span class="en">Download</span></h2>
+    <h2 class="reveal"><span class="zh">界面</span><span class="en">The app</span></h2>
+    <div class="shot reveal">
+      <img src="screenshot.png" alt="ReaLingo 主界面 / ReaLingo main window" loading="lazy" />
+    </div>
+  </section>
+
+  <section id="download">
+    <h2 class="reveal"><span class="zh">下载</span><span class="en">Download</span></h2>
     <div class="dl">
-      <a href="https://github.com/noSugarK/ReaLingo/releases/latest">
+      <a class="reveal" style="--d:.00s" href="https://github.com/noSugarK/ReaLingo/releases/latest">
         <strong>Windows</strong><span>.msi / .exe</span>
       </a>
-      <a href="https://github.com/noSugarK/ReaLingo/releases/latest">
+      <a class="reveal" style="--d:.06s" href="https://github.com/noSugarK/ReaLingo/releases/latest">
         <strong>macOS</strong><span>.dmg — Intel + Apple Silicon</span>
       </a>
-      <a href="https://github.com/noSugarK/ReaLingo/releases/latest">
+      <a class="reveal" style="--d:.12s" href="https://github.com/noSugarK/ReaLingo/releases/latest">
         <strong>Linux</strong><span>.deb — amd64</span>
       </a>
     </div>
-    <p class="note">
-      <span class="zh">Linux 需要 <code>libwebkit2gtk-4.1-0</code>、<code>libayatana-appindicator3-1</code>、<code>pulseaudio-utils</code>，装包用 <code>sudo dpkg -i ReaLingo_*_amd64.deb</code>。首次启动后在设置里填入百炼 API Key 即可开始。</span>
-      <span class="en">Linux needs <code>libwebkit2gtk-4.1-0</code>, <code>libayatana-appindicator3-1</code> and <code>pulseaudio-utils</code>; install with <code>sudo dpkg -i ReaLingo_*_amd64.deb</code>. On first launch, add your Model Studio API key in Settings.</span>
+    <p class="note reveal">
+      <span class="zh">Linux 用 apt 装本地包，<code>libwebkit2gtk-4.1-0</code> 等依赖会自己拉下来（<code>dpkg -i</code> 不解析依赖，缺一个就装不上）：<code>sudo apt install ./ReaLingo_*_amd64.deb</code>。首次启动后在设置里填入百炼 API Key 即可开始。</span>
+      <span class="en">On Linux install the local package with apt so its dependencies come along (<code>dpkg -i</code> resolves none of them): <code>sudo apt install ./ReaLingo_*_amd64.deb</code>. On first launch, add your Model Studio API key in Settings.</span>
     </p>
   </section>
 
@@ -318,17 +528,88 @@ footer .spacer { margin-left: auto; }
 </div>
 
 <script>
-  // Remember the choice, but let the browser's own language pick the first time.
+(function () {
+  var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---- language ---- */
   var saved = null;
   try { saved = localStorage.getItem("realingo-lang"); } catch (e) {}
   var prefersZh = (navigator.language || "").toLowerCase().indexOf("zh") === 0;
   document.documentElement.lang = saved || (prefersZh ? "zh" : "en");
-
   document.getElementById("lang").addEventListener("click", function () {
     var next = document.documentElement.lang === "zh" ? "en" : "zh";
     document.documentElement.lang = next;
     try { localStorage.setItem("realingo-lang", next); } catch (e) {}
   });
+
+  /* ---- reveal on scroll ---- */
+  var targets = document.querySelectorAll(".reveal");
+  if (reduced || !("IntersectionObserver" in window)) {
+    targets.forEach(function (el) { el.classList.add("in"); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add("in");
+        io.unobserve(e.target);
+      });
+    }, { rootMargin: "0px 0px -10% 0px", threshold: 0.08 });
+    targets.forEach(function (el) { io.observe(el); });
+  }
+
+  /* ---- waveform bars: staggered, so it reads as sound rather than a progress bar ---- */
+  var wave = document.getElementById("wave");
+  for (var i = 0; i < 14; i++) {
+    var bar = document.createElement("i");
+    bar.style.animationDelay = (i * 0.08).toFixed(2) + "s";
+    bar.style.animationDuration = (0.9 + (i % 4) * 0.14).toFixed(2) + "s";
+    wave.appendChild(bar);
+  }
+
+  /* ---- the hero demo: type a source line, then drop the translation in ---- */
+  var LINES = [
+    ["Revenue grew eighteen percent year over year.", "营收同比增长了 18%。"],
+    ["Let's move on to the next slide.", "我们看下一页。"],
+    ["この機能は来月リリースされます。", "This feature ships next month."],
+    ["The deadline moved to Friday.", "截止时间改到周五了。"]
+  ];
+  var srcEl = document.getElementById("demo-src");
+  var dstEl = document.getElementById("demo-dst");
+  var at = 0;
+
+  function show(i) {
+    var pair = LINES[i % LINES.length];
+    srcEl.textContent = "";
+    dstEl.textContent = pair[1];
+    dstEl.classList.remove("show");
+
+    if (reduced) {
+      srcEl.textContent = pair[0];
+      dstEl.classList.add("show");
+      setTimeout(function () { show(i + 1); }, 4200);
+      return;
+    }
+
+    var n = 0;
+    (function type() {
+      srcEl.textContent = pair[0].slice(0, ++n);
+      if (n < pair[0].length) return setTimeout(type, 34);
+      // The translation lands a beat after the sentence closes, the way the real one does.
+      setTimeout(function () { dstEl.classList.add("show"); }, 380);
+      setTimeout(function () { show(i + 1); }, 3400);
+    })();
+  }
+  show(at);
+
+  /* ---- video: nothing is fetched until the poster is clicked ---- */
+  var player = document.getElementById("player");
+  var video = document.getElementById("video");
+  document.getElementById("play").addEventListener("click", function () {
+    player.classList.add("playing");
+    video.controls = true;
+    video.play();
+  });
+})();
 </script>
 
 </body>
