@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ReaLingo — 实时语音翻译</title>
+<meta name="description" content="基于 Qwen3.5-LiveTranslate 的桌面同声传译工具，60 种语言，独立字幕窗，Windows / macOS / Linux。" />
+<link rel="icon" href="mark.png" />
+<meta property="og:title" content="ReaLingo — 实时语音翻译" />
+<meta property="og:description" content="基于 Qwen3.5-LiveTranslate 的桌面同声传译工具，60 种语言，独立字幕窗。" />
+<meta property="og:image" content="https://nosugark.github.io/ReaLingo/screenshot.png" />
+<meta property="og:type" content="website" />
+<style>
+:root {
+  --bg: #f6f7fb;
+  --wash-a: #dbe6ff;
+  --wash-b: #e9dcff;
+  --card: rgba(255, 255, 255, 0.72);
+  --ink-1: #14161a;
+  --ink-2: #4a505a;
+  --ink-3: #868d99;
+  --hairline: rgba(20, 22, 26, 0.09);
+  --accent: #0a84ff;
+  --accent-2: #7c5cff;
+  --shadow: 0 1px 2px rgba(20, 22, 26, .05), 0 12px 32px rgba(20, 22, 26, .07);
+  --r: 18px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1014;
+    --wash-a: #16233f;
+    --wash-b: #221a3d;
+    --card: rgba(255, 255, 255, 0.045);
+    --ink-1: #f2f4f8;
+    --ink-2: #b3bac6;
+    --ink-3: #7b828f;
+    --hairline: rgba(255, 255, 255, 0.10);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .35);
+  }
+}
+
+* { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink-1);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+/* One wash behind everything, same palette as the app's window. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(1100px 520px at 12% -10%, var(--wash-a), transparent 65%),
+    radial-gradient(900px 480px at 88% 4%, var(--wash-b), transparent 62%);
+}
+
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- language toggle: both languages ship, CSS picks one ---- */
+html[lang="en"] .zh { display: none; }
+html[lang="zh"] .en { display: none; }
+
+/* ---- top bar ---- */
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0;
+}
+header img { width: 28px; height: 28px; border-radius: 7px; }
+header .name { font-weight: 640; letter-spacing: .2px; }
+header nav { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 13.5px; }
+header nav a { color: var(--ink-2); }
+#lang {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+#lang:hover { color: var(--ink-1); }
+
+/* ---- hero ---- */
+.hero { padding: 40px 0 8px; text-align: center; }
+.hero img.banner { width: min(340px, 72vw); height: auto; }
+.hero h1 {
+  margin: 22px 0 0;
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+  font-weight: 680;
+}
+.hero p.sub {
+  margin: 14px auto 0;
+  max-width: 34em;
+  font-size: clamp(15px, 2.2vw, 17px);
+  color: var(--ink-2);
+}
+.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 28px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 560;
+  font-size: 14.5px;
+}
+.btn:hover { text-decoration: none; }
+.btn.primary {
+  color: #fff;
+  background: linear-gradient(100deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 18px rgba(10, 132, 255, .28);
+}
+.btn.primary:hover { filter: brightness(1.07); }
+.btn.ghost { color: var(--ink-1); background: var(--card); border-color: var(--hairline); }
+.badges { margin-top: 20px; display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
+.badges img { height: 20px; }
+
+/* ---- screenshot ---- */
+.shot { margin: 46px 0 8px; }
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow);
+}
+
+/* ---- sections ---- */
+section { padding: 46px 0; }
+h2 {
+  margin: 0 0 22px;
+  font-size: 21px;
+  font-weight: 640;
+  letter-spacing: -0.2px;
+}
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.card {
+  padding: 18px 20px;
+  border-radius: var(--r);
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+.card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 620; }
+.card p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+
+/* ---- download table ---- */
+.dl { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.dl a {
+  display: block;
+  padding: 16px 18px;
+  border-radius: var(--r);
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  color: inherit;
+}
+.dl a:hover { border-color: var(--accent); text-decoration: none; }
+.dl strong { display: block; font-size: 14.5px; font-weight: 620; }
+.dl span { font-size: 12.5px; color: var(--ink-3); font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace; }
+.note { margin-top: 14px; font-size: 13px; color: var(--ink-3); }
+.note code {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+  font-size: 12.5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--hairline);
+}
+
+/* ---- footer ---- */
+footer {
+  padding: 34px 0 48px;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+}
+footer .spacer { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <img src="mark.png" alt="" />
+    <span class="name">ReaLingo</span>
+    <nav>
+      <a href="https://github.com/noSugarK/ReaLingo">GitHub</a>
+      <a href="https://github.com/noSugarK/ReaLingo/releases"><span class="zh">版本</span><span class="en">Releases</span></a>
+      <button id="lang" type="button"><span class="zh">English</span><span class="en">中文</span></button>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <img class="banner" src="banner.png" alt="ReaLingo" />
+    <h1>
+      <span class="zh">把听到的，立刻变成看得懂的</span>
+      <span class="en">Hear one language, read another</span>
+    </h1>
+    <p class="sub">
+      <span class="zh">基于阿里云百炼 Qwen3.5-LiveTranslate 的桌面同声传译工具。麦克风、系统声音或本地音频进去，译文实时出现在一个可以浮在任何窗口上的字幕条里。</span>
+      <span class="en">A desktop simultaneous interpreter built on Qwen3.5-LiveTranslate. Feed it your microphone, your system audio or a local file; the translation appears live in a subtitle bar that floats over anything.</span>
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/noSugarK/ReaLingo/releases/latest">
+        <span class="zh">下载最新版</span><span class="en">Download</span>
+      </a>
+      <a class="btn ghost" href="https://github.com/noSugarK/ReaLingo">
+        <span class="zh">源码与文档</span><span class="en">Source &amp; docs</span>
+      </a>
+    </div>
+    <div class="badges">
+      <a href="https://github.com/noSugarK/ReaLingo/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/noSugarK/ReaLingo?style=flat-square&color=0a84ff" /></a>
+      <a href="https://github.com/noSugarK/ReaLingo/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/noSugarK/ReaLingo/total?style=flat-square&color=5e5ce6" /></a>
+      <a href="https://github.com/noSugarK/ReaLingo/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/noSugarK/ReaLingo?style=flat-square&color=bf5af2" /></a>
+      <a href="https://github.com/noSugarK/ReaLingo/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/github/license/noSugarK/ReaLingo?style=flat-square" /></a>
+    </div>
+  </div>
+
+  <div class="shot">
+    <img src="screenshot.png" alt="ReaLingo 主界面 / ReaLingo main window" />
+  </div>
+
+  <section>
+    <h2><span class="zh">能做什么</span><span class="en">What it does</span></h2>
+    <div class="grid">
+      <div class="card">
+        <h3><span class="zh">三种音频来源</span><span class="en">Three audio sources</span></h3>
+        <p>
+          <span class="zh">麦克风、系统声音、本地音频文件。Windows、macOS、Ubuntu 三个平台都能直接采系统声音，不用手动转接。</span>
+          <span class="en">Microphone, system audio, or a local file. Windows, macOS and Ubuntu all capture system audio directly — no manual routing.</span>
+        </p>
+      </div>
+      <div class="card">
+        <h3><span class="zh">60 种语言互译</span><span class="en">60 languages</span></h3>
+        <p>
+          <span class="zh">源语言可自动检测。也能切回旧模型 Qwen3（18 语种），语言选择器会跟着收窄。</span>
+          <span class="en">Source language auto-detected. Switchable to the older Qwen3 model (18 languages); the pickers narrow to match.</span>
+        </p>
+      </div>
+      <div class="card">
+        <h3><span class="zh">独立字幕窗</span><span class="en">Floating subtitles</span></h3>
+        <p>
+          <span class="zh">默认置顶，双语 / 仅译文 / 仅原文可选，不透明度、字号、颜色、描边都能调。锁定后鼠标点击穿透，不挡住下面的播放器。</span>
+          <span class="en">Always on top; bilingual, translation-only or source-only. Opacity, size, colour and outline are adjustable. Lock it and clicks pass straight through to the player underneath.</span>
+        </p>
+      </div>
+      <div class="card">
+        <h3><span class="zh">系统托盘</span><span class="en">Tray control</span></h3>
+        <p>
+          <span class="zh">主窗可收进托盘，翻译和字幕照常跑。右键菜单直接开始 / 停止、开关字幕窗、切换点击穿透。</span>
+          <span class="en">Tuck the main window into the tray and keep translating. The right-click menu starts and stops, toggles the overlay and its click-through.</span>
+        </p>
+      </div>
+      <div class="card">
+        <h3><span class="zh">API Key 存在凭据库</span><span class="en">Key in the OS keychain</span></h3>
+        <p>
+          <span class="zh">Windows 凭据管理器、macOS 钥匙串、Linux Secret Service —— 磁盘上不存在可读形式，配置文件里只剩其余设置。</span>
+          <span class="en">Windows Credential Manager, macOS Keychain, Linux Secret Service. Nothing readable is left on disk; the config file keeps only the rest.</span>
+        </p>
+      </div>
+      <div class="card">
+        <h3><span class="zh">导出与排查</span><span class="en">Export &amp; inspect</span></h3>
+        <p>
+          <span class="zh">译文导出 TXT / SRT。内置原始事件查看器，能直接看到服务端回了什么。</span>
+          <span class="en">Export the transcript as TXT or SRT. A built-in raw-event viewer shows exactly what the server sent.</span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="zh">下载</span><span class="en">Download</span></h2>
+    <div class="dl">
+      <a href="https://github.com/noSugarK/ReaLingo/releases/latest">
+        <strong>Windows</strong><span>.msi / .exe</span>
+      </a>
+      <a href="https://github.com/noSugarK/ReaLingo/releases/latest">
+        <strong>macOS</strong><span>.dmg — Intel + Apple Silicon</span>
+      </a>
+      <a href="https://github.com/noSugarK/ReaLingo/releases/latest">
+        <strong>Linux</strong><span>.deb — amd64</span>
+      </a>
+    </div>
+    <p class="note">
+      <span class="zh">Linux 需要 <code>libwebkit2gtk-4.1-0</code>、<code>libayatana-appindicator3-1</code>、<code>pulseaudio-utils</code>，装包用 <code>sudo dpkg -i ReaLingo_*_amd64.deb</code>。首次启动后在设置里填入百炼 API Key 即可开始。</span>
+      <span class="en">Linux needs <code>libwebkit2gtk-4.1-0</code>, <code>libayatana-appindicator3-1</code> and <code>pulseaudio-utils</code>; install with <code>sudo dpkg -i ReaLingo_*_amd64.deb</code>. On first launch, add your Model Studio API key in Settings.</span>
+    </p>
+  </section>
+
+  <footer>
+    <span class="zh">Tauri 2 + Rust 内核，Vue 3 前端</span>
+    <span class="en">Rust core on Tauri 2, Vue 3 front end</span>
+    <span class="spacer"></span>
+    <a href="https://github.com/noSugarK/ReaLingo/blob/main/LICENSE">MIT</a>
+    <a href="https://github.com/noSugarK">noSugarK</a>
+  </footer>
+
+</div>
+
+<script>
+  // Remember the choice, but let the browser's own language pick the first time.
+  var saved = null;
+  try { saved = localStorage.getItem("realingo-lang"); } catch (e) {}
+  var prefersZh = (navigator.language || "").toLowerCase().indexOf("zh") === 0;
+  document.documentElement.lang = saved || (prefersZh ? "zh" : "en");
+
+  document.getElementById("lang").addEventListener("click", function () {
+    var next = document.documentElement.lang === "zh" ? "en" : "zh";
+    document.documentElement.lang = next;
+    try { localStorage.setItem("realingo-lang", next); } catch (e) {}
+  });
+</script>
+
+</body>
+</html>
