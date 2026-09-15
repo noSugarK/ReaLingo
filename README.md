@@ -13,7 +13,7 @@
   <a href="#平台支持"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-8a8f98?style=flat-square" /></a>
 </p>
 
-<p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
+<p align="center"><a href="https://nosugark.github.io/ReaLingo/">项目主页</a> · <b>简体中文</b> · <a href="README.en.md">English</a></p>
 
 Tauri 2 + Rust 内核，Vue 3 前端，苹果液态玻璃风格界面。
 

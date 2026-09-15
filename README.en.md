@@ -13,7 +13,7 @@
   <a href="#platform-support"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-8a8f98?style=flat-square" /></a>
 </p>
 
-<p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
+<p align="center"><a href="https://nosugark.github.io/ReaLingo/">Website</a> · <a href="README.md">简体中文</a> · <b>English</b></p>
 
 Rust core on Tauri 2, Vue 3 front end, Apple liquid-glass interface.
 
