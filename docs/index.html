@@ -69,6 +69,9 @@ body::before {
     radial-gradient(760px 520px at 18% 12%, var(--wash-a), transparent 62%),
     radial-gradient(680px 480px at 82% 6%, var(--wash-b), transparent 60%),
     radial-gradient(720px 520px at 55% 88%, var(--wash-c), transparent 62%);
+  /* Its own compositing layer: a fixed, endlessly animating backdrop under a
+     backdrop-filtered sticky bar otherwise leaves repaint seams while scrolling. */
+  will-change: transform;
   animation: drift 26s ease-in-out infinite alternate;
 }
 @keyframes drift {
@@ -133,6 +136,7 @@ header nav a:hover { color: var(--ink-1); }
 .hero > *:nth-child(4) { animation-delay: .24s; }
 .hero > *:nth-child(5) { animation-delay: .32s; }
 .hero > *:nth-child(6) { animation-delay: .40s; }
+.hero > *:nth-child(7) { animation-delay: .48s; }
 @keyframes rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 
 .hero img.banner { width: min(340px, 72vw); height: auto; }
@@ -162,14 +166,27 @@ header nav a:hover { color: var(--ink-1); }
 }
 
 /* ---- the live subtitle bar: what the app actually looks like in use ---- */
+/* Pulled up over the screenshot's bottom edge: a negative margin overlaps a fixed
+   46px at every width, where an absolute inset would swallow a phone-sized shot. */
+.hero-visual { position: relative; margin-top: 34px; }
+.hero-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lg);
+}
 .demo {
-  margin: 30px auto 0;
-  max-width: 620px;
+  position: relative;
+  z-index: 2;
+  margin: -46px auto 0;
+  width: min(620px, 90%);
   padding: 16px 20px 18px;
   border-radius: var(--r);
   background: var(--card);
   border: 1px solid var(--hairline);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-lg);
   backdrop-filter: blur(22px) saturate(170%);
   -webkit-backdrop-filter: blur(22px) saturate(170%);
   text-align: left;
@@ -246,6 +263,21 @@ header nav a:hover { color: var(--ink-1); }
 .btn.primary:hover { box-shadow: 0 12px 30px rgba(10, 132, 255, .38); filter: brightness(1.06); }
 .btn.ghost { color: var(--ink-1); background: var(--card); border-color: var(--hairline); }
 .btn.ghost:hover { border-color: var(--accent); }
+.btn .dlicon {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cta-note {
+  margin: 11px 0 0;
+  min-height: 1.2em;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
 .badges { margin-top: 22px; display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
 .badges img { height: 20px; }
 
@@ -295,16 +327,6 @@ h2 {
 .player button.play:hover span { transform: scale(1.09); }
 .player button.play svg { width: 22px; height: 22px; margin-left: 4px; fill: #14161a; }
 .player.playing button.play { display: none; }
-
-/* ---- screenshot ---- */
-.shot img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: var(--r);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-lg);
-}
 
 /* ---- feature cards ---- */
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
@@ -466,23 +488,29 @@ footer .spacer { margin-left: auto; }
       <span class="en">A desktop simultaneous interpreter built on Qwen3.5-LiveTranslate. Feed it your microphone, your system audio or a local file; the translation appears live in a subtitle bar that floats over anything.</span>
     </p>
 
-    <div class="demo" aria-hidden="true">
-      <div class="top">
-        <i class="dot"></i>
-        <span class="tag"><span class="zh">系统声音 · 自动检测</span><span class="en">System audio · auto-detect</span></span>
-        <span class="wave" id="wave"></span>
-      </div>
-      <div class="src" id="demo-src"></div>
-      <div class="dst" id="demo-dst"></div>
+    <div class="cta">
+      <a class="btn primary" id="hero-dl" href="https://github.com/noSugarK/ReaLingo/releases/latest">
+        <svg class="dlicon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4.2-4.2M12 14l-4.2-4.2M4.5 17.5v1A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-1"/></svg>
+        <span id="hero-dl-text"><span class="zh">下载最新版</span><span class="en">Download</span></span>
+      </a>
+      <a class="btn ghost" href="#download">
+        <span class="zh">其他平台</span><span class="en">Other platforms</span>
+      </a>
     </div>
 
-    <div class="cta">
-      <a class="btn primary" href="https://github.com/noSugarK/ReaLingo/releases/latest">
-        <span class="zh">下载最新版</span><span class="en">Download</span>
-      </a>
-      <a class="btn ghost" href="https://github.com/noSugarK/ReaLingo">
-        <span class="zh">源码与文档</span><span class="en">Source &amp; docs</span>
-      </a>
+    <p class="cta-note" id="hero-note"></p>
+
+    <div class="hero-visual">
+      <img src="screenshot.png" alt="ReaLingo 主界面 / ReaLingo main window" />
+      <div class="demo" aria-hidden="true">
+        <div class="top">
+          <i class="dot"></i>
+          <span class="tag"><span class="zh">系统声音 · 自动检测</span><span class="en">System audio · auto-detect</span></span>
+          <span class="wave" id="wave"></span>
+        </div>
+        <div class="src" id="demo-src"></div>
+        <div class="dst" id="demo-dst"></div>
+      </div>
     </div>
 
     <div class="badges">
@@ -550,13 +578,6 @@ footer .spacer { margin-left: auto; }
           <span class="en">Export the transcript as TXT or SRT. A built-in raw-event viewer shows exactly what the server sent.</span>
         </p>
       </div>
-    </div>
-  </section>
-
-  <section>
-    <h2 class="reveal"><span class="zh">界面</span><span class="en">The app</span></h2>
-    <div class="shot reveal">
-      <img src="screenshot.png" alt="ReaLingo 主界面 / ReaLingo main window" loading="lazy" />
     </div>
   </section>
 
@@ -732,6 +753,23 @@ footer .spacer { margin-left: auto; }
       card.classList.toggle("me", os === mine);
       card.setAttribute("data-me", zh ? "你的系统" : "your OS");
     });
+
+    // The hero button is the whole point of the fold: give it the visitor's own file.
+    var btn = document.getElementById("hero-dl");
+    var label = document.getElementById("hero-dl-text");
+    var note = document.getElementById("hero-note");
+    var NAMES = { win: "Windows", mac: "macOS", linux: "Linux" };
+    var own = mine && release.assets.filter(function (a) { return PICK[mine].test(a.name); })[0];
+    if (own) {
+      btn.href = own.browser_download_url;
+      label.textContent = zh ? "下载 " + NAMES[mine] + " 版" : "Download for " + NAMES[mine];
+      note.textContent = own.name + " · " + fmtSize(own.size);
+    } else {
+      // Unknown platform: send them to the table rather than guess a file.
+      btn.href = "#download";
+      label.textContent = zh ? "选择你的平台" : "Pick your platform";
+      note.textContent = zh ? "提供 Windows、macOS、Linux 安装包" : "Windows, macOS and Linux builds available";
+    }
 
     var msi = release.assets.filter(function (a) { return /\.msi$/i.test(a.name); })[0];
     alt.innerHTML = (msi
