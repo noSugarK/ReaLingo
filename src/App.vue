@@ -139,6 +139,7 @@ async function showOverlay(show: boolean) {
   if (!w) return;
   if (!show) return w.hide();
   await w.show();
+  await setOverlayClickThrough(settings.sub.locked);
   await pushOverlayStyle();
   // An always-on-top overlay appearing must not pull focus away from the window the user
   // is actually clicking in.
@@ -147,7 +148,11 @@ async function showOverlay(show: boolean) {
 
 async function setOverlayClickThrough(locked: boolean) {
   const w = await subtitleWindow();
-  await w?.setIgnoreCursorEvents(locked);
+  // A hidden window has no underlying GDK window on Linux, and the click-through call
+  // unwraps it -> hard panic at startup. Only ever apply it to a window that is up;
+  // showOverlay re-applies it right after show().
+  if (!w || !(await w.isVisible())) return;
+  await w.setIgnoreCursorEvents(locked);
 }
 
 // Styling is cheap to push on every tick; show/hide and click-through are window calls that
@@ -245,7 +250,6 @@ let levelTimer: number | undefined;
 onMounted(async () => {
   await initSettings();
   await refreshDevices();
-  await setOverlayClickThrough(settings.sub.locked);
   await showOverlay(settings.sub.show);
   await syncTray();
   levelTimer = window.setInterval(async () => {
