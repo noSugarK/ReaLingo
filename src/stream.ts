@@ -1,6 +1,7 @@
 import { ref, reactive, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { settings } from "./store";
 
 export interface Line {
@@ -33,9 +34,24 @@ export const rawLog = ref<unknown[]>([]);
 
 let nextId = 1;
 
+/**
+ * The history file this run is appending to, "" when history is off. Written as JSONL: one
+ * meta line, then one line per sentence. See src-tauri/src/history.rs.
+ */
+let sessionId = "";
+
+function record(line: object) {
+  if (!sessionId) return;
+  // Fire and forget: a disk that will not take the line must not stall the subtitle.
+  void invoke("history_append", { id: sessionId, line: JSON.stringify(line) }).catch(() => {
+    sessionId = "";
+  });
+}
+
 function commit() {
   if (!current.source && !current.target) return;
   lines.value.push({ id: nextId++, source: current.source, target: current.target, at: Date.now() });
+  record({ at: Date.now(), source: current.source, target: current.target });
   if (lines.value.length > 500) lines.value.splice(0, lines.value.length - 500);
   clearCurrent();
 }
@@ -124,6 +140,17 @@ export async function start(source: Source) {
   rawLog.value = [];
   fileProgress.value = null;
   status.value = "connecting";
+  // The id is the file name, so it has to survive as a plain slug — and being an ISO
+  // timestamp it also sorts chronologically for free.
+  sessionId = settings.history ? new Date().toISOString().replace(/[:.]/g, "-") : "";
+  record({
+    v: 1,
+    at: Date.now(),
+    source: settings.sourceLang,
+    target: settings.targetLang,
+    model: settings.model,
+    kind: source.kind,
+  });
   try {
     await invoke("start_stream", { settings: toRaw(settings), source });
   } catch (e) {
@@ -141,21 +168,31 @@ export async function stop() {
 
 export const isRunning = () => status.value === "connecting" || status.value === "connected";
 
-export function exportTxt(): string {
-  return lines.value.map((l) => (l.source ? `${l.source}\n${l.target}` : l.target)).join("\n\n");
+export function exportTxt(rows: Line[] = lines.value): string {
+  return rows.map((l) => (l.source ? `${l.source}\n${l.target}` : l.target)).join("\n\n");
 }
 
 /** SRT timings are derived from arrival time — good enough to follow along, not frame-accurate. */
-export function exportSrt(): string {
-  const t0 = lines.value[0]?.at ?? Date.now();
-  return lines.value
+export function exportSrt(rows: Line[] = lines.value): string {
+  const t0 = rows[0]?.at ?? Date.now();
+  return rows
     .map((l, i) => {
       const start = l.at - t0;
-      const end = (lines.value[i + 1]?.at ?? l.at + 3000) - t0;
+      const end = (rows[i + 1]?.at ?? l.at + 3000) - t0;
       const body = l.source ? `${l.source}\n${l.target}` : l.target;
       return `${i + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${body}\n`;
     })
     .join("\n");
+}
+
+/** Save an export through the user's own file dialog. Shared by the stream and the history panel. */
+export async function saveAs(kind: "txt" | "srt", rows: Line[], stem = "translation") {
+  const path = await saveDialog({
+    defaultPath: `${stem}.${kind}`,
+    filters: [{ name: kind.toUpperCase(), extensions: [kind] }],
+  });
+  if (!path) return;
+  await invoke("write_text", { path, contents: kind === "txt" ? exportTxt(rows) : exportSrt(rows) });
 }
 
 function srtTime(ms: number): string {

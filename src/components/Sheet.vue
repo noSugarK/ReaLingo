@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { t } from "../i18n";
 
-defineProps<{ title: string }>();
+defineProps<{ title: string; wide?: boolean }>();
 defineEmits<{ close: [] }>();
 </script>
 
 <template>
   <div class="scrim" @click.self="$emit('close')">
-    <div class="sheet glass">
+    <div class="sheet glass" :class="{ wide }">
       <header class="sheet-head">
         <h2>{{ title }}</h2>
         <button class="btn-icon" :aria-label="t('close')" @click="$emit('close')">
@@ -50,6 +50,7 @@ defineEmits<{ close: [] }>();
   animation: rise 0.28s var(--ease);
 }
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+.sheet.wide { width: min(880px, 100%); }
 
 .sheet-head {
   display: flex;

@@ -4,13 +4,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import Card from "./components/Card.vue";
 import Picker from "./components/Picker.vue";
 import Slider from "./components/Slider.vue";
 import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
+import History from "./components/History.vue";
 import { locale, setLocale, t } from "./i18n";
 import { langName, languageCodes } from "./languages";
 import { settings, initSettings, resolvedTheme, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
@@ -18,8 +19,7 @@ import {
   current,
   detectedLang,
   errorMsg,
-  exportSrt,
-  exportTxt,
+  saveAs,
   fileProgress,
   isRunning,
   lines,
@@ -36,6 +36,7 @@ type SourceKind = "mic" | "system" | "file";
 const win = getCurrentWindow();
 const showSettings = ref(false);
 const showAbout = ref(false);
+const showHistory = ref(false);
 const showDiag = ref(false);
 const sourceKind = ref<SourceKind>("mic");
 const devices = ref<{ id: string; name: string; loopback: boolean }[]>([]);
@@ -246,14 +247,7 @@ void listen<string>("tray://action", ({ payload: id }) => {
 watch([locale, status, () => settings.sub], syncTray, { deep: true });
 
 /* ---------- export ---------- */
-async function exportAs(kind: "txt" | "srt") {
-  const path = await saveDialog({
-    defaultPath: `translation.${kind}`,
-    filters: [{ name: kind.toUpperCase(), extensions: [kind] }],
-  });
-  if (!path) return;
-  await invoke("write_text", { path, contents: kind === "txt" ? exportTxt() : exportSrt() });
-}
+const exportAs = (kind: "txt" | "srt") => saveAs(kind, lines.value);
 
 /* ---------- lifecycle ---------- */
 let levelTimer: number | undefined;
@@ -523,6 +517,14 @@ watch([lines, current], async () => {
       <Card class="stream-card" :title="t('streamTitle')" flush>
         <template #action>
           <div class="row">
+            <button
+              class="sw sm"
+              :class="{ on: settings.history }"
+              :title="t('historyHint')"
+              :aria-label="t('rec')"
+              @click="settings.history = !settings.history"
+            />
+            <button class="chip" @click="showHistory = true">{{ t("history") }}</button>
             <button class="chip" :disabled="!lines.length" @click="lines = []">{{ t("clear") }}</button>
             <button class="chip" :disabled="!lines.length" @click="exportAs('txt')">{{ t("exportTxt") }}</button>
             <button class="chip" :disabled="!lines.length" @click="exportAs('srt')">{{ t("exportSrt") }}</button>
@@ -561,6 +563,7 @@ watch([lines, current], async () => {
 
   <Settings v-if="showSettings" @close="showSettings = false" />
   <About v-if="showAbout" @close="showAbout = false" />
+  <History v-if="showHistory" @close="showHistory = false" />
 </template>
 
 <style scoped>
@@ -662,6 +665,10 @@ watch([lines, current], async () => {
 }
 .chip:hover:not(:disabled) { background: var(--accent); color: #fff; }
 .chip:disabled { opacity: 0.35; cursor: not-allowed; }
+/* The card's action row is chip-height, so the switch comes down to match it. */
+.sw.sm { width: 34px; height: 20px; }
+.sw.sm::after { width: 15px; height: 15px; }
+.sw.sm.on::after { transform: translateX(13px); }
 
 .stream {
   flex: 1; min-height: 0; overflow-y: auto;

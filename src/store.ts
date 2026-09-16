@@ -39,6 +39,8 @@ export interface Settings {
   sourceLang: string;
   targetLang: string;
   model: string;
+  /** Off by default: translations are private, so nothing hits the disk unless asked. */
+  history: boolean;
   /** Hotwords: source term -> preferred translation. Sent with `session.update`. */
   hotwords: Record<string, string>;
   theme: Theme;
@@ -53,6 +55,7 @@ export const settings = reactive<Settings>({
   targetLang: "en",
   model: MODEL_NEW,
   hotwords: {},
+  history: false,
   theme: "system",
   sub: {
     show: false,

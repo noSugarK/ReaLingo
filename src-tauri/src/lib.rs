@@ -1,6 +1,7 @@
 mod audio;
 pub mod config;
 pub mod decode;
+mod history;
 mod realtime;
 pub mod pulse;
 pub mod resample;
@@ -197,6 +198,12 @@ pub fn run() {
             start_stream,
             stop_stream,
             write_text,
+            history::history_append,
+            history::history_list,
+            history::history_read,
+            history::history_delete,
+            history::history_clear,
+            history::history_dir,
             tray::sync_tray
         ])
         .run(tauri::generate_context!())
