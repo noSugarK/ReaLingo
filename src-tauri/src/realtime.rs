@@ -40,6 +40,11 @@ pub struct Event {
     pub stash: String,
     /// Source language the model detected (transcript events only).
     pub lang: String,
+    /// Which turn this belongs to. Translation events carry the assistant item's id;
+    /// transcript events carry the input item's id, and a `link` event ties the two
+    /// together. Without it, a transcript that finishes after its translation — which is
+    /// the normal order — gets attached to whatever turn happens to be open.
+    pub id: String,
     pub done: bool,
 }
 
@@ -156,17 +161,38 @@ fn classify(v: &Value) -> Option<Event> {
     let ty = v.get("type").and_then(Value::as_str)?;
 
     let ev = match ty {
+        // Pairs the assistant item that will carry the translation with the input item
+        // whose transcript belongs to it. Input items are announced through the same event,
+        // and *their* `previous_item_id` points at the preceding assistant item — pairing
+        // on that would tie every transcript to the turn before it.
+        "conversation.item.created" => {
+            let item = v.get("item")?;
+            let is_input =
+                item.pointer("/content/0/type").and_then(Value::as_str) == Some("input_audio");
+            let prev = v.get("previous_item_id").and_then(Value::as_str).unwrap_or_default();
+            if is_input || prev.is_empty() {
+                return None;
+            }
+            Event {
+                kind: "link",
+                id: item.get("id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                text: prev.to_string(),
+                ..Default::default()
+            }
+        }
         "conversation.item.input_audio_transcription.text" => Event {
             kind: "source",
             text: field("text"),
             stash: field("stash"),
             lang: field("language"),
+            id: field("item_id"),
             done: false,
         },
         "conversation.item.input_audio_transcription.completed" => Event {
             kind: "source",
             text: field("transcript"),
             lang: field("language"),
+            id: field("item_id"),
             done: true,
             ..Default::default()
         },
@@ -175,11 +201,14 @@ fn classify(v: &Value) -> Option<Event> {
             kind: "target",
             text: field("text"),
             stash: field("stash"),
+            id: field("item_id"),
             ..Default::default()
         },
+        // The audio-modality event names its payload `transcript`, not `text`.
         "response.text.done" | "response.audio_transcript.done" => Event {
             kind: "target",
-            text: field("text"),
+            text: if ty == "response.text.done" { field("text") } else { field("transcript") },
+            id: field("item_id"),
             done: true,
             ..Default::default()
         },
@@ -251,6 +280,50 @@ mod tests {
         assert_eq!(ev.text, "Good morning, everyone.");
         assert_eq!(ev.lang, "en");
         assert!(ev.done);
+    }
+
+    #[test]
+    fn assistant_item_links_to_the_input_item_it_answers() {
+        let ev = classify(&json!({
+            "type": "conversation.item.created",
+            "item": { "id": "item_assistant", "content": [], "role": "assistant" },
+            "previous_item_id": "item_input"
+        }))
+        .unwrap();
+        assert_eq!(ev.kind, "link");
+        assert_eq!(ev.id, "item_assistant");
+        assert_eq!(ev.text, "item_input");
+    }
+
+    #[test]
+    fn the_input_items_own_announcement_is_not_a_link() {
+        // Its `previous_item_id` points at the *previous* turn's assistant item, so taking
+        // it would pair every transcript with the turn before it.
+        assert!(classify(&json!({
+            "type": "conversation.item.created",
+            "item": { "id": "item_input", "content": [{ "type": "input_audio" }] },
+            "previous_item_id": "item_assistant_of_previous_turn"
+        }))
+        .is_none());
+    }
+
+    #[test]
+    fn turn_ids_ride_along_with_transcripts_and_translations() {
+        let src = classify(&json!({
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "item_input",
+            "transcript": "Good morning."
+        }))
+        .unwrap();
+        assert_eq!(src.id, "item_input");
+
+        let tgt = classify(&json!({
+            "type": "response.text.done",
+            "item_id": "item_assistant",
+            "text": "早上好。"
+        }))
+        .unwrap();
+        assert_eq!(tgt.id, "item_assistant");
     }
 
     #[test]

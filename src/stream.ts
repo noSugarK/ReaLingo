@@ -48,26 +48,113 @@ function record(line: object) {
   });
 }
 
-function commit() {
-  if (!current.source && !current.target) return;
-  lines.value.push({ id: nextId++, source: current.source, target: current.target, at: Date.now() });
-  record({ at: Date.now(), source: current.source, target: current.target });
-  if (lines.value.length > 500) lines.value.splice(0, lines.value.length - 500);
-  clearCurrent();
+/**
+ * One turn of speech: its transcript and its translation, which arrive as two independent
+ * streams and finish at different times — in practice the translation is done first and
+ * the transcript lands seconds later, while the *next* turn is already streaming. Keyed by
+ * the assistant item id the server puts on every translation frame; transcripts carry the
+ * input item's id instead, which a `link` event maps onto this key.
+ */
+interface Turn {
+  key: string;
+  input: string;
+  source: string;
+  sourceStash: string;
+  target: string;
+  targetStash: string;
+  sourceDone: boolean;
+  targetDone: boolean;
+  at: number;
+  /** Set once the turn has a row in `lines`; the row is patched in place afterwards. */
+  lineId?: number;
+}
+
+const turns = new Map<string, Turn>();
+/** Input item id -> turn key, from the server's `link` event. */
+const byInput = new Map<string, string>();
+
+function turnFor(key: string): Turn {
+  let t = turns.get(key);
+  if (!t) {
+    t = {
+      key,
+      input: "",
+      source: "",
+      sourceStash: "",
+      target: "",
+      targetStash: "",
+      sourceDone: false,
+      targetDone: false,
+      at: Date.now(),
+    };
+    turns.set(key, t);
+    // A turn whose transcript never arrives would sit here forever. Two or three are open
+    // at once in normal speech; well past that, the oldest is never coming back.
+    if (turns.size > 8) close(turns.values().next().value as Turn);
+  }
+  return t;
+}
+
+/** Show it in the stream as soon as there is something to show, then keep the row current. */
+function publish(t: Turn) {
+  if (!t.source && !t.target) return;
+  if (t.lineId === undefined) {
+    t.lineId = nextId++;
+    lines.value.push({ id: t.lineId, source: t.source, target: t.target, at: t.at });
+    if (lines.value.length > 500) lines.value.splice(0, lines.value.length - 500);
+    return;
+  }
+  const row = lines.value.find((l) => l.id === t.lineId);
+  if (row) {
+    row.source = t.source;
+    row.target = t.target;
+  }
+}
+
+/** Both halves are final: the row is complete, so this is the one version worth keeping. */
+function settle(t: Turn) {
+  if (!t.sourceDone || !t.targetDone) return;
+  close(t);
+}
+
+function close(t: Turn) {
+  publish(t);
+  if (t.source || t.target) record({ at: t.at, source: t.source, target: t.target });
+  turns.delete(t.key);
+  if (t.input) byInput.delete(t.input);
+  syncCurrent();
+}
+
+function flush() {
+  for (const t of [...turns.values()]) close(t);
+}
+
+/**
+ * `current` is what the subtitle window and the live row render. It mirrors the newest
+ * turn — the one still being spoken — so the overlay never waits on a transcript that is
+ * still catching up with a turn the user has already finished saying.
+ */
+function syncCurrent() {
+  const t = [...turns.values()].pop();
+  current.source = t?.source ?? "";
+  current.sourceStash = t?.sourceStash ?? "";
+  current.target = t?.target ?? "";
+  current.targetStash = t?.targetStash ?? "";
 }
 
 function clearCurrent() {
-  current.source = "";
-  current.sourceStash = "";
-  current.target = "";
-  current.targetStash = "";
+  turns.clear();
+  byInput.clear();
+  syncCurrent();
 }
 
 interface RtEvent {
-  kind: "status" | "target" | "source" | "speech" | "error" | "warn" | "progress";
+  kind: "status" | "target" | "source" | "link" | "speech" | "error" | "warn" | "progress";
   text: string;
   stash: string;
   lang: string;
+  /** Turn id: the assistant item for translations, the input item for transcripts. */
+  id: string;
   done: boolean;
 }
 
@@ -77,29 +164,53 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
       if (e.text === "connecting") status.value = "connecting";
       else if (e.text === "connected") status.value = "connected";
       else if (e.text === "closed") {
-        commit();
+        flush();
         speaking.value = false;
         if (status.value !== "error") status.value = "closed";
       }
       break;
 
-    case "source":
-      current.source = e.text;
-      current.sourceStash = e.done ? "" : e.stash;
+    // Arrives before either stream for the turn, so the transcript always has a home.
+    case "link": {
+      byInput.set(e.text, e.id);
+      turnFor(e.id).input = e.text;
+      break;
+    }
+
+    case "source": {
+      // Falling back to the newest turn keeps a transcript that outran its link visible
+      // rather than silently dropped.
+      const key = byInput.get(e.id) ?? [...turns.keys()].pop();
+      if (!key) break;
+      const t = turnFor(key);
+      t.source = e.text;
+      t.sourceStash = e.done ? "" : e.stash;
       if (e.lang) detectedLang.value = e.lang;
       speaking.value = !e.done;
+      if (e.done) t.sourceDone = true;
+      // Only ever patches here: a turn still waiting for its translation belongs in the
+      // live row, not as a second, half-empty row in the stream.
+      if (t.lineId !== undefined) publish(t);
+      syncCurrent();
+      settle(t);
       break;
+    }
 
-    case "target":
-      current.target = e.text;
-      current.targetStash = e.done ? "" : e.stash;
+    case "target": {
+      const t = turnFor(e.id);
+      t.target = e.text;
+      t.targetStash = e.done ? "" : e.stash;
+      speaking.value = !e.done;
       if (e.done) {
-        speaking.value = false;
-        commit();
-      } else {
-        speaking.value = true;
+        t.targetDone = true;
+        // Into the stream now, even though the transcript may still be seconds away —
+        // waiting would leave the row blank while the model has already answered.
+        publish(t);
       }
+      syncCurrent();
+      settle(t);
       break;
+    }
 
     case "speech":
       speaking.value = e.text === "start";
@@ -161,7 +272,7 @@ export async function start(source: Source) {
 
 export async function stop() {
   await invoke("stop_stream");
-  commit();
+  flush();
   speaking.value = false;
   if (status.value !== "error") status.value = "idle";
 }
