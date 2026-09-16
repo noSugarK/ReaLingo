@@ -32,13 +32,18 @@ Grab the installer for your platform from the
   with adjustable background opacity, font size, colours, outline and alignment. A long
   sentence either grows the window taller (bottom edge pinned) or stays on one line that
   scrolls to the newest words — your pick. Lock it to make clicks pass straight through to
-  the video underneath
+  the video underneath. While unlocked, right-click the overlay to change what it shows,
+  its alignment, long-sentence behaviour, click-through or to hide it — no trip back to the
+  main window
 - **System tray**: "Minimize to tray" hides the main window while translation and the overlay
   keep running. Left-click the tray icon to bring the window back; right-click for start/stop,
   overlay on/off, subtitle content, click-through and quit.
   Windows 11 hides new tray icons under `^` by default — drag it onto the taskbar to pin it
 - **Interface in Chinese or English**, light / dark / follow system
 - Export transcripts as TXT or SRT
+- **History**: off by default. Flip the switch above the stream and the run is saved to its
+  own file; browse, search, export and delete past runs from the History panel. One JSONL
+  file per run under `app-data/history/`, appended as you go
 - Built-in `rt://raw` event inspector (the `< >` button in the title bar) for protocol debugging
 
 ## Configuration
