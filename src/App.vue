@@ -13,7 +13,7 @@ import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
 import { locale, setLocale, t } from "./i18n";
 import { langName, languageCodes } from "./languages";
-import { settings, initSettings, resolvedTheme, type SubAlign, type SubMode } from "./store";
+import { settings, initSettings, resolvedTheme, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
 import {
   current,
   detectedLang,
@@ -158,6 +158,10 @@ async function setOverlayClickThrough(locked: boolean) {
 // Styling is cheap to push on every tick; show/hide and click-through are window calls that
 // must fire only on a real change. Dragging a slider used to re-`show()` an already visible
 // always-on-top window dozens of times a second, which is what made focus feel broken.
+// The overlay's own right-click menu. It cannot persist anything itself — settings live
+// here — so it sends the change up and the watch below broadcasts the result back down.
+void listen<Partial<SubtitleStyle>>("sub://patch", ({ payload }) => Object.assign(settings.sub, payload));
+
 watch(() => settings.sub, pushOverlayStyle, { deep: true });
 watch(() => settings.sub.show, showOverlay);
 watch(() => settings.sub.locked, setOverlayClickThrough);

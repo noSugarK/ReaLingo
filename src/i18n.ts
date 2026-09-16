@@ -34,6 +34,7 @@ const zh = {
 
   subTitle: "字幕窗",
   subShow: "显示字幕窗",
+  subHide: "隐藏字幕窗",
   subMode: "显示内容",
   subBoth: "双语",
   subTarget: "仅译文",
@@ -146,6 +147,7 @@ const en: typeof zh = {
 
   subTitle: "Subtitle overlay",
   subShow: "Show overlay",
+  subHide: "Hide overlay",
   subMode: "Content",
   subBoth: "Bilingual",
   subTarget: "Translation only",

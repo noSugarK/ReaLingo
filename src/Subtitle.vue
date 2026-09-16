@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
+import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import { getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
 import { initSettings, settings, type SubtitleStyle } from "./store";
 import { current, lines } from "./stream";
@@ -80,6 +81,47 @@ void listen<SubtitleStyle>("sub://style", ({ payload }) => {
   style.value = payload;
 });
 
+/**
+ * Right-click menu, for tweaking the overlay without going back to the main window.
+ *
+ * Only reachable while the overlay is unlocked — click-through means the window never sees
+ * a mouse event at all, which is the whole point of it. The ghost text says where to undo.
+ *
+ * The overlay only mirrors the settings; the main window owns and persists them, so a pick
+ * is sent there and comes back through the usual `sub://style` broadcast.
+ */
+async function openMenu() {
+  const pick = <K extends keyof SubtitleStyle>(text: string, key: K, value: SubtitleStyle[K]) =>
+    CheckMenuItem.new({
+      text,
+      checked: style.value[key] === value,
+      action: () => void emitTo("main", "sub://patch", { [key]: value }),
+    });
+  const sep = () => PredefinedMenuItem.new({ item: "Separator" });
+
+  const menu = await Menu.new({
+    items: await Promise.all([
+      pick(t("subBoth"), "mode", "both"),
+      pick(t("subTarget"), "mode", "target"),
+      pick(t("subSource"), "mode", "source"),
+      sep(),
+      pick(t("alignLeft"), "align", "left"),
+      pick(t("alignCenter"), "align", "center"),
+      pick(t("alignRight"), "align", "right"),
+      sep(),
+      pick(t("subGrow"), "grow", true),
+      pick(t("subTicker"), "grow", false),
+      sep(),
+      pick(t("subLockShort"), "locked", true),
+      MenuItem.new({
+        text: t("subHide"),
+        action: () => void emitTo("main", "sub://patch", { show: false }),
+      }),
+    ]),
+  });
+  await menu.popup();
+}
+
 const last = computed(() => lines.value[lines.value.length - 1]);
 const live = computed(() => !!(current.source || current.target || current.sourceStash || current.targetStash));
 const src = computed(() => (live.value ? current.source : last.value?.source ?? ""));
@@ -121,7 +163,7 @@ const outline = computed(() =>
 </script>
 
 <template>
-  <div class="wrap" :class="{ locked: style.locked, idle: empty }">
+  <div class="wrap" :class="{ locked: style.locked, idle: empty }" @contextmenu.prevent="openMenu">
     <div
       ref="barEl"
       class="bar"
