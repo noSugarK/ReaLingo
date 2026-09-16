@@ -44,6 +44,7 @@ Windows `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`
 |---|---|
 | API Key | [百炼控制台 → API-KEY](https://bailian.console.aliyun.com/?tab=model#/api-key)（新加坡地域用 [国际站控制台](https://bailian.console.alibabacloud.com/?tab=model#/api-key)），设置页里有直达按钮。存在系统凭据库里，见下 |
 | 翻译模型 | `qwen3.5-livetranslate-flash-realtime`（60 语种，默认）或 `qwen3-livetranslate-flash-realtime`（18 语种）。切到旧模型后语言选择器只列它支持的 18 种，当前选择不在其中会自动回退 |
+| 热词 | **选填**。每行一条「源词=译文」，让模型按你的说法翻专有名词（`人工智能=Artificial Intelligence`）。最多 1000 条，随会话下发，翻译进行中改动要重新开始才生效 |
 | 地域 | 华北2（北京）/ 新加坡 |
 | 业务空间 ID | **选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.cn-beijing.maas.aliyuncs.com`（性能更好），在百炼控制台业务空间详情页查看 |
 

@@ -25,6 +25,8 @@ export interface Settings {
   sourceLang: string;
   targetLang: string;
   model: string;
+  /** Hotwords: source term -> preferred translation. Sent with `session.update`. */
+  hotwords: Record<string, string>;
   theme: Theme;
   sub: SubtitleStyle;
 }
@@ -36,6 +38,7 @@ export const settings = reactive<Settings>({
   sourceLang: "auto",
   targetLang: "en",
   model: MODEL_NEW,
+  hotwords: {},
   theme: "system",
   sub: {
     show: false,

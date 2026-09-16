@@ -30,6 +30,7 @@ async fn main() -> anyhow::Result<()> {
         source_lang: "auto".into(),
         target_lang: target,
         model: realingo_lib::config::MODEL.into(),
+        hotwords: Default::default(),
     };
 
     println!("→ {}", settings.ws_url());

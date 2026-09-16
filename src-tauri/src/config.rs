@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 pub const MODEL: &str = "qwen3.5-livetranslate-flash-realtime";
 /// The previous generation. Same protocol, but only 18 languages — the UI narrows the
@@ -31,6 +32,11 @@ pub struct Settings {
     pub target_lang: String,
     #[serde(default = "default_model")]
     pub model: String,
+    /// Hotwords: source term -> preferred translation. The service asks for at most 1000.
+    /// BTreeMap, not HashMap: the wire payload then has a stable order, which makes the
+    /// frames readable when probing and the tests below deterministic.
+    #[serde(default)]
+    pub hotwords: BTreeMap<String, String>,
 }
 
 fn auto() -> String {
@@ -63,6 +69,12 @@ impl Settings {
         if self.source_lang != "auto" && !self.source_lang.is_empty() {
             transcription["language"] = self.source_lang.clone().into();
         }
+        let mut translation = serde_json::json!({ "language": self.target_lang });
+        // Only when there is something to send: an empty `corpus` is not a documented
+        // shape, and the endpoint's reaction to one is anyone's guess.
+        if !self.hotwords.is_empty() {
+            translation["corpus"] = serde_json::json!({ "phrases": self.hotwords });
+        }
         serde_json::json!({
             "type": "session.update",
             "session": {
@@ -73,7 +85,7 @@ impl Settings {
                 // finished or failed" AND closes the socket — verified against the endpoint
                 // with examples/probe.rs. Two-way translation therefore needs two parallel
                 // sessions (one per direction), not a mid-flight switch. See README.
-                "translation": { "language": self.target_lang },
+                "translation": translation,
                 "input_audio_transcription": transcription,
                 // An empty object leaves VAD unconfigured: the server never closes a turn,
                 // so the text accumulates into one endless paragraph and later audio collides
@@ -100,6 +112,7 @@ mod tests {
             source_lang: "auto".into(),
             target_lang: "en".into(),
             model: MODEL.into(),
+            hotwords: BTreeMap::new(),
         }
     }
 
@@ -142,6 +155,21 @@ mod tests {
         let vad = &s(Region::Beijing, "").session_update()["session"]["turn_detection"];
         assert_eq!(vad["type"], "server_vad");
         assert!(vad["silence_duration_ms"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn no_hotwords_omits_corpus() {
+        let translation = &s(Region::Beijing, "").session_update()["session"]["translation"];
+        assert_eq!(translation["language"], "en");
+        assert!(translation.get("corpus").is_none());
+    }
+
+    #[test]
+    fn hotwords_go_under_translation_corpus_phrases() {
+        let mut with = s(Region::Beijing, "");
+        with.hotwords.insert("人工智能".into(), "Artificial Intelligence".into());
+        let phrases = &with.session_update()["session"]["translation"]["corpus"]["phrases"];
+        assert_eq!(phrases["人工智能"], "Artificial Intelligence");
     }
 
     #[test]

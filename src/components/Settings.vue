@@ -2,6 +2,7 @@
 import { computed, ref, watch, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { keyringOk, settings, type Region, type Theme } from "../store";
+import { isRunning } from "../stream";
 import { MODEL_LEGACY, MODEL_NEW } from "../languages";
 import { locale, setLocale, t, type Locale } from "../i18n";
 import Picker from "./Picker.vue";
@@ -20,6 +21,29 @@ watch(
   },
   { immediate: true }
 );
+
+/** The service asks for no more than this many; anything past it is dropped on parse. */
+const MAX_HOTWORDS = 1000;
+
+// A plain ref seeded once, not a two-way computed: re-serialising the map on every
+// keystroke would rewrite the textarea mid-word (a line is unparseable until the "=" is
+// typed) and throw the caret to the end. Text flows down on open, up on edit.
+const hotwordText = ref(
+  Object.entries(settings.hotwords)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n")
+);
+watch(hotwordText, (text) => {
+  const entries = text
+    .split("\n")
+    .map((line) => {
+      const i = line.indexOf("=");
+      return i < 1 ? null : ([line.slice(0, i).trim(), line.slice(i + 1).trim()] as const);
+    })
+    .filter((e): e is readonly [string, string] => !!e && !!e[0] && !!e[1]);
+  settings.hotwords = Object.fromEntries(entries.slice(0, MAX_HOTWORDS));
+});
+const hotwordCount = computed(() => Object.keys(settings.hotwords).length);
 
 const modelOptions = computed(() => [
   { value: MODEL_NEW, label: t("modelNew"), note: "60" },
@@ -62,6 +86,21 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
           <Picker v-model="settings.model" :options="modelOptions" />
           <small>{{ t("modelHint") }}</small>
         </div>
+
+        <label class="field">
+          <span class="label">{{ t("hotwords") }}</span>
+          <textarea
+            v-model="hotwordText"
+            :disabled="isRunning()"
+            rows="4"
+            spellcheck="false"
+            placeholder="人工智能=Artificial Intelligence"
+          ></textarea>
+          <small>
+            {{ t("hotwordsHint") }}
+            <template v-if="hotwordCount"> · {{ hotwordCount }} {{ t("hotwordsInUse") }}</template>
+          </small>
+        </label>
 
         <label class="field">
           <span class="label">{{ t("region") }}</span>
@@ -122,6 +161,12 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
 
 <style scoped>
 .field { display: flex; flex-direction: column; gap: 7px; }
+textarea {
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .field small { font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
 
 .endpoint {
