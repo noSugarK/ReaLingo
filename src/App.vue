@@ -13,7 +13,7 @@ import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
 import { locale, setLocale, t } from "./i18n";
 import { langName, languageCodes } from "./languages";
-import { settings, initSettings, resolvedTheme, type SubMode } from "./store";
+import { settings, initSettings, resolvedTheme, type SubAlign, type SubMode } from "./store";
 import {
   current,
   detectedLang,
@@ -192,6 +192,13 @@ const subOpacityPct = computed({
   get: () => Math.round(settings.sub.opacity * 100),
   set: (v: number) => (settings.sub.opacity = v / 100),
 });
+
+/** The three bars of each icon, wide/short/wide, shifted to show the alignment. */
+const subAligns: [SubAlign, "alignLeft" | "alignCenter" | "alignRight", string][] = [
+  ["left", "alignLeft", "M2 4h12M2 8h7M2 12h12"],
+  ["center", "alignCenter", "M2 4h12M4.5 8h7M2 12h12"],
+  ["right", "alignRight", "M2 4h12M7 8h7M2 12h12"],
+];
 
 const subModes: [SubMode, "subBoth" | "subTarget" | "subSource"][] = [
   ["both", "subBoth"],
@@ -452,6 +459,32 @@ watch([lines, current], async () => {
               </div>
             </div>
 
+            <div class="line">
+              <span>{{ t("subAlign") }}</span>
+              <div class="seg icons">
+                <button
+                  v-for="[value, key, d] in subAligns"
+                  :key="value"
+                  :class="{ on: settings.sub.align === value }"
+                  :title="t(key)"
+                  :aria-label="t(key)"
+                  @click="settings.sub.align = value"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                    <path :d="d" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="line">
+              <span>{{ t("subHeight") }}</span>
+              <div class="seg">
+                <button :class="{ on: settings.sub.grow }" @click="settings.sub.grow = true">{{ t("subGrow") }}</button>
+                <button :class="{ on: !settings.sub.grow }" @click="settings.sub.grow = false">{{ t("subTicker") }}</button>
+              </div>
+            </div>
+
             <div class="pair">
               <label class="line">
                 <span>{{ t("subOutline") }}</span>
@@ -597,6 +630,7 @@ watch([lines, current], async () => {
 .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; cursor: pointer; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .pair .line { gap: 6px; }
+.seg.icons > button { display: flex; align-items: center; justify-content: center; }
 
 .langs { display: flex; align-items: flex-end; gap: 8px; }
 .swap { margin-bottom: 2px; }

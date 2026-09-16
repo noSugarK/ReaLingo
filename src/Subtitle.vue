@@ -1,17 +1,80 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
 import { initSettings, settings, type SubtitleStyle } from "./store";
 import { current, lines } from "./stream";
 import { t } from "./i18n";
 
 const style = ref<SubtitleStyle>(settings.sub);
+const barEl = ref<HTMLElement | null>(null);
 
 onMounted(async () => {
+  // Before the await: a failure loading settings must not also cost us the height fit.
+  if (barEl.value) new ResizeObserver(() => void fitHeight()).observe(barEl.value);
   // Read-only mirror: the main window owns persistence, this one just follows it.
   await initSettings(false);
   style.value = settings.sub;
 });
+
+/** Keeps a one-line plate grabbable when the overlay is unlocked and otherwise idle. */
+const MIN_H = 110;
+
+/**
+ * The window has a fixed height, so a long sentence simply overflows its top edge and the
+ * start of the line is lost — the window boundary clips it, and no amount of CSS inside
+ * can bring it back. Grow the window to the text instead, pinning the bottom edge so the
+ * bar stays where the user parked it and only the top climbs.
+ *
+ * This does mean a height the user set by dragging is overridden on the next sentence.
+ * Width is left alone, which is the dimension that actually decides how the text wraps.
+ */
+let fitting = false;
+async function fitHeight() {
+  const el = barEl.value;
+  if (fitting || !el) return;
+  fitting = true;
+  try {
+    const w = getCurrentWindow();
+    const factor = await w.scaleFactor();
+    const pos = (await w.outerPosition()).toLogical(factor);
+    const size = (await w.outerSize()).toLogical(factor);
+    // .wrap's padding, which sits outside the measured bar.
+    const want = Math.min(
+      Math.max(Math.ceil(el.scrollHeight) + 16, MIN_H),
+      Math.round(screen.availHeight * 0.6)
+    );
+    // Sub-pixel churn would fire a window call on every frame of the live transcript.
+    if (Math.abs(want - size.height) < 2) return;
+    await w.setSize(new LogicalSize(size.width, want));
+    await w.setPosition(new LogicalPosition(pos.x, pos.y + size.height - want));
+  } finally {
+    fitting = false;
+  }
+}
+
+// Font size changes the text height without changing the line count, so the observer alone
+// can miss it on the frame the new size lands.
+watch(() => [style.value.fontSize, style.value.grow], () => void fitHeight());
+
+/**
+ * Ticker mode: a line that still fits stays centred like everywhere else in the overlay;
+ * one that has outgrown the plate switches to left-aligned and is scrolled to its end, so
+ * what falls off the left is only what was already spoken.
+ *
+ * The run's own width decides it, not `scrollWidth`: while the text is centred the part
+ * hanging off the left is not counted as scrollable overflow, so `scrollWidth` alone
+ * cannot tell "fits" from "overflows by a little".
+ */
+function tail() {
+  if (style.value.grow) return;
+  barEl.value?.querySelectorAll("p").forEach((p) => {
+    const run = p.querySelector<HTMLElement>(".run");
+    const over = !!run && run.offsetWidth > p.clientWidth;
+    p.classList.toggle("over", over);
+    if (over) p.scrollLeft = p.scrollWidth;
+  });
+}
 
 void listen<SubtitleStyle>("sub://style", ({ payload }) => {
   style.value = payload;
@@ -23,6 +86,13 @@ const src = computed(() => (live.value ? current.source : last.value?.source ?? 
 const tgt = computed(() => (live.value ? current.target : last.value?.target ?? ""));
 const srcStash = computed(() => (live.value ? current.sourceStash : ""));
 const tgtStash = computed(() => (live.value ? current.targetStash : ""));
+
+// The height observer only sees the plate grow downwards; a line growing sideways has to
+// be chased separately, after the DOM has the new text.
+watch(
+  [src, tgt, srcStash, tgtStash, () => style.value.grow, () => style.value.fontSize, () => style.value.align],
+  () => nextTick(tail)
+);
 
 const showSource = computed(() => style.value.mode !== "target" && !!(src.value || srcStash.value));
 const showTarget = computed(() => style.value.mode !== "source" && !!(tgt.value || tgtStash.value));
@@ -37,6 +107,7 @@ const barStyle = computed(() => {
     background: a < 0.02 ? "transparent" : `rgba(6, 8, 14, ${a})`,
     backdropFilter: a < 0.02 ? "none" : "blur(10px)",
     fontSize: `${style.value.fontSize}px`,
+    textAlign: style.value.align,
   };
 });
 
@@ -52,15 +123,17 @@ const outline = computed(() =>
 <template>
   <div class="wrap" :class="{ locked: style.locked, idle: empty }">
     <div
+      ref="barEl"
       class="bar"
+      :class="{ ticker: !style.grow }"
       :style="barStyle"
       :data-tauri-drag-region="style.locked ? undefined : true"
     >
       <p v-if="showSource" class="src" :style="{ color: style.srcColor, textShadow: outline }">
-        {{ src }}<span class="stash">{{ srcStash }}</span>
+        <span class="run">{{ src }}<span class="stash">{{ srcStash }}</span></span>
       </p>
       <p v-if="showTarget" class="tgt" :style="{ color: style.color, textShadow: outline }">
-        {{ tgt }}<span class="stash">{{ tgtStash }}</span>
+        <span class="run">{{ tgt }}<span class="stash">{{ tgtStash }}</span></span>
       </p>
       <p v-if="empty" class="ghost">{{ style.locked ? t("subLocked") : t("subTitle") }}</p>
     </div>
@@ -88,7 +161,6 @@ const outline = computed(() =>
   width: 100%;
   padding: 14px 26px;
   border-radius: 18px;
-  text-align: center;
   transition: background 0.2s;
 }
 
@@ -107,6 +179,12 @@ p { margin: 0; line-height: 1.4; word-break: break-word; pointer-events: none; }
 
 .src { font-size: 0.62em; font-weight: 500; margin-bottom: 0.2em; opacity: 0.92; }
 .tgt { font-size: 1em; font-weight: 700; letter-spacing: -0.01em; }
+
+/* One line per row; `tail()` decides alignment — centred while it fits, then scrolled to
+   the end once it does not. */
+.bar.ticker p { overflow: hidden; }
+.bar.ticker p.over { text-align: left; }
+.bar.ticker .run { display: inline-block; white-space: nowrap; }
 
 /* Unconfirmed tail — still readable over video, but clearly provisional. */
 .stash { opacity: 0.55; }

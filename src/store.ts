@@ -6,6 +6,7 @@ import { MODEL_NEW } from "./languages";
 export type Region = "beijing" | "singapore";
 export type Theme = "system" | "light" | "dark";
 export type SubMode = "both" | "target" | "source";
+export type SubAlign = "left" | "center" | "right";
 
 export interface SubtitleStyle {
   show: boolean;
@@ -15,6 +16,9 @@ export interface SubtitleStyle {
   color: string; // translation
   srcColor: string; // source transcript
   outline: boolean;
+  align: SubAlign;
+  /** true: wrap and grow the window to the text. false: one line per row, tail-aligned. */
+  grow: boolean;
   locked: boolean; // click-through
 }
 
@@ -48,6 +52,8 @@ export const settings = reactive<Settings>({
     color: "#ffffff",
     srcColor: "#a8c0dd",
     outline: true,
+    align: "center",
+    grow: true,
     // Default to click-through: an always-on-top overlay otherwise eats every click inside
     // its window rect, transparent parts included. Turn it off to reposition the bar.
     locked: true,

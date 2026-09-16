@@ -29,8 +29,10 @@ Grab the installer for your platform from the
   (Windows, macOS and Ubuntu can all capture system audio directly)
 - **60 languages**, with automatic source detection; switchable to the older Qwen3 model (18 languages)
 - **Standalone subtitle overlay**: always on top, bilingual / translation only / source only,
-  with adjustable background opacity, font size, colours and outline. Lock it to make clicks
-  pass straight through to the video underneath
+  with adjustable background opacity, font size, colours, outline and alignment. A long
+  sentence either grows the window taller (bottom edge pinned) or stays on one line that
+  scrolls to the newest words — your pick. Lock it to make clicks pass straight through to
+  the video underneath
 - **System tray**: "Minimize to tray" hides the main window while translation and the overlay
   keep running. Left-click the tray icon to bring the window back; right-click for start/stop,
   overlay on/off, subtitle content, click-through and quit.
