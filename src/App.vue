@@ -14,6 +14,7 @@ import About from "./components/About.vue";
 import History from "./components/History.vue";
 import { locale, setLocale, t } from "./i18n";
 import { langName, languageCodes } from "./languages";
+import { check, checkUpdateAtStartup, openHome } from "./update";
 import { settings, initSettings, resolvedTheme, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
 import {
   current,
@@ -253,6 +254,8 @@ const exportAs = (kind: "txt" | "srt") => saveAs(kind, lines.value);
 let levelTimer: number | undefined;
 
 onMounted(async () => {
+  // Fire and forget: the window must not wait on GitHub to finish painting.
+  void checkUpdateAtStartup();
   await initSettings();
   await refreshDevices();
   await showOverlay(settings.sub.show);
@@ -284,6 +287,15 @@ watch([lines, current], async () => {
           <strong>{{ t("appTitle") }}</strong>
           <small>{{ t("appSub") }}</small>
         </div>
+      </button>
+
+      <button
+        v-if="check.state === 'found'"
+        class="upd"
+        :title="t('updFound') + ' ' + check.tag"
+        @click="openHome"
+      >
+        {{ t("updFound") }} {{ check.tag }}
       </button>
 
       <div class="pill glass-thin" :class="status">
@@ -654,6 +666,19 @@ watch([lines, current], async () => {
 
 .drop { height: 64px; border-style: dashed; border-width: 1.5px; font-weight: 500; }
 .fname { font-weight: 600; word-break: break-all; }
+
+.upd {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  white-space: nowrap;
+  transition: filter 0.2s;
+}
+.upd:hover { filter: brightness(1.1); }
 
 /* ---------- stream ---------- */
 .stream-card { min-height: 0; }

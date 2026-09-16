@@ -3,12 +3,12 @@ import { onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { t } from "../i18n";
+import { check, checkUpdate, openHome, REPO } from "../update";
 import Sheet from "./Sheet.vue";
 import mark from "../assets/mark.png";
 
 defineEmits<{ close: [] }>();
 
-const REPO = "https://github.com/noSugarK/ReaLingo";
 const AUTHOR = "https://github.com/noSugarK";
 
 const version = ref("");
@@ -16,41 +16,6 @@ onMounted(async () => (version.value = await getVersion()));
 
 // Always via the opener plugin — an <a href> navigates the app's own webview away.
 const open = (url: string) => invoke("plugin:opener|open_url", { url });
-
-type Check = { state: "idle" | "checking" | "latest" | "found" | "failed"; tag?: string };
-const check = ref<Check>({ state: "idle" });
-
-/** "1.2.10" > "1.2.9": compare numerically per segment, not as strings. */
-function isNewer(tag: string, current: string) {
-  const parts = (v: string) => v.replace(/^v/, "").split(".").map(Number);
-  const [a, b] = [parts(tag), parts(current)];
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const d = (a[i] ?? 0) - (b[i] ?? 0);
-    if (d) return d > 0;
-  }
-  return false;
-}
-
-/**
- * Asks GitHub for the latest release rather than bundling an updater: no signing keys to
- * manage, and the user installs from the same page they downloaded from. Draft and
- * prerelease tags are excluded by the `/latest` endpoint itself.
- */
-async function checkUpdate() {
-  check.value = { state: "checking" };
-  try {
-    const r = await fetch("https://api.github.com/repos/noSugarK/ReaLingo/releases/latest", {
-      headers: { Accept: "application/vnd.github+json" },
-    });
-    if (!r.ok) throw new Error(String(r.status));
-    const tag = (await r.json()).tag_name as string;
-    check.value = isNewer(tag, version.value)
-      ? { state: "found", tag }
-      : { state: "latest", tag };
-  } catch {
-    check.value = { state: "failed" };
-  }
-}
 </script>
 
 <template>
@@ -71,7 +36,7 @@ async function checkUpdate() {
       <button
         v-if="check.state === 'found'"
         class="btn btn-primary"
-        @click="open(`${REPO}/releases/latest`)"
+        @click="openHome"
       >
         {{ t("updFound") }} {{ check.tag }} ↗
       </button>
