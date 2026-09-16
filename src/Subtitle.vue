@@ -2,7 +2,14 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
-import { getCurrentWindow, LogicalPosition, LogicalSize } from "@tauri-apps/api/window";
+import {
+  availableMonitors,
+  getCurrentWindow,
+  LogicalPosition,
+  LogicalSize,
+  PhysicalPosition,
+  PhysicalSize,
+} from "@tauri-apps/api/window";
 import { initSettings, settings, type SubtitleStyle } from "./store";
 import { current, lines } from "./stream";
 import { t } from "./i18n";
@@ -16,7 +23,52 @@ onMounted(async () => {
   // Read-only mirror: the main window owns persistence, this one just follows it.
   await initSettings(false);
   style.value = settings.sub;
+  await restoreRect();
+  const w = getCurrentWindow();
+  void w.onMoved(saveRect);
+  void w.onResized(saveRect);
 });
+
+/**
+ * Where the overlay sits, across restarts — otherwise every launch drops it back on the
+ * spot in tauri.conf.json and the user re-drags it every time.
+ *
+ * Physical pixels throughout, which is what the window and the monitor list both speak;
+ * converting to logical would need a scale factor that differs per monitor.
+ */
+let rectTimer: number | undefined;
+function saveRect() {
+  // Growing to fit the text moves and resizes the window on its own, so this fires far more
+  // often than the user actually drags. One write per pause is plenty.
+  clearTimeout(rectTimer);
+  rectTimer = window.setTimeout(async () => {
+    const w = getCurrentWindow();
+    const p = await w.outerPosition();
+    const s = await w.outerSize();
+    await emitTo("main", "sub://patch", { rect: { x: p.x, y: p.y, w: s.width, h: s.height } });
+  }, 600);
+}
+
+async function restoreRect() {
+  const r = settings.sub.rect;
+  if (!r) return;
+  // The monitor it was parked on may be gone — a docked laptop unplugged, a projector
+  // disconnected. Restoring blindly would put the overlay somewhere unreachable.
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  const monitors = await availableMonitors();
+  const onScreen = monitors.some(
+    (m) =>
+      cx >= m.position.x &&
+      cx < m.position.x + m.size.width &&
+      cy >= m.position.y &&
+      cy < m.position.y + m.size.height
+  );
+  if (!onScreen) return;
+  const w = getCurrentWindow();
+  await w.setPosition(new PhysicalPosition(r.x, r.y));
+  await w.setSize(new PhysicalSize(r.w, r.h));
+}
 
 /** Keeps a one-line plate grabbable when the overlay is unlocked and otherwise idle. */
 const MIN_H = 110;

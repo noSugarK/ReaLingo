@@ -8,6 +8,14 @@ export type Theme = "system" | "light" | "dark";
 export type SubMode = "both" | "target" | "source";
 export type SubAlign = "left" | "center" | "right";
 
+/** Where the overlay was last parked, in physical pixels. Null until it is first moved. */
+export interface SubRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface SubtitleStyle {
   show: boolean;
   mode: SubMode;
@@ -17,6 +25,8 @@ export interface SubtitleStyle {
   srcColor: string; // source transcript
   outline: boolean;
   align: SubAlign;
+  /** Not style, but it travels with it: the overlay reports it, the main window stores it. */
+  rect: SubRect | null;
   /** true: wrap and grow the window to the text. false: one line per row, tail-aligned. */
   grow: boolean;
   locked: boolean; // click-through
@@ -53,6 +63,7 @@ export const settings = reactive<Settings>({
     srcColor: "#a8c0dd",
     outline: true,
     align: "center",
+    rect: null,
     grow: true,
     // Default to click-through: an always-on-top overlay otherwise eats every click inside
     // its window rect, transparent parts included. Turn it off to reposition the bar.
