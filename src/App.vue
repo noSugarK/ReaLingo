@@ -533,7 +533,7 @@ watch([lines, current], async () => {
               class="sw sm"
               :class="{ on: settings.history }"
               :title="t('historyHint')"
-              :aria-label="t('rec')"
+              :aria-label="t('historyRec')"
               @click="settings.history = !settings.history"
             />
             <button class="chip" @click="showHistory = true">{{ t("history") }}</button>
@@ -682,18 +682,6 @@ watch([lines, current], async () => {
 
 /* ---------- stream ---------- */
 .stream-card { min-height: 0; }
-.chip {
-  height: 26px; padding: 0 10px;
-  border-radius: 9px; font-size: 11.5px; font-weight: 600;
-  color: var(--ink-2); background: var(--shade);
-  transition: background 0.2s, color 0.2s;
-}
-.chip:hover:not(:disabled) { background: var(--accent); color: #fff; }
-.chip:disabled { opacity: 0.35; cursor: not-allowed; }
-/* The card's action row is chip-height, so the switch comes down to match it. */
-.sw.sm { width: 34px; height: 20px; }
-.sw.sm::after { width: 15px; height: 15px; }
-.sw.sm.on::after { transform: translateX(13px); }
 
 .stream {
   flex: 1; min-height: 0; overflow-y: auto;
@@ -743,12 +731,6 @@ watch([lines, current], async () => {
 
 /* ---------- dock ---------- */
 .dock { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 4px 0 0; }
-.err, .warn {
-  margin: 0; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.45;
-}
-.err { color: var(--danger); }
-.warn { color: #b7791f; }
-:root[data-theme="dark"] .warn { color: #ffd60a; }
 
 .go {
   position: relative;

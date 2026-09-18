@@ -6,22 +6,43 @@
 //! search and statistics, and neither exists yet.
 //!
 //! Nothing is written unless the user turns history on — the setting defaults to off, and
-//! the frontend simply never calls [`history_append`] while it is.
+//! the frontend simply never calls [`history_open`] while it is.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-/// What the history panel lists: the session's own first line plus what it costs.
+/// The file's first line: what the session was translating, and with what.
+#[derive(Serialize, Deserialize)]
+pub struct Meta {
+    /// File format version, so a later reader can tell old lines from new ones.
+    v: u32,
+    at: i64,
+    source: String,
+    target: String,
+    model: String,
+    /// Where the audio came from: `device` or `file`.
+    kind: String,
+}
+
+/// One finished sentence: its transcript and its translation.
+#[derive(Serialize, Deserialize)]
+pub struct Entry {
+    at: i64,
+    source: String,
+    target: String,
+}
+
+/// What the history panel lists: the session's own meta line plus what it costs.
 #[derive(Serialize)]
 pub struct Session {
     /// File stem, and the handle every other command takes.
     id: String,
-    /// The session's first JSONL line (languages, model, source), verbatim. Parsed in the
-    /// frontend, which is where the shape is decided.
-    meta: String,
+    /// `None` when the first line is missing or unreadable. The session is still listed —
+    /// the panel just falls back to showing the id.
+    meta: Option<Meta>,
     /// Sentences, i.e. lines after the meta one.
     count: usize,
     bytes: u64,
@@ -54,20 +75,27 @@ fn path(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
     Ok(dir(app)?.join(format!("{id}.jsonl")))
 }
 
-/// Appends one JSON object as a line. The caller serialises it; a literal newline would
-/// split one record into two unparseable halves, so it is refused.
-#[tauri::command]
-pub fn history_append(app: AppHandle, id: String, line: String) -> Result<(), String> {
-    if line.contains('\n') {
-        return Err("history line must be a single line of JSON".into());
-    }
-    let path = path(&app, &id)?;
+/// Appends one record as one line. Serialising here rather than taking JSON text is what
+/// keeps a record a record: `serde_json` escapes newlines, so a line cannot split in two.
+fn append(app: &AppHandle, id: &str, record: &impl Serialize) -> Result<(), String> {
+    let line = serde_json::to_string(record).map_err(|e| e.to_string())?;
     let mut f = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(path)
+        .open(path(app, id)?)
         .map_err(|e| e.to_string())?;
     writeln!(f, "{line}").map_err(|e| e.to_string())
+}
+
+/// Opens the file with its meta line. Called once, when a run starts.
+#[tauri::command]
+pub fn history_open(app: AppHandle, id: String, meta: Meta) -> Result<(), String> {
+    append(&app, &id, &meta)
+}
+
+#[tauri::command]
+pub fn history_append(app: AppHandle, id: String, entry: Entry) -> Result<(), String> {
+    append(&app, &id, &entry)
 }
 
 /// Newest first. Reads every file to count its sentences — fine for the few hundred small
@@ -89,10 +117,10 @@ pub fn history_list(app: AppHandle) -> Result<Vec<Session>, String> {
             continue;
         };
         let mut lines = text.lines().filter(|l| !l.trim().is_empty());
-        let Some(meta) = lines.next() else { continue };
+        let Some(first) = lines.next() else { continue };
         out.push(Session {
             id: id.to_string(),
-            meta: meta.to_string(),
+            meta: serde_json::from_str(first).ok(),
             count: lines.count(),
             bytes: entry.metadata().map(|m| m.len()).unwrap_or(0),
         });
@@ -102,15 +130,17 @@ pub fn history_list(app: AppHandle) -> Result<Vec<Session>, String> {
     Ok(out)
 }
 
-/// The session's sentences, still as JSON text — the meta line is dropped.
+/// The session's sentences; the meta line is dropped. So is a half-written last line, which
+/// is what a kill mid-session leaves behind — the point of one line per sentence is that the
+/// damage stays local.
 #[tauri::command]
-pub fn history_read(app: AppHandle, id: String) -> Result<Vec<String>, String> {
+pub fn history_read(app: AppHandle, id: String) -> Result<Vec<Entry>, String> {
     let text = fs::read_to_string(path(&app, &id)?).map_err(|e| e.to_string())?;
     Ok(text
         .lines()
         .filter(|l| !l.trim().is_empty())
         .skip(1)
-        .map(str::to_string)
+        .filter_map(|l| serde_json::from_str(l).ok())
         .collect())
 }
 
@@ -146,5 +176,20 @@ mod tests {
         assert!(!slug_ok("a\\b"));
         assert!(!slug_ok("a.jsonl"));
         assert!(!slug_ok(&"x".repeat(65)));
+    }
+
+    /// Files written before these payloads were typed must keep opening, and new lines must
+    /// keep looking like the old ones — same keys, same order, one format either way.
+    #[test]
+    fn lines_survive_the_round_trip_in_the_shape_already_on_disk() {
+        let meta = r#"{"v":1,"at":1758153802123,"source":"auto","target":"en","model":"qwen3-livetranslate-flash-realtime","kind":"device"}"#;
+        let m: Meta = serde_json::from_str(meta).unwrap();
+        assert_eq!(m.target, "en");
+        assert_eq!(serde_json::to_string(&m).unwrap(), meta);
+
+        let entry = r#"{"at":1758153806000,"source":"你好","target":"Hello"}"#;
+        let e: Entry = serde_json::from_str(entry).unwrap();
+        assert_eq!(e.source, "你好");
+        assert_eq!(serde_json::to_string(&e).unwrap(), entry);
     }
 }

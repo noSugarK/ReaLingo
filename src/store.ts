@@ -54,8 +54,8 @@ export const settings = reactive<Settings>({
   sourceLang: "auto",
   targetLang: "en",
   model: MODEL_NEW,
-  hotwords: {},
   history: false,
+  hotwords: {},
   theme: "system",
   sub: {
     show: false,

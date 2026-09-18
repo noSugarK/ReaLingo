@@ -176,6 +176,13 @@ body {
   color: var(--ink-3);
 }
 
+.err, .warn {
+  margin: 0; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.45;
+}
+.err { color: var(--danger); }
+.warn { color: #b7791f; }
+:root[data-theme="dark"] .warn { color: #ffd60a; }
+
 button { font-family: inherit; color: inherit; cursor: pointer; border: none; background: none; }
 
 .btn {
@@ -209,6 +216,18 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 }
 .btn-icon:hover { background: var(--shade); color: var(--ink); }
 .btn-icon:active { transform: scale(0.9); }
+
+/* Small pill button for a card's action row. */
+.chip {
+  height: 26px; padding: 0 10px;
+  border-radius: 9px; font-size: 11.5px; font-weight: 600;
+  color: var(--ink-2); background: var(--shade);
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+.chip:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.chip:disabled { opacity: 0.35; cursor: not-allowed; }
+.chip.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
 
 /* segmented control */
 .seg {
@@ -281,6 +300,11 @@ input[type="color"] {
   transition: transform 0.28s var(--ease);
 }
 .sw.on::after { transform: translateX(17px); }
+
+/* Chip-height variant, for a card's action row. */
+.sw.sm { width: 34px; height: 20px; }
+.sw.sm::after { width: 15px; height: 15px; }
+.sw.sm.on::after { transform: translateX(13px); }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

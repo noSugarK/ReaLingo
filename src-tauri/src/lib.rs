@@ -198,6 +198,7 @@ pub fn run() {
             start_stream,
             stop_stream,
             write_text,
+            history::history_open,
             history::history_append,
             history::history_list,
             history::history_read,

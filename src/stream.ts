@@ -2,6 +2,8 @@ import { ref, reactive, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+// `t` is a Turn everywhere in this file, so the translator comes in under another name.
+import { t as msg } from "./i18n";
 import { settings } from "./store";
 
 export interface Line {
@@ -40,11 +42,22 @@ let nextId = 1;
  */
 let sessionId = "";
 
-function record(line: object) {
+/** Non-fatal notices: shown for a few seconds, then gone. The session keeps running. */
+function warn(text: string) {
+  warnMsg.value = text;
+  window.clearTimeout(warnTimer);
+  warnTimer = window.setTimeout(() => (warnMsg.value = ""), 6000);
+}
+
+/**
+ * Fire and forget: a disk that will not take the line must not stall the subtitle. It does
+ * have to be said, though — otherwise the run looks recorded and is not.
+ */
+function record(cmd: "history_open" | "history_append", args: object) {
   if (!sessionId) return;
-  // Fire and forget: a disk that will not take the line must not stall the subtitle.
-  void invoke("history_append", { id: sessionId, line: JSON.stringify(line) }).catch(() => {
+  void invoke(cmd, { id: sessionId, ...args }).catch((e) => {
     sessionId = "";
+    warn(`${msg("historyFailed")} ${e}`);
   });
 }
 
@@ -73,6 +86,9 @@ const turns = new Map<string, Turn>();
 /** Input item id -> turn key, from the server's `link` event. */
 const byInput = new Map<string, string>();
 
+const oldestTurn = () => turns.values().next().value as Turn | undefined;
+const newestTurn = () => [...turns.values()].pop();
+
 function turnFor(key: string): Turn {
   let t = turns.get(key);
   if (!t) {
@@ -90,7 +106,7 @@ function turnFor(key: string): Turn {
     turns.set(key, t);
     // A turn whose transcript never arrives would sit here forever. Two or three are open
     // at once in normal speech; well past that, the oldest is never coming back.
-    if (turns.size > 8) close(turns.values().next().value as Turn);
+    if (turns.size > 8) close(oldestTurn()!);
   }
   return t;
 }
@@ -119,7 +135,9 @@ function settle(t: Turn) {
 
 function close(t: Turn) {
   publish(t);
-  if (t.source || t.target) record({ at: t.at, source: t.source, target: t.target });
+  if (t.source || t.target) {
+    record("history_append", { entry: { at: t.at, source: t.source, target: t.target } });
+  }
   turns.delete(t.key);
   if (t.input) byInput.delete(t.input);
   syncCurrent();
@@ -135,14 +153,15 @@ function flush() {
  * still catching up with a turn the user has already finished saying.
  */
 function syncCurrent() {
-  const t = [...turns.values()].pop();
+  const t = newestTurn();
   current.source = t?.source ?? "";
   current.sourceStash = t?.sourceStash ?? "";
   current.target = t?.target ?? "";
   current.targetStash = t?.targetStash ?? "";
 }
 
-function clearCurrent() {
+/** Drops every open turn; `current` follows, since it only ever mirrors the newest one. */
+function resetTurns() {
   turns.clear();
   byInput.clear();
   syncCurrent();
@@ -180,7 +199,7 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
     case "source": {
       // Falling back to the newest turn keeps a transcript that outran its link visible
       // rather than silently dropped.
-      const key = byInput.get(e.id) ?? [...turns.keys()].pop();
+      const key = byInput.get(e.id) ?? newestTurn()?.key;
       if (!key) break;
       const t = turnFor(key);
       t.source = e.text;
@@ -224,9 +243,7 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
       break;
     case "warn":
       // The session is still alive — say so and keep streaming.
-      warnMsg.value = e.text;
-      window.clearTimeout(warnTimer);
-      warnTimer = window.setTimeout(() => (warnMsg.value = ""), 6000);
+      warn(e.text);
       break;
     case "error":
       errorMsg.value = e.text;
@@ -247,20 +264,22 @@ export async function start(source: Source) {
   warnMsg.value = "";
   lines.value = [];
   detectedLang.value = "";
-  clearCurrent();
+  resetTurns();
   rawLog.value = [];
   fileProgress.value = null;
   status.value = "connecting";
   // The id is the file name, so it has to survive as a plain slug — and being an ISO
   // timestamp it also sorts chronologically for free.
   sessionId = settings.history ? new Date().toISOString().replace(/[:.]/g, "-") : "";
-  record({
-    v: 1,
-    at: Date.now(),
-    source: settings.sourceLang,
-    target: settings.targetLang,
-    model: settings.model,
-    kind: source.kind,
+  record("history_open", {
+    meta: {
+      v: 1,
+      at: Date.now(),
+      source: settings.sourceLang,
+      target: settings.targetLang,
+      model: settings.model,
+      kind: source.kind,
+    },
   });
   try {
     await invoke("start_stream", { settings: toRaw(settings), source });

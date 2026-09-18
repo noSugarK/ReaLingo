@@ -2,7 +2,8 @@ import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 
-export const REPO = "https://github.com/noSugarK/ReaLingo";
+const SLUG = "noSugarK/ReaLingo";
+export const REPO = `https://github.com/${SLUG}`;
 /** Where "there is a new version" leads: the project page, with the download buttons on it. */
 export const HOME = "https://nosugark.github.io/ReaLingo/";
 
@@ -31,7 +32,7 @@ export async function checkUpdate() {
   if (check.value.state === "checking") return;
   check.value = { state: "checking" };
   try {
-    const r = await fetch("https://api.github.com/repos/noSugarK/ReaLingo/releases/latest", {
+    const r = await fetch(`https://api.github.com/repos/${SLUG}/releases/latest`, {
       headers: { Accept: "application/vnd.github+json" },
     });
     if (!r.ok) throw new Error(String(r.status));

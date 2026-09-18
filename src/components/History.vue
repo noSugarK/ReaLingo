@@ -9,30 +9,46 @@ import Sheet from "./Sheet.vue";
 
 defineEmits<{ close: [] }>();
 
-/** One file on disk. `meta` is its first JSONL line, still unparsed — see history.rs. */
-interface SessionRow {
-  id: string;
-  meta: string;
-  count: number;
-  bytes: number;
-}
+// Both shapes come from history.rs already parsed — `meta` is null when the session's
+// first line is unreadable.
 interface Meta {
   at: number;
   source: string;
   target: string;
+}
+interface SessionRow {
+  id: string;
+  meta: Meta | null;
+  count: number;
+  bytes: number;
 }
 
 const sessions = ref<SessionRow[]>([]);
 const openId = ref("");
 const rows = ref<Line[]>([]);
 const q = ref("");
-/** The session whose delete button is armed — a second click is the confirmation. */
+const err = ref("");
+/**
+ * The button waiting for its second click: two clicks to delete, so a mis-click cannot take
+ * a saved session — or all of them — with it. `"*"` is the clear-everything button, and no
+ * session id can collide with it (history.rs only accepts alphanumerics, `-` and `_`).
+ */
 const armed = ref("");
 
 onMounted(load);
 
+/** Whatever the backend refuses is shown in the panel: silence here reads as "no history". */
+async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T | undefined> {
+  err.value = "";
+  try {
+    return await invoke<T>(cmd, args);
+  } catch (e) {
+    err.value = String(e);
+  }
+}
+
 async function load() {
-  sessions.value = await invoke<SessionRow[]>("history_list");
+  sessions.value = (await call<SessionRow[]>("history_list")) ?? [];
   if (sessions.value.length) await open(sessions.value[0].id);
   else openId.value = "";
 }
@@ -41,38 +57,18 @@ async function open(id: string) {
   openId.value = id;
   q.value = "";
   armed.value = "";
-  const raw = await invoke<string[]>("history_read", { id });
-  rows.value = raw.flatMap(parseLine);
-}
-
-// A half-written last line is what a kill during a session leaves behind. Drop it and show
-// the rest — the whole point of one-line-per-sentence is that damage stays local.
-function parseLine(text: string, i: number): Line[] {
-  try {
-    const o = JSON.parse(text);
-    return [{ id: i, at: o.at ?? 0, source: o.source ?? "", target: o.target ?? "" }];
-  } catch {
-    return [];
-  }
-}
-
-function metaOf(s: SessionRow): Meta | null {
-  try {
-    return JSON.parse(s.meta) as Meta;
-  } catch {
-    return null;
-  }
+  const raw = (await call<Omit<Line, "id">[]>("history_read", { id })) ?? [];
+  rows.value = raw.map((l, i) => ({ id: i, ...l }));
 }
 
 function when(s: SessionRow): string {
-  const at = metaOf(s)?.at;
+  const at = s.meta?.at;
   return at ? new Date(at).toLocaleString(locale.value === "zh" ? "zh-CN" : "en-GB") : s.id;
 }
 
 function pair(s: SessionRow): string {
-  const m = metaOf(s);
-  if (!m) return "";
-  return `${langName(m.source, locale.value)} → ${langName(m.target, locale.value)}`;
+  if (!s.meta) return "";
+  return `${langName(s.meta.source, locale.value)} → ${langName(s.meta.target, locale.value)}`;
 }
 
 const shown = computed(() => {
@@ -81,15 +77,19 @@ const shown = computed(() => {
   return rows.value.filter((l) => `${l.source}\n${l.target}`.toLowerCase().includes(needle));
 });
 
-/** Two clicks to clear: a mis-click must not take every saved session with it. */
-const armedAll = ref(false);
-async function clearAll() {
-  if (!armedAll.value) {
-    armedAll.value = true;
-    return;
+/** True on the second click, and disarms; false on the first, and arms. */
+function armedFor(what: string): boolean {
+  if (armed.value === what) {
+    armed.value = "";
+    return true;
   }
-  await invoke("history_clear");
-  armedAll.value = false;
+  armed.value = what;
+  return false;
+}
+
+async function clearAll() {
+  if (!armedFor("*")) return;
+  await call("history_clear");
   await load();
 }
 
@@ -99,22 +99,22 @@ async function clearAll() {
 //
 // The argument is `paths`, and it is a list — passing a single `path` fails the command's
 // deserialisation, and nothing here would have shown you that.
-const openDir = async () =>
-  invoke("plugin:opener|reveal_item_in_dir", { paths: [await invoke<string>("history_dir")] });
+const openDir = async () => {
+  const dir = await call<string>("history_dir");
+  if (dir) await call("plugin:opener|reveal_item_in_dir", { paths: [dir] });
+};
 
 async function remove(id: string) {
-  if (armed.value !== id) {
-    armed.value = id;
-    return;
-  }
-  await invoke("history_delete", { id });
-  armed.value = "";
+  if (!armedFor(id)) return;
+  await call("history_delete", { id });
   await load();
 }
 </script>
 
 <template>
   <Sheet :title="t('history')" wide @close="$emit('close')">
+    <p v-if="err" class="err">{{ err }}</p>
+
     <p v-if="!sessions.length" class="blank">
       {{ settings.history ? t("historyNone") : t("historyOff") }}
       <button v-if="!settings.history" class="chip" @click="settings.history = true">
@@ -132,20 +132,20 @@ async function remove(id: string) {
           @click="open(s.id)"
         >
           <b>{{ when(s) }}</b>
-          <small>{{ pair(s) }} · {{ s.count }} {{ t("unitLines") }}</small>
+          <small>{{ pair(s) }} · {{ s.count }} {{ t("historyUnit") }}</small>
         </button>
       </div>
 
       <div class="list-foot">
         <button class="chip" @click="openDir">{{ t("historyDir") }}</button>
         <button class="chip danger" @click="clearAll">
-          {{ armedAll ? t("confirmQ") : t("historyClear") }}
+          {{ armed === "*" ? t("historyConfirm") : t("historyClear") }}
         </button>
       </div>
 
       <div class="right">
         <div class="tools">
-          <input v-model="q" type="search" :placeholder="t('searchHere')" spellcheck="false" />
+          <input v-model="q" type="search" :placeholder="t('historySearch')" spellcheck="false" />
           <button class="chip" :disabled="!shown.length" @click="saveAs('txt', shown, openId)">
             {{ t("exportTxt") }}
           </button>
@@ -153,7 +153,7 @@ async function remove(id: string) {
             {{ t("exportSrt") }}
           </button>
           <button class="chip danger" @click="remove(openId)">
-            {{ armed === openId ? t("confirmQ") : t("del") }}
+            {{ armed === openId ? t("historyConfirm") : t("historyDel") }}
           </button>
         </div>
 
@@ -235,19 +235,4 @@ async function remove(id: string) {
   color: var(--ink-3);
   font-size: 13px;
 }
-
-.chip {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 9px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink-2);
-  background: var(--shade);
-  white-space: nowrap;
-  transition: background 0.2s, color 0.2s;
-}
-.chip:hover:not(:disabled) { background: var(--accent); color: #fff; }
-.chip:disabled { opacity: 0.35; cursor: not-allowed; }
-.chip.danger:hover { background: #ff453a; }
 </style>
