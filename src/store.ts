@@ -4,6 +4,7 @@ import { load, type Store } from "@tauri-apps/plugin-store";
 import { MODEL_NEW } from "./languages";
 
 export type Region = "beijing" | "singapore";
+export type ProcessingMode = "translate" | "transcribe";
 export type Theme = "system" | "light" | "dark";
 export type SubMode = "both" | "target" | "source";
 export type SubAlign = "left" | "center" | "right";
@@ -33,6 +34,8 @@ export interface SubtitleStyle {
 }
 
 export interface Settings {
+  mode: ProcessingMode;
+  transcriptionLang: string;
   apiKey: string;
   workspaceId: string;
   region: Region;
@@ -48,6 +51,8 @@ export interface Settings {
 }
 
 export const settings = reactive<Settings>({
+  mode: "translate",
+  transcriptionLang: "auto",
   apiKey: "",
   workspaceId: "",
   region: "beijing",

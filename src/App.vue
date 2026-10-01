@@ -13,7 +13,7 @@ import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
 import History from "./components/History.vue";
 import { locale, setLocale, t } from "./i18n";
-import { langName, languageCodes } from "./languages";
+import { langName, languageCodes, ASR_CODES } from "./languages";
 import { check, checkUpdateAtStartup, openHome } from "./update";
 import { settings, initSettings, resolvedTheme, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
 import {
@@ -26,6 +26,7 @@ import {
   lines,
   rawLog,
   speaking,
+  sessionMode,
   start,
   status,
   stop,
@@ -81,6 +82,7 @@ const statusKey = computed(() => {
   if (!settings.apiKey.trim()) return "statusNoKey" as const;
   if (status.value === "error") return "statusError" as const;
   if (status.value === "connecting") return "statusConnecting" as const;
+  if (status.value === "stopping") return "statusFinishing" as const;
   if (status.value === "connected") return speaking.value ? ("statusListening" as const) : ("statusConnected" as const);
   return "statusIdle" as const;
 });
@@ -170,6 +172,14 @@ watch(() => settings.sub.locked, setOverlayClickThrough);
 
 /* ---------- model / languages ---------- */
 const langCodes = computed(() => languageCodes(settings.model));
+const transcribing = computed(() => settings.mode === "transcribe");
+const activeSourceLang = computed({
+  get: () => transcribing.value ? settings.transcriptionLang : settings.sourceLang,
+  set: (v: string) => {
+    if (transcribing.value) settings.transcriptionLang = v;
+    else settings.sourceLang = v;
+  },
+});
 
 /** The picker matches on both UI languages, so a zh user can still type "japanese". */
 const langOptions = computed(() =>
@@ -182,7 +192,10 @@ const langOptions = computed(() =>
 );
 const sourceLangOptions = computed(() => [
   { value: "auto", label: langName("auto", locale.value) },
-  ...langOptions.value,
+  ...(transcribing.value ? ASR_CODES.map((c) => ({
+    value: c, label: langName(c, locale.value), note: c,
+    keywords: `${langName(c, "zh")} ${langName(c, "en")}`,
+  })) : langOptions.value),
 ]);
 
 // Switching to the smaller model can strand a language it cannot translate into; the
@@ -220,16 +233,16 @@ async function syncTray() {
     menuState: {
       tooltip: `ReaLingo · ${t(statusKey.value)}`,
       showLabel: t("trayShow"),
-      runLabel: isRunning() ? t("stop") : t("start"),
+      runLabel: isRunning() ? t("stop") : t(transcribing.value ? "startTranscribe" : "start"),
       overlayLabel: t("subShow"),
       overlayOn: settings.sub.show,
       clickThroughLabel: t("subLockShort"),
       clickThroughOn: settings.sub.locked,
       modeLabel: t("subMode"),
-      modes: subModes.map(([value, key]) => ({
+      modes: (transcribing.value ? subModes.filter(([value]) => value === "source") : subModes).map(([value, key]) => ({
         id: value,
         label: t(key),
-        on: settings.sub.mode === value,
+        on: transcribing.value || settings.sub.mode === value,
       })),
       quitLabel: t("trayQuit"),
     },
@@ -245,7 +258,7 @@ void listen<string>("tray://action", ({ payload: id }) => {
 
 // Deliberately not watching `speaking`: it flips on every VAD tick and rebuilding a native
 // menu that often is the same churn that broke focus for the overlay.
-watch([locale, status, () => settings.sub], syncTray, { deep: true });
+watch([locale, status, () => settings.mode, () => settings.sub], syncTray, { deep: true });
 
 /* ---------- export ---------- */
 const exportAs = (kind: "txt" | "srt") => saveAs(kind, lines.value);
@@ -285,7 +298,7 @@ watch([lines, current], async () => {
         <img class="mark" src="./assets/mark.png" alt="" draggable="false" />
         <div class="brand-text">
           <strong>{{ t("appTitle") }}</strong>
-          <small>{{ t("appSub") }}</small>
+          <small>{{ t(transcribing ? "appSubTranscription" : "appSub") }}</small>
         </div>
       </button>
 
@@ -406,17 +419,22 @@ watch([lines, current], async () => {
 
           <!-- languages -->
           <Card :title="t('langTitle')">
+            <div class="seg" role="group" :aria-label="t('mode')">
+              <button :class="{ on: !transcribing }" :aria-pressed="!transcribing" :disabled="isRunning()" @click="settings.mode = 'translate'">{{ t("modeTranslate") }}</button>
+              <button :class="{ on: transcribing }" :aria-pressed="transcribing" :disabled="isRunning()" @click="settings.mode = 'transcribe'">{{ t("modeTranscribe") }}</button>
+            </div>
             <div class="langs">
               <div class="col grow">
                 <span class="mini">
                   {{ t("from") }}
-                  <em v-if="settings.sourceLang === 'auto' && detectedLang" class="detected">
+                  <em v-if="activeSourceLang === 'auto' && detectedLang" class="detected">
                     {{ langName(detectedLang, locale) }}
                   </em>
                 </span>
-                <Picker v-model="settings.sourceLang" :options="sourceLangOptions" :disabled="isRunning()" />
+                <Picker v-model="activeSourceLang" :options="sourceLangOptions" :disabled="isRunning()" />
               </div>
               <button
+                v-if="!transcribing"
                 class="btn-icon swap"
                 :aria-label="t('swap')"
                 :disabled="settings.sourceLang === 'auto' || isRunning()"
@@ -426,11 +444,12 @@ watch([lines, current], async () => {
                   <path d="M4 2.5v10M4 12.5L1.8 10.3M4 12.5l2.2-2.2M11 12.5v-10M11 2.5L8.8 4.7M11 2.5l2.2 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </button>
-              <div class="col grow">
+              <div v-if="!transcribing" class="col grow">
                 <span class="mini">{{ t("to") }}</span>
                 <Picker v-model="settings.targetLang" :options="langOptions" :disabled="isRunning()" />
               </div>
             </div>
+            <small v-if="transcribing" class="hint">{{ t("transcribeHint") }}</small>
           </Card>
 
           <!-- subtitle overlay -->
@@ -440,7 +459,7 @@ watch([lines, current], async () => {
               <button class="sw" :class="{ on: settings.sub.show }" @click="settings.sub.show = !settings.sub.show" />
             </label>
 
-            <div class="seg">
+            <div v-if="!transcribing" class="seg">
               <button
                 v-for="[value, key] in subModes"
                 :key="value"
@@ -464,7 +483,7 @@ watch([lines, current], async () => {
             <div class="line">
               <span>{{ t("subColors") }}</span>
               <div class="row">
-                <input v-model="settings.sub.color" type="color" :title="t('subColor')" />
+                <input v-if="!transcribing" v-model="settings.sub.color" type="color" :title="t('subColor')" />
                 <input v-model="settings.sub.srcColor" type="color" :title="t('subSrcColor')" />
               </div>
             </div>
@@ -514,19 +533,19 @@ watch([lines, current], async () => {
           <button
             class="go"
             :class="{ running: isRunning() }"
-            :disabled="!canStart && !isRunning()"
+            :disabled="!canStart && !isRunning() || status === 'stopping'"
             @click="toggle"
           >
             <span class="go-ring" />
             <svg v-if="!isRunning()" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.6v10.8L13 8z" /></svg>
             <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="2" /></svg>
-            {{ isRunning() ? t("stop") : t("start") }}
+            {{ isRunning() ? t("stop") : t(transcribing ? "startTranscribe" : "start") }}
           </button>
         </footer>
       </aside>
 
       <!-- translation stream -->
-      <Card class="stream-card" :title="t('streamTitle')" flush>
+      <Card class="stream-card" :title="t(transcribing ? 'transcriptionTitle' : 'streamTitle')" flush>
         <template #action>
           <div class="row">
             <button
@@ -544,21 +563,22 @@ watch([lines, current], async () => {
         </template>
 
         <div ref="streamEl" class="stream">
-          <p v-if="!lines.length && !current.target && !current.source" class="empty">{{ t("streamEmpty") }}</p>
+          <p v-if="!lines.length && !current.target && !current.source && !current.sourceStash && !current.targetStash" class="empty">{{ t(transcribing ? "transcriptionEmpty" : "streamEmpty") }}</p>
 
           <article v-for="l in lines" :key="l.id" class="line-item">
-            <p v-if="l.source" class="src">{{ l.source }}</p>
-            <p class="tgt">{{ l.target }}</p>
+            <p v-if="l.source" :class="l.target ? 'src' : 'tgt'">{{ l.source }}</p>
+            <p v-if="l.target" class="tgt">{{ l.target }}</p>
           </article>
 
           <article
             v-if="current.source || current.target || current.sourceStash || current.targetStash"
             class="line-item live"
           >
-            <p v-if="current.source || current.sourceStash" class="src">
+            <p v-if="current.source || current.sourceStash" :class="sessionMode === 'transcribe' ? 'tgt' : 'src'">
               {{ current.source }}<span class="stash">{{ current.sourceStash }}</span>
+              <span v-if="sessionMode === 'transcribe'" class="caret" />
             </p>
-            <p class="tgt">
+            <p v-if="sessionMode !== 'transcribe'" class="tgt">
               {{ current.target }}<span class="stash">{{ current.targetStash }}</span><span class="caret" />
             </p>
           </article>

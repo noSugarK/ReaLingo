@@ -28,6 +28,7 @@ Grab the installer for your platform from the
 - **Three audio sources**: microphone / system audio / a local audio file
   (Windows, macOS and Ubuntu can all capture system audio directly)
 - **60 languages**, with automatic source detection; switchable to the older Qwen3 model (18 languages)
+- **Translation / transcription-only modes**: transcription uses `qwen3-asr-flash-realtime` and outputs only the original text without invoking a translation model. Language detection is automatic by default, with an optional language hint. ASR supports 27 languages, a different set from translation. Original text can appear in the overlay, be exported as TXT/SRT, or saved to history; SRT timings remain based on result arrival time.
 - **Standalone subtitle overlay**: always on top, bilingual / translation only / source only,
   with adjustable background opacity, font size, colours, outline and alignment. A long
   sentence either grows the window taller (bottom edge pinned) or stays on one line that
@@ -181,6 +182,12 @@ Tests (resampling and endpoint construction):
 
 ```bash
 cd src-tauri && cargo test
+```
+
+Transcription/translation streams, exports and history (run from the repository root; no API key required):
+
+```bash
+node tools/test-stream.mjs
 ```
 
 Icons: the source is `brand/ReaLingo.png` (the full logo, wordmark included). The app icon uses

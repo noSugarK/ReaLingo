@@ -81,6 +81,9 @@ const BY_CODE = new Map(LANGUAGES.map((l) => [l.code, l]));
 
 export const MODEL_NEW = "qwen3.5-livetranslate-flash-realtime";
 export const MODEL_LEGACY = "qwen3-livetranslate-flash-realtime";
+export const MODEL_ASR = "qwen3-asr-flash-realtime";
+// ASR uses `no`, whereas LiveTranslate uses `nb` for Norwegian.
+export const ASR_CODES = "zh yue en ja de ko ru fr pt ar it es hi id th tr uk vi cs da fil fi is ms no pl sv".split(" ");
 
 /** The previous model covers only these 18 languages. */
 const LEGACY_CODES = new Set(
@@ -95,6 +98,7 @@ export function languageCodes(model: string): string[] {
 
 export function langName(code: string, locale: "zh" | "en"): string {
   if (code === "auto") return locale === "zh" ? "自动检测" : "Auto detect";
+  if (code === "no") code = "nb";
   const l = BY_CODE.get(code);
   return l ? l[locale] : code;
 }

@@ -25,6 +25,9 @@ pub struct Meta {
     model: String,
     /// Where the audio came from: `device` or `file`.
     kind: String,
+    /// Absent in older history files, which were all translation sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    mode: Option<crate::config::Mode>,
 }
 
 /// One finished sentence: its transcript and its translation.
@@ -185,11 +188,20 @@ mod tests {
         let meta = r#"{"v":1,"at":1758153802123,"source":"auto","target":"en","model":"qwen3-livetranslate-flash-realtime","kind":"device"}"#;
         let m: Meta = serde_json::from_str(meta).unwrap();
         assert_eq!(m.target, "en");
+        assert_eq!(m.mode, None);
         assert_eq!(serde_json::to_string(&m).unwrap(), meta);
 
         let entry = r#"{"at":1758153806000,"source":"你好","target":"Hello"}"#;
         let e: Entry = serde_json::from_str(entry).unwrap();
         assert_eq!(e.source, "你好");
         assert_eq!(serde_json::to_string(&e).unwrap(), entry);
+    }
+
+    #[test]
+    fn transcription_mode_survives_typed_history_payloads() {
+        let meta = r#"{"v":1,"at":1758153802123,"source":"auto","target":"","model":"qwen3-asr-flash-realtime","kind":"file","mode":"transcribe"}"#;
+        let m: Meta = serde_json::from_str(meta).unwrap();
+        assert_eq!(m.mode, Some(crate::config::Mode::Transcribe));
+        assert_eq!(serde_json::to_string(&m).unwrap(), meta);
     }
 }
