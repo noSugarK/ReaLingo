@@ -18,7 +18,7 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::config::Settings;
+use crate::config::{Mode, Settings};
 
 pub const EVENT: &str = "rt://event";
 /// Every server frame, verbatim — the app's diagnostics drawer reads this. The realtime
@@ -63,6 +63,7 @@ pub async fn run(
     audio_rx: Receiver<Vec<i16>>,
     stop: Arc<AtomicBool>,
 ) {
+    note(&app, "mode", if settings.mode == Mode::Transcribe { "transcribe" } else { "translate" });
     note(&app, "status", "connecting");
     if let Err(e) = connect_and_pump(&app, &settings, audio_rx, &stop).await {
         note(&app, "error", e.to_string());
@@ -86,6 +87,9 @@ async fn connect_and_pump(
         "Authorization",
         HeaderValue::from_str(&format!("Bearer {}", settings.api_key.trim()))?,
     );
+    if settings.mode == Mode::Transcribe {
+        request.headers_mut().insert("OpenAI-Beta", HeaderValue::from_static("realtime=v1"));
+    }
 
     let (ws, _) = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async(request))
         .await
@@ -96,57 +100,56 @@ async fn connect_and_pump(
     write.send(Message::Text(settings.session_update().to_string().into())).await?;
     note(app, "status", "connected");
 
-    // Uplink: PCM chunks -> base64 -> input_audio_buffer.append.
-    let stop_up = stop.clone();
-    let uplink = tokio::spawn(async move {
-        while let Some(chunk) = audio_rx.recv().await {
-            if stop_up.load(Ordering::Relaxed) {
+    let mut finishing = false;
+    let mut deadline = tokio::time::Instant::now() + Duration::from_secs(90);
+    let mut poll = tokio::time::interval(Duration::from_millis(100));
+    let mut chunks = 0u64;
+    loop {
+        // Send session.finish once, then keep both socket halves alive until the
+        // server confirms all final text has arrived. A deadline bounds a stalled server.
+        if !finishing && (stop.load(Ordering::Relaxed) || audio_rx.is_closed() && audio_rx.is_empty()) {
+            finishing = true;
+            deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+            write.send(Message::Text(json!({ "event_id": "session_finish", "type": "session.finish" }).to_string().into())).await?;
+        }
+        tokio::select! {
+            _ = poll.tick() => {}
+            _ = tokio::time::sleep_until(deadline) => {
+                if finishing { note(app, "warn", "等待最终文字超时，请检查最后一句是否完整"); }
                 break;
             }
-            let mut bytes = Vec::with_capacity(chunk.len() * 2);
-            for s in &chunk {
-                bytes.extend_from_slice(&s.to_le_bytes());
-            }
-            let frame = json!({
-                "type": "input_audio_buffer.append",
-                "audio": BASE64_STANDARD.encode(&bytes),
-            });
-            if write.send(Message::Text(frame.to_string().into())).await.is_err() {
-                return;
-            }
-        }
-        let _ = write.send(Message::Text(json!({ "type": "session.finish" }).to_string().into())).await;
-        let _ = write.close().await;
-    });
-
-    loop {
-        // Once the user stops we still want the tail of the translation, but not forever:
-        // the uplink closes the write half, the server answers, and this drains it.
-        let idle = if stop.load(Ordering::Relaxed) {
-            Duration::from_secs(5)
-        } else {
-            Duration::from_secs(90)
-        };
-        let msg = match tokio::time::timeout(idle, read.next()).await {
-            Err(_) => break,
-            Ok(None) => break,
-            Ok(Some(m)) => m,
-        };
-        match msg {
-            Ok(Message::Text(text)) => {
-                if let Ok(value) = serde_json::from_str::<Value>(&text) {
-                    let _ = app.emit(RAW_EVENT, &value);
-                    dispatch(app, &value);
+            chunk = audio_rx.recv(), if !finishing => {
+                if let Some(chunk) = chunk {
+                    let bytes: Vec<u8> = chunk.iter().flat_map(|s| s.to_le_bytes()).collect();
+                    chunks += 1;
+                    let frame = json!({
+                        "event_id": format!("audio_{chunks}"),
+                        "type": "input_audio_buffer.append",
+                        "audio": BASE64_STANDARD.encode(&bytes),
+                    });
+                    write.send(Message::Text(frame.to_string().into())).await?;
+                    deadline = tokio::time::Instant::now() + Duration::from_secs(90);
                 }
             }
-            Ok(Message::Close(_)) => break,
-            Ok(_) => {}
-            Err(e) => return Err(anyhow!("socket error: {e}")),
+            msg = read.next() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        if !finishing { deadline = tokio::time::Instant::now() + Duration::from_secs(90); }
+                        if let Ok(value) = serde_json::from_str::<Value>(&text) {
+                            let _ = app.emit(RAW_EVENT, &value);
+                            dispatch(app, &value);
+                            if value["type"] == "session.finished" { break; }
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    Some(Err(e)) => return Err(anyhow!("socket error: {e}")),
+                    _ => {}
+                }
+            }
         }
     }
-
     stop.store(true, Ordering::Relaxed);
-    let _ = uplink.await;
+    let _ = write.close().await;
     Ok(())
 }
 
@@ -218,7 +221,7 @@ fn classify(v: &Value) -> Option<Event> {
         "session.finished" => Event { kind: "status", text: "closed".into(), ..Default::default() },
         // A server `error` frame (e.g. "previous turn is still processing") does not end
         // the session — surfacing it as a fatal error would wrongly stop the stream.
-        "error" => Event {
+        "error" | "conversation.item.input_audio_transcription.failed" => Event {
             kind: "warn",
             text: v
                 .pointer("/error/message")

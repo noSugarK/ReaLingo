@@ -12,6 +12,7 @@ defineEmits<{ close: [] }>();
 // Both shapes come from history.rs already parsed — `meta` is null when the session's
 // first line is unreadable.
 interface Meta {
+  mode?: string;
   at: number;
   source: string;
   target: string;
@@ -67,8 +68,10 @@ function when(s: SessionRow): string {
 }
 
 function pair(s: SessionRow): string {
-  if (!s.meta) return "";
-  return `${langName(s.meta.source, locale.value)} → ${langName(s.meta.target, locale.value)}`;
+  const m = s.meta;
+  if (!m) return "";
+  if (m.mode === "transcribe") return `${langName(m.source, locale.value)} · ${t("modeTranscribe")}`;
+  return `${langName(m.source, locale.value)} → ${langName(m.target, locale.value)}`;
 }
 
 const shown = computed(() => {
@@ -160,8 +163,8 @@ async function remove(id: string) {
         <div class="rows">
           <p v-if="!shown.length" class="blank">{{ t("historyPick") }}</p>
           <article v-for="l in shown" :key="l.id">
-            <p v-if="l.source" class="src">{{ l.source }}</p>
-            <p class="tgt">{{ l.target }}</p>
+            <p v-if="l.source" :class="l.target ? 'src' : 'tgt'">{{ l.source }}</p>
+            <p v-if="l.target" class="tgt">{{ l.target }}</p>
           </article>
         </div>
       </div>

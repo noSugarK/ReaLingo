@@ -9,6 +9,14 @@ pub const ASR_MODEL: &str = "qwen3-asr-flash-realtime";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+pub enum Mode {
+    #[default]
+    Translate,
+    Transcribe,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Region {
     #[default]
     Beijing,
@@ -18,6 +26,10 @@ pub enum Region {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    #[serde(default)]
+    pub mode: Mode,
+    #[serde(default = "auto")]
+    pub transcription_lang: String,
     #[serde(default)]
     pub api_key: String,
     /// Optional. Empty => the shared public endpoint; set => the workspace's dedicated domain.
@@ -58,12 +70,16 @@ impl Settings {
             (Region::Singapore, true) => "dashscope-intl.aliyuncs.com".to_string(),
             (Region::Singapore, false) => format!("{ws}.ap-southeast-1.maas.aliyuncs.com"),
         };
-        let model = if self.model.is_empty() { MODEL } else { &self.model };
+        let model = if self.mode == Mode::Transcribe { ASR_MODEL }
+            else if self.model.is_empty() { MODEL } else { &self.model };
         format!("wss://{host}/api-ws/v1/realtime?model={model}")
     }
 
     /// The `session.update` payload. Text-only: we render subtitles, we don't speak.
     pub fn session_update(&self) -> serde_json::Value {
+        if self.mode == Mode::Transcribe {
+            return crate::transcription::session_update(&self.transcription_lang);
+        }
         let mut transcription = serde_json::json!({ "model": ASR_MODEL });
         // Omitting `language` is what tells the model to auto-detect the source.
         if self.source_lang != "auto" && !self.source_lang.is_empty() {
@@ -106,6 +122,8 @@ mod tests {
 
     fn s(region: Region, workspace_id: &str) -> Settings {
         Settings {
+            mode: Mode::Translate,
+            transcription_lang: "auto".into(),
             api_key: "k".into(),
             workspace_id: workspace_id.into(),
             region,
@@ -114,6 +132,27 @@ mod tests {
             model: MODEL.into(),
             hotwords: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn old_settings_still_select_translation() {
+        let old: Settings = serde_json::from_value(serde_json::json!({"sourceLang":"zh","targetLang":"en"})).unwrap();
+        assert_eq!(old.mode, Mode::Translate);
+        assert!(old.ws_url().ends_with(&format!("?model={MODEL}")));
+        assert_eq!(old.session_update()["session"]["translation"]["language"], "en");
+    }
+
+    #[test]
+    fn transcription_uses_asr_and_ignores_translation_settings() {
+        let mut settings = s(Region::Beijing, "");
+        settings.mode = Mode::Transcribe;
+        settings.source_lang = "en".into();
+        settings.transcription_lang = "zh".into();
+        settings.hotwords.insert("test".into(), "测试".into());
+        assert!(settings.ws_url().ends_with(&format!("?model={ASR_MODEL}")));
+        let value = settings.session_update();
+        assert!(value["session"].get("translation").is_none());
+        assert_eq!(value["session"]["input_audio_transcription"]["language"], "zh");
     }
 
     #[test]

@@ -24,6 +24,8 @@ async fn main() -> anyhow::Result<()> {
     let api_key = std::env::var("DASHSCOPE_API_KEY").expect("set DASHSCOPE_API_KEY");
 
     let settings = Settings {
+        mode: Default::default(),
+        transcription_lang: "auto".into(),
         api_key,
         workspace_id: String::new(),
         region: Region::Beijing,

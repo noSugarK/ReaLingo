@@ -3,6 +3,7 @@ pub mod config;
 pub mod decode;
 mod history;
 mod realtime;
+mod transcription;
 pub mod pulse;
 pub mod resample;
 mod secret;
@@ -122,9 +123,8 @@ fn start_stream(
                     Ok(()) => realtime::note(&app2, "progress", "done"),
                     Err(e) => realtime::note(&app2, "error", e.to_string()),
                 }
-                // Let the last chunks land, then wind the socket down.
-                std::thread::sleep(std::time::Duration::from_secs(2));
-                stop2.store(true, Ordering::Relaxed);
+                // Dropping the audio sender signals EOF. The realtime client finishes
+                // the session and waits for final text before closing the socket.
             });
         }
     }

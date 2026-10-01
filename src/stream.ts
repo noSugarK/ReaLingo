@@ -4,7 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 // `t` is a Turn everywhere in this file, so the translator comes in under another name.
 import { t as msg } from "./i18n";
-import { settings } from "./store";
+import { settings, type ProcessingMode } from "./store";
+import { MODEL_ASR } from "./languages";
 
 export interface Line {
   id: number;
@@ -13,9 +14,11 @@ export interface Line {
   at: number;
 }
 
-export type Status = "idle" | "connecting" | "connected" | "closed" | "error";
+export type Status = "idle" | "connecting" | "connected" | "stopping" | "closed" | "error";
 
 export const lines = ref<Line[]>([]);
+/** Sent by the backend to both windows; fixed for the lifetime of a session. */
+export const sessionMode = ref<ProcessingMode>("translate");
 /**
  * The sentence currently in flight. `*Stash` holds the model's unconfirmed tail — the
  * server re-sends the full confirmed text plus a tentative continuation on every frame,
@@ -168,7 +171,7 @@ function resetTurns() {
 }
 
 interface RtEvent {
-  kind: "status" | "target" | "source" | "link" | "speech" | "error" | "warn" | "progress";
+  kind: "mode" | "status" | "target" | "source" | "link" | "speech" | "error" | "warn" | "progress";
   text: string;
   stash: string;
   lang: string;
@@ -179,9 +182,16 @@ interface RtEvent {
 
 void listen<RtEvent>("rt://event", ({ payload: e }) => {
   switch (e.kind) {
+    case "mode":
+      sessionMode.value = e.text === "transcribe" ? "transcribe" : "translate";
+      lines.value = [];
+      resetTurns();
+      detectedLang.value = "";
+      speaking.value = false;
+      break;
     case "status":
-      if (e.text === "connecting") status.value = "connecting";
-      else if (e.text === "connected") status.value = "connected";
+      if (e.text === "connecting" && status.value !== "stopping") status.value = "connecting";
+      else if (e.text === "connected" && status.value !== "stopping") status.value = "connected";
       else if (e.text === "closed") {
         flush();
         speaking.value = false;
@@ -199,9 +209,11 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
     case "source": {
       // Falling back to the newest turn keeps a transcript that outran its link visible
       // rather than silently dropped.
-      const key = byInput.get(e.id) ?? newestTurn()?.key;
+      const transcribing = sessionMode.value === "transcribe";
+      const key = transcribing ? e.id : byInput.get(e.id) ?? newestTurn()?.key;
       if (!key) break;
       const t = turnFor(key);
+      if (transcribing) t.targetDone = true;
       t.source = e.text;
       t.sourceStash = e.done ? "" : e.stash;
       if (e.lang) detectedLang.value = e.lang;
@@ -209,7 +221,7 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
       if (e.done) t.sourceDone = true;
       // Only ever patches here: a turn still waiting for its translation belongs in the
       // live row, not as a second, half-empty row in the stream.
-      if (t.lineId !== undefined) publish(t);
+      if (t.lineId !== undefined || transcribing && e.done) publish(t);
       syncCurrent();
       settle(t);
       break;
@@ -260,6 +272,7 @@ void listen("rt://raw", ({ payload }) => {
 export type Source = { kind: "device"; id: string } | { kind: "file"; path: string };
 
 export async function start(source: Source) {
+  sessionMode.value = settings.mode;
   errorMsg.value = "";
   warnMsg.value = "";
   lines.value = [];
@@ -275,9 +288,10 @@ export async function start(source: Source) {
     meta: {
       v: 1,
       at: Date.now(),
-      source: settings.sourceLang,
-      target: settings.targetLang,
-      model: settings.model,
+      mode: settings.mode,
+      source: settings.mode === "transcribe" ? settings.transcriptionLang : settings.sourceLang,
+      target: settings.mode === "transcribe" ? "" : settings.targetLang,
+      model: settings.mode === "transcribe" ? MODEL_ASR : settings.model,
       kind: source.kind,
     },
   });
@@ -290,16 +304,21 @@ export async function start(source: Source) {
 }
 
 export async function stop() {
+  if (status.value === "stopping") return;
+  status.value = "stopping";
   await invoke("stop_stream");
-  flush();
-  speaking.value = false;
-  if (status.value !== "error") status.value = "idle";
+  // Final text can arrive after stop_stream returns. Keep turns alive until the
+  // backend's closed event rather than losing or duplicating the last sentence.
 }
 
-export const isRunning = () => status.value === "connecting" || status.value === "connected";
+export const isRunning = () => status.value === "connecting" || status.value === "connected" || status.value === "stopping";
 
 export function exportTxt(rows: Line[] = lines.value): string {
-  return rows.map((l) => (l.source ? `${l.source}\n${l.target}` : l.target)).join("\n\n");
+  return rows.map(lineText).join("\n\n");
+}
+
+function lineText(l: Line): string {
+  return [l.source, l.target].filter(Boolean).join("\n");
 }
 
 /** SRT timings are derived from arrival time — good enough to follow along, not frame-accurate. */
@@ -309,14 +328,14 @@ export function exportSrt(rows: Line[] = lines.value): string {
     .map((l, i) => {
       const start = l.at - t0;
       const end = (rows[i + 1]?.at ?? l.at + 3000) - t0;
-      const body = l.source ? `${l.source}\n${l.target}` : l.target;
+      const body = lineText(l);
       return `${i + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${body}\n`;
     })
     .join("\n");
 }
 
 /** Save an export through the user's own file dialog. Shared by the stream and the history panel. */
-export async function saveAs(kind: "txt" | "srt", rows: Line[], stem = "translation") {
+export async function saveAs(kind: "txt" | "srt", rows: Line[], stem = sessionMode.value === "transcribe" ? "transcription" : "translation") {
   const path = await saveDialog({
     defaultPath: `${stem}.${kind}`,
     filters: [{ name: kind.toUpperCase(), extensions: [kind] }],

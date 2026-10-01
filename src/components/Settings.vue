@@ -15,7 +15,7 @@ const endpoint = ref("");
 // so only what is read synchronously is tracked — and a field missing from that list makes
 // the preview silently lag one change behind.
 watch(
-  () => [settings.region, settings.workspaceId, settings.model],
+  () => [settings.region, settings.workspaceId, settings.model, settings.mode],
   async () => {
     endpoint.value = await invoke<string>("endpoint_url", { settings: toRaw(settings) });
   },
@@ -81,13 +81,15 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
           </small>
         </label>
 
-        <div class="field">
+        <div v-if="settings.mode === 'translate'" class="field">
           <span class="label">{{ t("model") }}</span>
           <Picker v-model="settings.model" :options="modelOptions" />
           <small>{{ t("modelHint") }}</small>
         </div>
 
-        <label class="field">
+        <small v-else class="hint">{{ t("asrHint") }}</small>
+
+        <label v-if="settings.mode === 'translate'" class="field">
           <span class="label">{{ t("hotwords") }}</span>
           <textarea
             v-model="hotwordText"

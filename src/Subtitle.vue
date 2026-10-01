@@ -11,7 +11,7 @@ import {
   PhysicalSize,
 } from "@tauri-apps/api/window";
 import { initSettings, settings, type SubtitleStyle } from "./store";
-import { current, lines } from "./stream";
+import { current, lines, sessionMode } from "./stream";
 import { t } from "./i18n";
 
 const style = ref<SubtitleStyle>(settings.sub);
@@ -153,10 +153,12 @@ async function openMenu() {
 
   const menu = await Menu.new({
     items: await Promise.all([
-      pick(t("subBoth"), "mode", "both"),
-      pick(t("subTarget"), "mode", "target"),
-      pick(t("subSource"), "mode", "source"),
-      sep(),
+      ...(sessionMode.value === "transcribe" ? [] : [
+        pick(t("subBoth"), "mode", "both"),
+        pick(t("subTarget"), "mode", "target"),
+        pick(t("subSource"), "mode", "source"),
+        sep(),
+      ]),
       pick(t("alignLeft"), "align", "left"),
       pick(t("alignCenter"), "align", "center"),
       pick(t("alignRight"), "align", "right"),
@@ -188,8 +190,8 @@ watch(
   () => nextTick(tail)
 );
 
-const showSource = computed(() => style.value.mode !== "target" && !!(src.value || srcStash.value));
-const showTarget = computed(() => style.value.mode !== "source" && !!(tgt.value || tgtStash.value));
+const showSource = computed(() => (sessionMode.value === "transcribe" || style.value.mode !== "target") && !!(src.value || srcStash.value));
+const showTarget = computed(() => sessionMode.value !== "transcribe" && style.value.mode !== "source" && !!(tgt.value || tgtStash.value));
 const empty = computed(() => !showSource.value && !showTarget.value);
 // At 0% the plate must vanish completely — a backdrop blur with no tint is still a
 // visible frosted rectangle over video, which defeats the point of the slider.
@@ -223,7 +225,7 @@ const outline = computed(() =>
       :style="barStyle"
       :data-tauri-drag-region="style.locked ? undefined : true"
     >
-      <p v-if="showSource" class="src" :style="{ color: style.srcColor, textShadow: outline }">
+      <p v-if="showSource" :class="sessionMode === 'transcribe' ? 'tgt' : 'src'" :style="{ color: style.srcColor, textShadow: outline }">
         <span class="run">{{ src }}<span class="stash">{{ srcStash }}</span></span>
       </p>
       <p v-if="showTarget" class="tgt" :style="{ color: style.color, textShadow: outline }">
