@@ -9,6 +9,7 @@ use base64::prelude::{Engine, BASE64_STANDARD};
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,9 +30,8 @@ pub const RAW_EVENT: &str = "rt://raw";
 
 /// One normalised server event.
 ///
-/// The wire protocol is *not* delta-based, which is the thing worth knowing here:
-/// `text` is the full confirmed text so far and `stash` is the model's tentative
-/// continuation, both re-sent in every frame. Appending them would duplicate; replace.
+/// `text` is always the full confirmed text so far. Delta-based models are accumulated
+/// in TextStream before emitting, so the frontend can replace rather than append.
 #[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
@@ -96,6 +96,7 @@ async fn connect_and_pump(
         .map_err(|e| anyhow!("connect failed: {e}"))?;
 
     let (mut write, mut read) = ws.split();
+    let mut text_stream = TextStream::default();
     write.send(Message::Text(settings.session_update().to_string().into())).await?;
     note(app, "status", "connected");
 
@@ -149,7 +150,9 @@ async fn connect_and_pump(
                         }
                     }
                     let _ = app.emit(RAW_EVENT, &value);
-                    dispatch(app, &value);
+                    if let Some(ev) = text_stream.next(&value) {
+                        emit(app, ev);
+                    }
                     if value.get("type").and_then(Value::as_str) == Some("session.finished") {
                         break;
                     }
@@ -180,9 +183,28 @@ fn take_audio(v: &mut Value) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-fn dispatch(app: &AppHandle, v: &Value) {
-    if let Some(ev) = classify(v) {
-        emit(app, ev);
+#[derive(Default)]
+struct TextStream {
+    partial: BTreeMap<(&'static str, String), String>,
+}
+
+impl TextStream {
+    fn next(&mut self, v: &Value) -> Option<Event> {
+        let kind = match v.get("type")?.as_str()? {
+            "conversation.item.input_audio_transcription.delta" => "source",
+            "response.text.delta" | "response.audio_transcript.delta" => "target",
+            _ => {
+                let ev = classify(v)?;
+                if ev.done {
+                    self.partial.remove(&(ev.kind, ev.id.clone()));
+                }
+                return Some(ev);
+            }
+        };
+        let id = v.get("item_id")?.as_str()?.to_string();
+        let text = self.partial.entry((kind, id.clone())).or_default();
+        text.push_str(v.get("delta")?.as_str()?);
+        Some(Event { kind, id, text: text.clone(), ..Default::default() })
     }
 }
 
@@ -266,6 +288,28 @@ fn classify(v: &Value) -> Option<Event> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn qwen3_8_deltas_accumulate_per_item_and_finish_without_duplicates() {
+        let mut stream = TextStream::default();
+        for (kind, item, delta, expected) in [
+            ("response.text.delta", "target1", "早上", "早上"),
+            ("conversation.item.input_audio_transcription.delta", "source1", "Good ", "Good "),
+            ("response.audio_transcript.delta", "target2", "你好", "你好"),
+            ("response.text.delta", "target1", "好。", "早上好。"),
+            ("conversation.item.input_audio_transcription.delta", "source1", "morning.", "Good morning."),
+        ] {
+            let ev = stream.next(&json!({ "type": kind, "item_id": item, "delta": delta })).unwrap();
+            assert_eq!(ev.text, expected);
+            assert_eq!(ev.id, item);
+            assert!(!ev.done);
+        }
+        let done = stream.next(&json!({ "type": "response.text.done", "item_id": "target1", "text": "早上好。" })).unwrap();
+        assert_eq!(done.text, "早上好。");
+        assert!(done.done);
+        assert!(!stream.partial.contains_key(&("target", "target1".into())));
+        assert!(stream.partial.contains_key(&("source", "source1".into())));
+    }
 
     /// Frames captured from the live endpoint (see `examples/probe.rs`).
     #[test]

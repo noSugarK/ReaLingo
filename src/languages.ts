@@ -79,18 +79,19 @@ export const LANGUAGES: Lang[] = TABLE.trim()
 
 const BY_CODE = new Map(LANGUAGES.map((l) => [l.code, l]));
 
-export const MODEL_NEW = "qwen3.5-livetranslate-flash-realtime";
-export const MODEL_LEGACY = "qwen3-livetranslate-flash-realtime";
+export const MODEL_QWEN3_5 = "qwen3.5-livetranslate-flash-realtime";
+export const MODEL_QWEN3_8 = "qwen3.8-livetranslate-flash-realtime";
+export const MODEL_QWEN3 = "qwen3-livetranslate-flash-realtime";
 
-/** The previous model covers only these 18 languages. */
-const LEGACY_CODES = new Set(
+/** Qwen3 covers only these 18 languages. */
+const QWEN3_CODES = new Set(
   "en zh ru fr de pt es it id ko ja vi th ar yue hi el tr".split(" ")
 );
 
 /** Codes the given model can actually translate into. */
 export function languageCodes(model: string): string[] {
   const all = LANGUAGES.map((l) => l.code);
-  return model === MODEL_LEGACY ? all.filter((c) => LEGACY_CODES.has(c)) : all;
+  return model === MODEL_QWEN3 ? all.filter((c) => QWEN3_CODES.has(c)) : all;
 }
 
 export function canSpeak(code: string): boolean {

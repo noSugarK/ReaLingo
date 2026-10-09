@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const MODEL: &str = "qwen3.5-livetranslate-flash-realtime";
-/// The previous generation. Same protocol, but only 18 languages — the UI narrows the
+pub const MODEL_QWEN3_5: &str = "qwen3.5-livetranslate-flash-realtime";
+pub const MODEL_QWEN3_8: &str = "qwen3.8-livetranslate-flash-realtime";
+/// Qwen3 uses the same protocol as Qwen3.5, but only 18 languages — the UI narrows the
 /// pickers accordingly so a session cannot be opened with a target it will reject.
-pub const MODEL_LEGACY: &str = "qwen3-livetranslate-flash-realtime";
+pub const MODEL_QWEN3: &str = "qwen3-livetranslate-flash-realtime";
 pub const ASR_MODEL: &str = "qwen3-asr-flash-realtime";
 /// The service's own default; any name from the Model Studio voice list works.
 pub const VOICE: &str = "Tina";
@@ -51,7 +52,7 @@ fn auto() -> String {
     "auto".into()
 }
 fn default_model() -> String {
-    MODEL.into()
+    MODEL_QWEN3_5.into()
 }
 fn default_voice() -> String {
     VOICE.into()
@@ -69,7 +70,7 @@ impl Settings {
             (Region::Singapore, true) => "dashscope-intl.aliyuncs.com".to_string(),
             (Region::Singapore, false) => format!("{ws}.ap-southeast-1.maas.aliyuncs.com"),
         };
-        let model = if self.model.is_empty() { MODEL } else { &self.model };
+        let model = if self.model.is_empty() { MODEL_QWEN3_5 } else { &self.model };
         format!("wss://{host}/api-ws/v1/realtime?model={model}")
     }
 
@@ -86,6 +87,27 @@ impl Settings {
         // shape, and the endpoint's reaction to one is anyone's guess.
         if !self.hotwords.is_empty() {
             translation["corpus"] = serde_json::json!({ "phrases": self.hotwords });
+        }
+        // Qwen3.8 supplies source transcription automatically. Its session schema uses
+        // output_modalities and nested audio settings, not the earlier ASR/VAD fields.
+        if self.model == MODEL_QWEN3_8 {
+            return serde_json::json!({
+                "type": "session.update",
+                "session": {
+                    "output_modalities": if self.speak { vec!["text", "audio"] } else { vec!["text"] },
+                    "translation": translation,
+                    "audio": {
+                        "input": { "turn_detection": {
+                            "type": "server_vad",
+                            "threshold": 0.2,
+                            "silence_duration_ms": 800
+                        } },
+                        // The public endpoint can inherit Chelsie even in text-only mode.
+                        // Always specify Tina so the first audio input is not rejected.
+                        "output": { "voice": VOICE }
+                    }
+                }
+            });
         }
         let mut v = serde_json::json!({
             "type": "session.update",
@@ -130,7 +152,7 @@ mod tests {
             region,
             source_lang: "auto".into(),
             target_lang: "en".into(),
-            model: MODEL.into(),
+            model: MODEL_QWEN3_5.into(),
             hotwords: BTreeMap::new(),
             speak: false,
             voice: VOICE.into(),
@@ -157,18 +179,18 @@ mod tests {
 
     #[test]
     fn url_carries_the_selected_model() {
-        assert!(s(Region::Beijing, "").ws_url().ends_with(&format!("?model={MODEL}")));
+        assert!(s(Region::Beijing, "").ws_url().ends_with(&format!("?model={MODEL_QWEN3_5}")));
 
-        let mut legacy = s(Region::Beijing, "");
-        legacy.model = MODEL_LEGACY.into();
-        assert!(legacy.ws_url().ends_with(&format!("?model={MODEL_LEGACY}")));
+        let mut qwen3 = s(Region::Beijing, "");
+        qwen3.model = MODEL_QWEN3.into();
+        assert!(qwen3.ws_url().ends_with(&format!("?model={MODEL_QWEN3}")));
     }
 
     #[test]
-    fn empty_model_falls_back_to_the_current_one() {
+    fn empty_model_falls_back_to_qwen3_5() {
         let mut blank = s(Region::Beijing, "");
         blank.model = String::new();
-        assert!(blank.ws_url().ends_with(&format!("?model={MODEL}")));
+        assert!(blank.ws_url().ends_with(&format!("?model={MODEL_QWEN3_5}")));
     }
 
     #[test]
@@ -216,5 +238,33 @@ mod tests {
         let mut fixed = s(Region::Beijing, "");
         fixed.source_lang = "zh".into();
         assert_eq!(fixed.session_update()["session"]["input_audio_transcription"]["language"], "zh");
+    }
+
+    #[test]
+    fn qwen3_8_uses_its_own_session_schema_and_endpoint_model() {
+        let mut settings = s(Region::Beijing, "llm-abc");
+        settings.model = MODEL_QWEN3_8.into();
+        settings.voice = "Chelsie".into();
+        settings.hotwords.insert("人工智能".into(), "AI".into());
+        assert!(settings.ws_url().ends_with(&format!("?model={MODEL_QWEN3_8}")));
+        let update = settings.session_update();
+        let session = &update["session"];
+        assert_eq!(session["output_modalities"], serde_json::json!(["text"]));
+        assert_eq!(session["audio"]["output"]["voice"], "Tina");
+        assert_eq!(
+            session["audio"]["input"]["turn_detection"],
+            s(Region::Beijing, "").session_update()["session"]["turn_detection"]
+        );
+        assert_eq!(session["translation"]["corpus"]["phrases"]["人工智能"], "AI");
+        for old_field in ["modalities", "input_audio_transcription", "turn_detection", "voice", "input_audio_format"] {
+            assert!(session.get(old_field).is_none(), "unexpected field: {old_field}");
+        }
+        settings.speak = true;
+        assert_eq!(settings.session_update()["session"]["output_modalities"], serde_json::json!(["text", "audio"]));
+        assert_eq!(settings.session_update()["session"]["audio"]["output"]["voice"], "Tina");
+        settings.workspace_id.clear();
+        assert_eq!(settings.ws_url(), format!("wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model={MODEL_QWEN3_8}"));
+        settings.region = Region::Singapore;
+        assert_eq!(settings.ws_url(), format!("wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime?model={MODEL_QWEN3_8}"));
     }
 }

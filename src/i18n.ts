@@ -110,8 +110,9 @@ const zh = {
   workspace: "业务空间 ID",
   workspaceHint: "选填。留空使用公共域名；填写后走业务空间专属域名（性能更好），可在百炼控制台业务空间详情页查看",
   model: "翻译模型",
-  modelNew: "Qwen3.5·60 语种",
-  modelLegacy: "Qwen3·18 语种",
+  modelQwen3_5: "Qwen3.5·60 语种",
+  modelQwen3_8: "Qwen3.8·60 语种",
+  modelQwen3: "Qwen3·18 语种",
   modelHint: "旧模型只覆盖 18 种语言，切过去后语言列表会相应收窄；当前选的语言不在其中时会自动回退。",
   hotwords: "热词",
   hotwordsHint: "每行一条「源词=译文」，让模型按你的说法翻专有名词。最多 1000 条，开始翻译后修改需重新开始。",
@@ -245,8 +246,9 @@ const en: typeof zh = {
   workspaceHint:
     "Optional. Leave blank to use the public endpoint; filling it in uses your workspace's dedicated domain (better performance). Find it on the workspace detail page.",
   model: "Translation model",
-  modelNew: "Qwen3.5 · 60 languages",
-  modelLegacy: "Qwen3 · 18 languages",
+  modelQwen3_5: "Qwen3.5 · 60 languages",
+  modelQwen3_8: "Qwen3.8 · 60 languages",
+  modelQwen3: "Qwen3 · 18 languages",
   modelHint: "The older model covers only 18 languages; switching narrows the pickers, and a language it does not support falls back automatically.",
   hotwords: "Hotwords",
   hotwordsHint:

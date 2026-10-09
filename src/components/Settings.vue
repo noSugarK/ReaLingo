@@ -3,7 +3,7 @@ import { computed, ref, watch, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { keyringOk, settings, type Region, type Theme } from "../store";
 import { isRunning } from "../stream";
-import { MODEL_LEGACY, MODEL_NEW } from "../languages";
+import { MODEL_QWEN3, MODEL_QWEN3_5, MODEL_QWEN3_8 } from "../languages";
 import { locale, setLocale, t, type Locale } from "../i18n";
 import Picker from "./Picker.vue";
 import Sheet from "./Sheet.vue";
@@ -46,8 +46,9 @@ watch(hotwordText, (text) => {
 const hotwordCount = computed(() => Object.keys(settings.hotwords).length);
 
 const modelOptions = computed(() => [
-  { value: MODEL_NEW, label: t("modelNew"), note: "60" },
-  { value: MODEL_LEGACY, label: t("modelLegacy"), note: "18" },
+  { value: MODEL_QWEN3_8, label: t("modelQwen3_8"), note: "60" },
+  { value: MODEL_QWEN3_5, label: t("modelQwen3_5"), note: "60" },
+  { value: MODEL_QWEN3, label: t("modelQwen3"), note: "18" },
 ]);
 
 /** The console page differs per region, and the intl one is English-only. */
@@ -83,7 +84,7 @@ const themes: [Theme, "themeSystem" | "themeLight" | "themeDark"][] = [
 
         <div class="field">
           <span class="label">{{ t("model") }}</span>
-          <Picker v-model="settings.model" :options="modelOptions" />
+          <Picker v-model="settings.model" :options="modelOptions" :disabled="isRunning()" />
           <small>{{ t("modelHint") }}</small>
         </div>
 

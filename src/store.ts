@@ -1,7 +1,7 @@
 import { reactive, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { load, type Store } from "@tauri-apps/plugin-store";
-import { MODEL_NEW } from "./languages";
+import { MODEL_QWEN3_5 } from "./languages";
 
 export type Region = "beijing" | "singapore";
 export type Theme = "system" | "light" | "dark";
@@ -56,7 +56,7 @@ export const settings = reactive<Settings>({
   region: "beijing",
   sourceLang: "auto",
   targetLang: "en",
-  model: MODEL_NEW,
+  model: MODEL_QWEN3_5,
   history: false,
   hotwords: {},
   speak: false,

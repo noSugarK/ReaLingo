@@ -3,7 +3,8 @@
 //! the live service instead of guessed from the docs.
 //!
 //!   set DASHSCOPE_API_KEY=sk-...
-//!   cargo run --example probe -- path\to\audio.wav [target_lang]
+//!   cargo run --example probe -- path\to\audio.wav [target_lang] [model]
+//!   set DASHSCOPE_WORKSPACE_ID=llm-...   (optional dedicated endpoint)
 
 use realingo_lib::config::{Region, Settings};
 use realingo_lib::decode;
@@ -19,17 +20,17 @@ use tokio_tungstenite::tungstenite::Message;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let path = std::env::args().nth(1).expect("usage: probe <audio file> [target lang]");
+    let path = std::env::args().nth(1).expect("usage: probe <audio file> [target lang] [model]");
     let target = std::env::args().nth(2).unwrap_or_else(|| "zh".into());
     let api_key = std::env::var("DASHSCOPE_API_KEY").expect("set DASHSCOPE_API_KEY");
 
     let settings = Settings {
         api_key,
-        workspace_id: String::new(),
+        workspace_id: std::env::var("DASHSCOPE_WORKSPACE_ID").unwrap_or_default(),
         region: Region::Beijing,
         source_lang: "auto".into(),
         target_lang: target,
-        model: realingo_lib::config::MODEL.into(),
+        model: std::env::args().nth(3).unwrap_or_else(|| realingo_lib::config::MODEL_QWEN3_5.into()),
         hotwords: Default::default(),
         // set PROBE_SPEAK=1 to see the audio-modality frames too.
         speak: std::env::var_os("PROBE_SPEAK").is_some(),

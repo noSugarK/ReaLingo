@@ -13,7 +13,7 @@ import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
 import History from "./components/History.vue";
 import { locale, setLocale, t } from "./i18n";
-import { canSpeak, langName, languageCodes, VOICES } from "./languages";
+import { canSpeak, langName, languageCodes, MODEL_QWEN3_8, VOICES } from "./languages";
 import { check, checkUpdateAtStartup, openHome } from "./update";
 import { settings, initSettings, resolvedTheme, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
 import {
@@ -113,7 +113,15 @@ async function chooseFile() {
 }
 
 /* ---------- read aloud ---------- */
-const voiceOptions = VOICES.map((v) => ({ value: v, label: v }));
+const voiceOptions = computed(() =>
+  (settings.model === MODEL_QWEN3_8 ? ["Tina"] : VOICES).map((v) => ({ value: v, label: v }))
+);
+watch(() => settings.model, (model) => {
+  if (model === MODEL_QWEN3_8) {
+    settings.sourceLang = "auto";
+    settings.voice = "Tina";
+  }
+}, { immediate: true });
 // Why speaking cannot happen with the current choices, if it cannot. Linux has no way to
 // leave our own playback out of a monitor source, so system audio would hear itself.
 const speakBlocked = computed(() => {
@@ -194,7 +202,7 @@ const langOptions = computed(() =>
 );
 const sourceLangOptions = computed(() => [
   { value: "auto", label: langName("auto", locale.value) },
-  ...langOptions.value,
+  ...(settings.model === MODEL_QWEN3_8 ? [] : langOptions.value),
 ]);
 
 // Switching to the smaller model can strand a language it cannot translate into; the
