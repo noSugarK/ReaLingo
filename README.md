@@ -23,11 +23,11 @@ Tauri 2 + Rust 内核，Vue 3 前端，苹果液态玻璃风格界面。
 Windows `.exe` / `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`。
 安装包都没有商业代码签名，首次打开会被系统拦一下，按下面放行即可。
 
-| 系统          | 安装                                                               | 首次打开                                                                                                                                                                                      |
-| ------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Windows 10/11 | 双击 `ReaLingo_x.y.z_x64-setup.exe`（或 `.msi`）                   | SmartScreen 提示「Windows 已保护你的电脑」时点 **更多信息 → 仍要运行**；之后从开始菜单打开                                                                                                    |
-| macOS 12+     | 打开 `.dmg`，把 ReaLingo 拖进「应用程序」                          | 提示「已损坏」或「无法验证开发者」时，终端执行 `xattr -dr com.apple.quarantine /Applications/ReaLingo.app`，或到 **系统设置 → 隐私与安全性** 点 **仍要打开**；随后按提示允许麦克风 / 系统录音 |
-| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_amd64.deb`（用 apt 才会拉依赖） | 从应用菜单打开，或终端运行 `realingo`                                                                                                                                                         |
+| 系统 | 安装 | 首次打开 |
+|---|---|---|
+| Windows 10/11 | 双击 `ReaLingo_x.y.z_x64-setup.exe`（或 `.msi`） | SmartScreen 提示「Windows 已保护你的电脑」时点 **更多信息 → 仍要运行**；之后从开始菜单打开 |
+| macOS 12+ | 打开 `.dmg`，把 ReaLingo 拖进「应用程序」 | 提示「已损坏」或「无法验证开发者」时，终端执行 `xattr -dr com.apple.quarantine /Applications/ReaLingo.app`，或到 **系统设置 → 隐私与安全性** 点 **仍要打开**；随后按提示允许麦克风 / 系统录音 |
+| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_amd64.deb`（用 apt 才会拉依赖） | 从应用菜单打开，或终端运行 `realingo` |
 
 macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性 → 屏幕与系统录音**（以及 **麦克风**）
 里删掉 ReaLingo，重开应用再授权一次 —— ad-hoc 签名每个版本都不同，旧的授权可能对不上。
@@ -59,13 +59,13 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
 
 首次启动后点右上角齿轮：
 
-| 项          | 说明                                                                                                                                                                                                                             |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API Key     | [百炼控制台 → API-KEY](https://bailian.console.aliyun.com/?tab=model#/api-key)（新加坡地域用 [国际站控制台](https://bailian.console.alibabacloud.com/?tab=model#/api-key)），设置页里有直达按钮。存在系统凭据库里，见下          |
-| 翻译模型    | `qwen3.8-livetranslate-flash-realtime`、`qwen3.5-livetranslate-flash-realtime`（均为 60 语种，默认仍为 Qwen3.5）或 `qwen3-livetranslate-flash-realtime`（18 语种）。Qwen3.8 使用新版增量协议、自动识别源语种并显式指定 Tina 音色 |
-| 热词        | **选填**。每行一条「源词=译文」，让模型按你的说法翻专有名词（`人工智能=Artificial Intelligence`）。最多 1000 条，随会话下发，翻译进行中改动要重新开始才生效                                                                      |
-| 地域        | 华北2（北京）/ 新加坡                                                                                                                                                                                                            |
-| 业务空间 ID | **选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.cn-beijing.maas.aliyuncs.com`（性能更好），在百炼控制台业务空间详情页查看                                                               |
+| 项 | 说明 |
+|---|---|
+| API Key | [百炼控制台 → API-KEY](https://bailian.console.aliyun.com/?tab=model#/api-key)（新加坡地域用 [国际站控制台](https://bailian.console.alibabacloud.com/?tab=model#/api-key)），设置页里有直达按钮。存在系统凭据库里，见下 |
+| 翻译模型 | `qwen3.5-livetranslate-flash-realtime`（60 语种，默认）、`qwen3.8-livetranslate-flash-realtime`（60 语种，自动识别源语种）或 `qwen3-livetranslate-flash-realtime`（18 语种）。切到旧模型后语言选择器只列它支持的 18 种，当前选择不在其中会自动回退 |
+| 热词 | **选填**。每行一条「源词=译文」，让模型按你的说法翻专有名词（`人工智能=Artificial Intelligence`）。最多 1000 条，随会话下发，翻译进行中改动要重新开始才生效 |
+| 地域 | 华北2（北京）/ 新加坡 |
+| 业务空间 ID | **选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.cn-beijing.maas.aliyuncs.com`（性能更好），在百炼控制台业务空间详情页查看 |
 
 设置页底部实时显示最终会连接的 WebSocket 地址。
 
@@ -83,12 +83,12 @@ Linux 上如果没有跑 Secret Service（无桌面环境或精简发行版）�
 
 ## 平台支持
 
-|               | 麦克风 | 系统声音 | 说明                                                                                    |
-| ------------- | ------ | -------- | --------------------------------------------------------------------------------------- |
-| Windows 10/11 | ✅      | ✅        | WASAPI loopback，无需额外配置。朗读时改用 process loopback 排除自身（Windows 10 2004+） |
-| macOS 14.4+   | ✅      | ✅        | Core Audio process tap；首次使用会弹权限申请。朗读时 tap 把自身进程列为排除             |
-| macOS 12–14.3 | ✅      | ❌        | process tap 是 14.4 才有的 API                                                          |
-| Ubuntu 22.04+ | ✅      | ✅        | 绕开 ALSA，直接向 PulseAudio / PipeWire 要 monitor 源（见下）                           |
+| | 麦克风 | 系统声音 | 说明 |
+|---|---|---|---|
+| Windows 10/11 | ✅ | ✅ | WASAPI loopback，无需额外配置。朗读时改用 process loopback 排除自身（Windows 10 2004+） |
+| macOS 14.4+ | ✅ | ✅ | Core Audio process tap；首次使用会弹权限申请。朗读时 tap 把自身进程列为排除 |
+| macOS 12–14.3 | ✅ | ❌ | process tap 是 14.4 才有的 API |
+| Ubuntu 22.04+ | ✅ | ✅ | 绕开 ALSA，直接向 PulseAudio / PipeWire 要 monitor 源（见下） |
 
 <details>
 <summary><b>平台细节：Linux 系统声音、macOS 权限、Linux 托盘</b></summary>
@@ -172,10 +172,10 @@ node tools/cdp.mjs probe.js subtitle      # 在字幕窗求值
 macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，由 `.github/workflows/build.yml`
 （**build & release**）在 GitHub Actions 上出三份：
 
-| 触发方式           | 结果                                          |
-| ------------------ | --------------------------------------------- |
-| Actions 页手动运行 | 三个平台各出一份 workflow artifact            |
-| 推 `v*` tag        | 同上，外加一个 GitHub Release，安装包作为附件 |
+| 触发方式 | 结果 |
+|---|---|
+| Actions 页手动运行 | 三个平台各出一份 workflow artifact |
+| 推 `v*` tag | 同上，外加一个 GitHub Release，安装包作为附件 |
 
 发布流程是「先建草稿 → 各平台分别上传 → **三个平台全部成功后**才转正式发布」，
 所以任一平台挂掉时 release 会停在草稿状态，不会放出半套包。tag 与
@@ -193,11 +193,11 @@ CI 就按这一处校验 tag。
 git tag v0.2.1 && git push origin v0.2.1
 ```
 
-| artifact                            | 内容                                    |
-| ----------------------------------- | --------------------------------------- |
-| `realingo-x86_64-pc-windows-msvc`   | `.msi` + NSIS `.exe`                    |
-| `realingo-universal-apple-darwin`   | `.dmg`，**Intel 与 Apple Silicon 通用** |
-| `realingo-x86_64-unknown-linux-gnu` | `.deb`（约 6 MB）                       |
+| artifact | 内容 |
+|---|---|
+| `realingo-x86_64-pc-windows-msvc` | `.msi` + NSIS `.exe` |
+| `realingo-universal-apple-darwin` | `.dmg`，**Intel 与 Apple Silicon 通用** |
+| `realingo-x86_64-unknown-linux-gnu` | `.deb`（约 6 MB） |
 
 macOS 不再单独跑 Intel job —— `macos-13` runner 已于 2025-12 退役，x86_64 的 job 只会一直排队；
 改为在 Apple Silicon 上交叉编译出 universal 二进制，一个 DMG 通吃。
@@ -265,6 +265,7 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 
 ## 架构
 
+
 <details>
 <summary><b>数据流、为什么 WebSocket 在 Rust 侧、重采样</b></summary>
 
@@ -289,14 +290,15 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 
 ## 已知边界
 
-| 不支持                          | 原因 / 何时加                                                                                                                               |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Linux 上录系统声音时朗读        | monitor 源录的是整个输出的混音，没有「除了某个程序」的选项，朗读会被录回去。可行方案是只录选定程序的 sink-input（`parec --monitor-stream`） |
-| 视频文件（mp4/mkv 抽音轨）      | 需打包 ffmpeg sidecar，安装包 +40~80MB                                                                                                      |
-| 双语互译（说中出英 / 说英出中） | 见下方「双语互译为什么还没做」                                                                                                              |
-| 断线自动重连                    | 目前报错后需手动重新开始 —— 实时同传断线本就需要用户知情                                                                                    |
+| 不支持 | 原因 / 何时加 |
+|---|---|
+| Linux 上录系统声音时朗读 | monitor 源录的是整个输出的混音，没有「除了某个程序」的选项，朗读会被录回去。可行方案是只录选定程序的 sink-input（`parec --monitor-stream`） |
+| 视频文件（mp4/mkv 抽音轨） | 需打包 ffmpeg sidecar，安装包 +40~80MB |
+| 双语互译（说中出英 / 说英出中） | 见下方「双语互译为什么还没做」 |
+| 断线自动重连 | 目前报错后需手动重新开始 —— 实时同传断线本就需要用户知情 |
 
 ## 双语互译为什么还没做
+
 
 <details>
 <summary><b>实测结论：translation.language 是会话级不可变</b></summary>

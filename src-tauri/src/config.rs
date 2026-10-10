@@ -97,14 +97,11 @@ impl Settings {
                     "output_modalities": if self.speak { vec!["text", "audio"] } else { vec!["text"] },
                     "translation": translation,
                     "audio": {
-                        "input": { "turn_detection": {
-                            "type": "server_vad",
-                            "threshold": 0.2,
-                            "silence_duration_ms": 800
-                        } },
-                        // The public endpoint can inherit Chelsie even in text-only mode.
-                        // Always specify Tina so the first audio input is not rejected.
-                        "output": { "voice": VOICE }
+                        // 3.8 only documents speaker_detection, threshold fixed at 0.5.
+                        "input": { "turn_detection": { "type": "speaker_detection", "threshold": 0.5 } },
+                        // The public endpoint can inherit Chelsie even in text-only mode, and
+                        // the first audio input is then rejected. Always name a voice.
+                        "output": { "voice": if self.voice.is_empty() { VOICE } else { &self.voice } }
                     }
                 }
             });
@@ -250,17 +247,15 @@ mod tests {
         let update = settings.session_update();
         let session = &update["session"];
         assert_eq!(session["output_modalities"], serde_json::json!(["text"]));
-        assert_eq!(session["audio"]["output"]["voice"], "Tina");
-        assert_eq!(
-            session["audio"]["input"]["turn_detection"],
-            s(Region::Beijing, "").session_update()["session"]["turn_detection"]
-        );
+        assert_eq!(session["audio"]["output"]["voice"], "Chelsie");
+        assert_eq!(session["audio"]["input"]["turn_detection"]["type"], "speaker_detection");
         assert_eq!(session["translation"]["corpus"]["phrases"]["人工智能"], "AI");
         for old_field in ["modalities", "input_audio_transcription", "turn_detection", "voice", "input_audio_format"] {
             assert!(session.get(old_field).is_none(), "unexpected field: {old_field}");
         }
         settings.speak = true;
         assert_eq!(settings.session_update()["session"]["output_modalities"], serde_json::json!(["text", "audio"]));
+        settings.voice.clear();
         assert_eq!(settings.session_update()["session"]["audio"]["output"]["voice"], "Tina");
         settings.workspace_id.clear();
         assert_eq!(settings.ws_url(), format!("wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model={MODEL_QWEN3_8}"));

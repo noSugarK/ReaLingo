@@ -24,11 +24,11 @@ Grab the installer for your platform from the
 `.exe` / `.msi` for Windows, `.dmg` for macOS (universal — Intel and Apple Silicon), `.deb` for Linux.
 None of them carry a commercial code signature, so the OS stops the first launch once; let it through as below.
 
-| OS            | Install                                                                                           | First launch                                                                                                                                                                                                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Windows 10/11 | Run `ReaLingo_x.y.z_x64-setup.exe` (or the `.msi`)                                                | If SmartScreen says "Windows protected your PC", click **More info → Run anyway**; afterwards open it from the Start menu                                                                                                                                                           |
-| macOS 12+     | Open the `.dmg` and drag ReaLingo into Applications                                               | If macOS says the app is damaged or from an unidentified developer, run `xattr -dr com.apple.quarantine /Applications/ReaLingo.app` in Terminal, or click **Open Anyway** under **System Settings → Privacy & Security**; then allow microphone / system audio recording when asked |
-| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_amd64.deb` (apt, not `dpkg -i`, so dependencies get pulled in) | Open it from the app menu, or run `realingo`                                                                                                                                                                                                                                        |
+| OS | Install | First launch |
+|---|---|---|
+| Windows 10/11 | Run `ReaLingo_x.y.z_x64-setup.exe` (or the `.msi`) | If SmartScreen says "Windows protected your PC", click **More info → Run anyway**; afterwards open it from the Start menu |
+| macOS 12+ | Open the `.dmg` and drag ReaLingo into Applications | If macOS says the app is damaged or from an unidentified developer, run `xattr -dr com.apple.quarantine /Applications/ReaLingo.app` in Terminal, or click **Open Anyway** under **System Settings → Privacy & Security**; then allow microphone / system audio recording when asked |
+| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_amd64.deb` (apt, not `dpkg -i`, so dependencies get pulled in) | Open it from the app menu, or run `realingo` |
 
 If system audio stays silent on macOS after an upgrade, remove ReaLingo under
 **System Settings → Privacy & Security → Screen & System Audio Recording** (and **Microphone**),
@@ -66,13 +66,13 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 
 Open the gear icon in the top-right after first launch:
 
-| Setting      | Notes                                                                                                                                                                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| API Key      | [Model Studio console → API-KEY](https://bailian.console.alibabacloud.com/?tab=model#/api-key) (China regions: [bailian.console.aliyun.com](https://bailian.console.aliyun.com/?tab=model#/api-key)); the settings page has a direct link too. Kept in the OS credential store — see below |
-| Model        | `qwen3.8-livetranslate-flash-realtime`, `qwen3.5-livetranslate-flash-realtime` (both 60 languages; Qwen3.5 remains the default), or `qwen3-livetranslate-flash-realtime` (18). Qwen3.8 uses the new delta protocol, automatic source detection and an explicit Tina voice setting          |
-| Hotwords     | **Optional.** One `source=translation` per line, so proper nouns come out the way you want them (`人工智能=Artificial Intelligence`). Up to 1000; sent with the session, so edits apply the next time you start                                                                            |
-| Region       | China (Beijing) / Singapore                                                                                                                                                                                                                                                                |
-| Workspace ID | **Optional.** Leave blank for the shared endpoint `dashscope[-intl].aliyuncs.com`; filling it in uses your workspace's dedicated domain `{id}.cn-beijing.maas.aliyuncs.com` (better performance). Find it on the workspace detail page                                                     |
+| Setting | Notes |
+|---|---|
+| API Key | [Model Studio console → API-KEY](https://bailian.console.alibabacloud.com/?tab=model#/api-key) (China regions: [bailian.console.aliyun.com](https://bailian.console.aliyun.com/?tab=model#/api-key)); the settings page has a direct link too. Kept in the OS credential store — see below |
+| Model | `qwen3.5-livetranslate-flash-realtime` (60 languages, default), `qwen3.8-livetranslate-flash-realtime` (60, source language always auto-detected) or `qwen3-livetranslate-flash-realtime` (18). Switching to the older model narrows the language pickers to what it supports, and a language it cannot handle falls back automatically |
+| Hotwords | **Optional.** One `source=translation` per line, so proper nouns come out the way you want them (`人工智能=Artificial Intelligence`). Up to 1000; sent with the session, so edits apply the next time you start |
+| Region | China (Beijing) / Singapore |
+| Workspace ID | **Optional.** Leave blank for the shared endpoint `dashscope[-intl].aliyuncs.com`; filling it in uses your workspace's dedicated domain `{id}.cn-beijing.maas.aliyuncs.com` (better performance). Find it on the workspace detail page |
 
 The settings panel shows the exact WebSocket endpoint it will dial, live.
 
@@ -92,12 +92,12 @@ text in the config file, and the settings page says so rather than pretending ot
 
 ## Platform support
 
-|               | Microphone | System audio | Notes                                                                                                                      |
-| ------------- | ---------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Windows 10/11 | ✅          | ✅            | WASAPI loopback, nothing to configure. While reading aloud, process loopback excludes ourselves (Windows 10 2004+)         |
-| macOS 14.4+   | ✅          | ✅            | Core Audio process tap; macOS asks for permission on first use. While reading aloud, the tap lists our process as excluded |
-| macOS 12–14.3 | ✅          | ❌            | Process taps are a 14.4 API                                                                                                |
-| Ubuntu 22.04+ | ✅          | ✅            | Goes around ALSA and asks PulseAudio / PipeWire for monitor sources (below)                                                |
+| | Microphone | System audio | Notes |
+|---|---|---|---|
+| Windows 10/11 | ✅ | ✅ | WASAPI loopback, nothing to configure. While reading aloud, process loopback excludes ourselves (Windows 10 2004+) |
+| macOS 14.4+ | ✅ | ✅ | Core Audio process tap; macOS asks for permission on first use. While reading aloud, the tap lists our process as excluded |
+| macOS 12–14.3 | ✅ | ❌ | Process taps are a 14.4 API |
+| Ubuntu 22.04+ | ✅ | ✅ | Goes around ALSA and asks PulseAudio / PipeWire for monitor sources (below) |
 
 <details>
 <summary><b>Platform details: Linux system audio, macOS permissions, Linux tray</b></summary>
@@ -192,10 +192,10 @@ node tools/cdp.mjs probe.js subtitle      # evaluate in the subtitle overlay
 macOS and Linux bundles cannot be cross-compiled from Windows, so
 `.github/workflows/build.yml` (**build & release**) produces all three on GitHub Actions:
 
-| Trigger                         | Result                                                       |
-| ------------------------------- | ------------------------------------------------------------ |
-| Manual run from the Actions tab | One workflow artifact per platform                           |
-| Pushing a `v*` tag              | The same, plus a GitHub release with the installers attached |
+| Trigger | Result |
+|---|---|
+| Manual run from the Actions tab | One workflow artifact per platform |
+| Pushing a `v*` tag | The same, plus a GitHub release with the installers attached |
 
 Releasing goes draft → each platform uploads → **published only once all three succeed**, so a
 failure on any platform leaves the release as a draft rather than shipping half a set. A tag
@@ -274,6 +274,7 @@ that cannot animate it shows frame one — the static logo.
 
 ## Architecture
 
+
 <details>
 <summary><b>Data flow, why the WebSocket lives in Rust, resampling</b></summary>
 
@@ -300,14 +301,15 @@ audio file ──┘   (cpal / symphonia)                                       
 
 ## Known limits
 
-| Not supported                                                          | Why / when it would be added                                                                                                                                                                                            |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reading aloud while capturing system audio on Linux                    | A monitor source records the whole output mix, with no "everything but this app" option, so the speech would be recorded back. The way forward is capturing only the chosen app's sink-input (`parec --monitor-stream`) |
-| Video files (extracting the audio track from mp4/mkv)                  | Needs an ffmpeg sidecar, +40–80 MB to the installer                                                                                                                                                                     |
-| Two-way translation (speak Chinese → English, speak English → Chinese) | See below                                                                                                                                                                                                               |
-| Automatic reconnection                                                 | You restart manually after an error — a dropped simultaneous-interpreting session is something the user should know about                                                                                               |
+| Not supported | Why / when it would be added |
+|---|---|
+| Reading aloud while capturing system audio on Linux | A monitor source records the whole output mix, with no "everything but this app" option, so the speech would be recorded back. The way forward is capturing only the chosen app's sink-input (`parec --monitor-stream`) |
+| Video files (extracting the audio track from mp4/mkv) | Needs an ffmpeg sidecar, +40–80 MB to the installer |
+| Two-way translation (speak Chinese → English, speak English → Chinese) | See below |
+| Automatic reconnection | You restart manually after an error — a dropped simultaneous-interpreting session is something the user should know about |
 
 ## Why two-way translation is not implemented
+
 
 <details>
 <summary><b>Measured result: translation.language is immutable per session</b></summary>

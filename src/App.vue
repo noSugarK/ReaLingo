@@ -113,14 +113,10 @@ async function chooseFile() {
 }
 
 /* ---------- read aloud ---------- */
-const voiceOptions = computed(() =>
-  (settings.model === MODEL_QWEN3_8 ? ["Tina"] : VOICES).map((v) => ({ value: v, label: v }))
-);
+const voiceOptions = VOICES.map((v) => ({ value: v, label: v }));
+// Qwen3.8 always detects the source language itself.
 watch(() => settings.model, (model) => {
-  if (model === MODEL_QWEN3_8) {
-    settings.sourceLang = "auto";
-    settings.voice = "Tina";
-  }
+  if (model === MODEL_QWEN3_8) settings.sourceLang = "auto";
 }, { immediate: true });
 // Why speaking cannot happen with the current choices, if it cannot. Linux has no way to
 // leave our own playback out of a monitor source, so system audio would hear itself.
