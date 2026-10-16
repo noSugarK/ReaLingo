@@ -108,7 +108,7 @@ async function fitHeight() {
 
 // Font size changes the text height without changing the line count, so the observer alone
 // can miss it on the frame the new size lands.
-watch(() => [style.value.fontSize, style.value.grow], () => void fitHeight());
+watch(() => [style.value.srcSize, style.value.tgtSize, style.value.grow], () => void fitHeight());
 
 /**
  * Ticker mode: a line that still fits stays centred like everywhere else in the overlay;
@@ -184,7 +184,7 @@ const tgtStash = computed(() => (live.value ? current.targetStash : ""));
 // The height observer only sees the plate grow downwards; a line growing sideways has to
 // be chased separately, after the DOM has the new text.
 watch(
-  [src, tgt, srcStash, tgtStash, () => style.value.grow, () => style.value.fontSize, () => style.value.align],
+  [src, tgt, srcStash, tgtStash, () => style.value.grow, () => style.value.srcSize, () => style.value.tgtSize, () => style.value.align],
   () => nextTick(tail)
 );
 
@@ -200,7 +200,11 @@ const barStyle = computed(() => {
   return {
     background: a < 0.02 ? "transparent" : `rgba(6, 8, 14, ${a})`,
     backdropFilter: a < 0.02 ? "none" : "blur(10px)",
-    fontSize: `${style.value.fontSize}px`,
+    // The base size is the translation's: everything else on the plate (the ghost hint) is
+    // em-based off it. The two text rows override it with their own variables below.
+    fontSize: `${style.value.tgtSize}px`,
+    "--src-fs": `${style.value.srcSize}px`,
+    "--tgt-fs": `${style.value.tgtSize}px`,
     textAlign: style.value.align,
   };
 });
@@ -271,8 +275,8 @@ const outline = computed(() =>
    plate draggable instead of just its padding. */
 p { margin: 0; line-height: 1.4; word-break: break-word; pointer-events: none; }
 
-.src { font-size: 0.62em; font-weight: 500; margin-bottom: 0.2em; opacity: 0.92; }
-.tgt { font-size: 1em; font-weight: 700; letter-spacing: -0.01em; }
+.src { font-size: var(--src-fs); font-weight: 500; margin-bottom: 0.2em; opacity: 0.92; }
+.tgt { font-size: var(--tgt-fs); font-weight: 700; letter-spacing: -0.01em; }
 
 /* One line per row; `tail()` decides alignment — centred while it fits, then scrolled to
    the end once it does not. */

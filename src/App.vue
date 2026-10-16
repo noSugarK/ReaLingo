@@ -7,6 +7,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import Card from "./components/Card.vue";
+import FontSize from "./components/FontSize.vue";
 import Picker from "./components/Picker.vue";
 import Slider from "./components/Slider.vue";
 import Settings from "./components/Settings.vue";
@@ -15,7 +16,7 @@ import History from "./components/History.vue";
 import { locale, setLocale, t } from "./i18n";
 import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICES } from "./languages";
 import { check, checkUpdateAtStartup, openHome } from "./update";
-import { activeKey, settings, initSettings, resolvedTheme, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
+import { activeKey, settings, initSettings, resolvedTheme, SUB_SIZE, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
 import {
   current,
   detectedLang,
@@ -226,6 +227,9 @@ const subOpacityPct = computed({
   get: () => Math.round(settings.sub.opacity * 100),
   set: (v: number) => (settings.sub.opacity = v / 100),
 });
+
+/** One range for both of the overlay's font-size sliders. */
+const SUB_SLIDER = { min: SUB_SIZE.min, max: SUB_SIZE.max, step: 1 } as const;
 
 /** The three bars of each icon, wide/short/wide, shifted to show the alignment. */
 const subAligns: [SubAlign, "alignLeft" | "alignCenter" | "alignRight", string][] = [
@@ -509,8 +513,12 @@ watch([lines, current], async () => {
             </div>
 
             <div class="line">
-              <span>{{ t("subFontSize") }}</span>
-              <Slider v-model="settings.sub.fontSize" :min="14" :max="72" :step="1" unit="px" />
+              <span>{{ t("subSrcSize") }}</span>
+              <Slider v-model="settings.sub.srcSize" v-bind="SUB_SLIDER" unit="px" />
+            </div>
+            <div class="line">
+              <span>{{ t("subTgtSize") }}</span>
+              <Slider v-model="settings.sub.tgtSize" v-bind="SUB_SLIDER" unit="px" />
             </div>
 
             <div class="line">
@@ -589,6 +597,7 @@ watch([lines, current], async () => {
               :aria-label="t('historyRec')"
               @click="settings.history = !settings.history"
             />
+            <FontSize v-model:src="settings.stream.srcSize" v-model:tgt="settings.stream.tgtSize" />
             <button class="chip" @click="showHistory = true">{{ t("history") }}</button>
             <button class="chip" :disabled="!lines.length" @click="lines = []">{{ t("clear") }}</button>
             <button class="chip" :disabled="!lines.length" @click="exportAs('txt')">{{ t("exportTxt") }}</button>
@@ -596,7 +605,13 @@ watch([lines, current], async () => {
           </div>
         </template>
 
-        <div ref="streamEl" class="stream">
+        <!-- The two rows are sized from CSS variables so one binding covers every line,
+             including the live one, without re-styling per item. -->
+        <div
+          ref="streamEl"
+          class="stream"
+          :style="{ '--src-fs': `${settings.stream.srcSize}px`, '--tgt-fs': `${settings.stream.tgtSize}px` }"
+        >
           <p v-if="!lines.length && !current.target && !current.source" class="empty">{{ t("streamEmpty") }}</p>
 
           <article v-for="l in lines" :key="l.id" class="line-item">
@@ -749,8 +764,8 @@ watch([lines, current], async () => {
 
 .line-item { animation: slidein 0.35s var(--ease); }
 @keyframes slidein { from { opacity: 0; transform: translateY(8px); } }
-.src { margin: 0 0 3px; font-size: 13px; line-height: 1.55; color: var(--ink-3); user-select: text; }
-.tgt { margin: 0; font-size: 16.5px; line-height: 1.55; font-weight: 600; letter-spacing: -0.005em; user-select: text; }
+.src { margin: 0 0 3px; font-size: var(--src-fs, 13px); line-height: 1.55; color: var(--ink-3); user-select: text; }
+.tgt { margin: 0; font-size: var(--tgt-fs, 16.5px); line-height: 1.55; font-weight: 600; letter-spacing: -0.005em; user-select: text; }
 .live .tgt { color: var(--accent); }
 
 /* The model's tentative continuation: shown, but visibly not final yet. */

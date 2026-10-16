@@ -20,11 +20,25 @@ export interface SubRect {
   h: number;
 }
 
+/** Font sizes of the two rows in the main window's translation stream, in px. */
+export interface StreamStyle {
+  srcSize: number;
+  tgtSize: number;
+}
+
+/** What the two stream sliders are allowed to reach; also clamps a hand-edited config. */
+export const STREAM_SIZE = { min: 10, max: 32 } as const;
+
+/** The same for the overlay's two sliders. Wide: it sits over video, so small is common. */
+export const SUB_SIZE = { min: 12, max: 72 } as const;
+
 export interface SubtitleStyle {
   show: boolean;
   mode: SubMode;
   opacity: number; // background alpha, 0..1
-  fontSize: number;
+  /** The overlay's two rows, sized independently in px. */
+  srcSize: number;
+  tgtSize: number;
   color: string; // translation
   srcColor: string; // source transcript
   outline: boolean;
@@ -72,6 +86,7 @@ export interface Settings {
   voice: string;
   theme: Theme;
   sub: SubtitleStyle;
+  stream: StreamStyle;
 }
 
 export const settings = reactive<Settings>({
@@ -96,7 +111,8 @@ export const settings = reactive<Settings>({
     show: false,
     mode: "both",
     opacity: 0.5,
-    fontSize: 30,
+    srcSize: 19,
+    tgtSize: 30,
     color: "#ffffff",
     srcColor: "#a8c0dd",
     outline: true,
@@ -107,7 +123,24 @@ export const settings = reactive<Settings>({
     // its window rect, transparent parts included. Turn it off to reposition the bar.
     locked: true,
   },
+  stream: {
+    srcSize: 13,
+    tgtSize: 16,
+  },
 });
+
+/** Keeps a size inside the slider's range — a hand-edited file can hold anything. */
+const streamSize = (n: unknown, fallback: number) => {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.min(STREAM_SIZE.max, Math.max(STREAM_SIZE.min, Math.round(v)));
+};
+
+const subSize = (n: unknown, fallback: number) => {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.min(SUB_SIZE.max, Math.max(SUB_SIZE.min, Math.round(v)));
+};
 
 const FILE = "settings.json";
 const KEY = "settings";
@@ -124,10 +157,24 @@ export async function initSettings(persist = true) {
   store = await load(FILE, { autoSave: 200 });
   const saved = await store.get<Partial<Settings>>(KEY);
   if (saved) {
-    Object.assign(settings, saved, { sub: { ...settings.sub, ...(saved.sub ?? {}) } });
+    Object.assign(settings, saved, {
+      sub: { ...settings.sub, ...(saved.sub ?? {}) },
+      stream: { ...settings.stream, ...(saved.stream ?? {}) },
+    });
     // Saved before the protocol was a setting: the model was what picked the 3.8 schema.
     if (!saved.protocol) settings.protocol = saved.model === MODEL_QWEN3_8 ? "qwen38" : "qwen35";
+    // Before the two rows were sized separately, the bar had one `fontSize` and the source
+    // line was 0.62em of it. Carry that pair over so an existing install looks unchanged.
+    const oldSub = saved.sub as (Partial<SubtitleStyle> & { fontSize?: number }) | undefined;
+    if (oldSub && oldSub.srcSize == null && oldSub.tgtSize == null && oldSub.fontSize != null) {
+      settings.sub.srcSize = Math.round(oldSub.fontSize * 0.62);
+      settings.sub.tgtSize = oldSub.fontSize;
+    }
   }
+  settings.stream.srcSize = streamSize(settings.stream.srcSize, 13);
+  settings.stream.tgtSize = streamSize(settings.stream.tgtSize, 16);
+  settings.sub.srcSize = subSize(settings.sub.srcSize, 19);
+  settings.sub.tgtSize = subSize(settings.sub.tgtSize, 30);
 
   keyringOk.value = (await invoke<{ keyring: boolean }>("platform")).keyring;
   if (keyringOk.value) {
