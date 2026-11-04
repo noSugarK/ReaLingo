@@ -170,13 +170,13 @@ fn event_name(event: i32) -> &'static str {
 }
 
 /// One server frame as JSON, so it rides the same path as every other protocol: the raw log,
-/// `take_audio` (audio goes under `data`, base64) and `TextStream`.
+/// `take_audio` (audio goes under `data`, base64) and `TextStream`. The event goes in `type`
+/// like everyone else's, prefixed so it cannot collide with theirs: `volc.SessionStarted`.
 pub fn decode(bytes: &[u8]) -> Option<Value> {
     let r = TranslateResponse::decode(bytes).ok()?;
     let meta = r.response_meta.unwrap_or_default();
     let mut v = json!({
-        "volc": event_name(r.event),
-        "event": r.event,
+        "type": format!("volc.{}", event_name(r.event)),
         "text": r.text,
         "start_time": r.start_time,
         "end_time": r.end_time,
@@ -220,7 +220,7 @@ mod tests {
         }
         .encode_to_vec();
         let v = decode(&bytes).unwrap();
-        assert_eq!(v["volc"], "SourceSubtitleEnd");
+        assert_eq!(v["type"], "volc.SourceSubtitleEnd");
         assert_eq!((v["text"].as_str(), v["start_time"].as_i64()), (Some("你好"), Some(1200)));
         // f32 in, PCM16 out.
         let pcm: Vec<u8> = [16383i16, -32767].iter().flat_map(|s| s.to_le_bytes()).collect();

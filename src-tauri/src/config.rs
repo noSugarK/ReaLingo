@@ -260,7 +260,7 @@ impl Settings {
             Protocol::Qwen35 | Protocol::Qwen38 => ty == Some("session.finished"),
             Protocol::Openai => ty == Some("session.closed"),
             Protocol::Gemini => false,
-            Protocol::Volc => v.get("volc").and_then(serde_json::Value::as_str) == Some("SessionFinished"),
+            Protocol::Volc => ty == Some("volc.SessionFinished"),
         }
     }
 
@@ -288,7 +288,30 @@ impl Settings {
 
     /// The frame that releases audio for a protocol that `waits_for_setup`.
     pub fn is_ready(&self, v: &serde_json::Value) -> bool {
-        v.get("setupComplete").is_some() || v.get("volc").and_then(serde_json::Value::as_str) == Some("SessionStarted")
+        match self.protocol {
+            Protocol::Gemini => v.get("setupComplete").is_some(),
+            Protocol::Volc => v.get("type").and_then(serde_json::Value::as_str) == Some("volc.SessionStarted"),
+            _ => true,
+        }
+    }
+
+    /// The reason a frame ends the session, if it does.
+    ///
+    /// DashScope refuses a session (unknown model, bad parameter) with a bare
+    /// `{"code", "message"}` frame — no `type` — and then never sends anything else. Without
+    /// this the session sat silent until the idle timeout, with nothing on screen to say why.
+    /// Volc fails a session with an event of its own, the reason in its response meta.
+    pub fn rejection(&self, v: &serde_json::Value) -> Option<String> {
+        let field = |k: &str| v.get(k).and_then(serde_json::Value::as_str).unwrap_or_default();
+        let ty = v.get("type").and_then(serde_json::Value::as_str);
+        match (self.protocol, ty) {
+            (Protocol::Volc, Some("volc.SessionFailed" | "volc.SessionCanceled")) => {
+                let code = v.get("status_code").and_then(serde_json::Value::as_i64).unwrap_or_default();
+                Some(format!("{code}: {}", field("message")))
+            }
+            (Protocol::Volc, _) | (_, Some(_)) => None,
+            (_, None) => Some(format!("{}: {}", v.get("code")?.as_str()?, field("message"))),
+        }
     }
 
     /// Target language as the service spells it: Gemini wants a script or regional variant
@@ -696,5 +719,22 @@ mod tests {
         assert_eq!((&req.headers()["X-Api-Key"], &req.headers()["X-Api-Resource-Id"]), (&"v".parse::<HeaderValue>().unwrap(), &crate::volc::RESOURCE_ID.parse::<HeaderValue>().unwrap()));
         assert!(req.headers().get("Authorization").is_none());
         assert!(s.setup_message("s").is_binary() && s.audio_message("s", vec![0; 4]).is_binary() && s.finish_message("s").is_binary());
+    }
+
+    /// The bare frame was captured from a Tokyo workspace, which has no LiveTranslate models.
+    #[test]
+    fn a_rejected_session_says_why() {
+        let q = qwen(Region::Beijing, "");
+        let v = json!({ "code": "InvalidParameter", "message": "Model not exist.", "request_id": "x" });
+        assert_eq!(q.rejection(&v).unwrap(), "InvalidParameter: Model not exist.");
+        // Typed frames, including the recoverable `error` event, are not rejections.
+        assert!(q.rejection(&json!({ "type": "error", "error": { "message": "busy" } })).is_none());
+        assert!(q.rejection(&json!({ "type": "session.created" })).is_none());
+
+        let mut v = qwen(Region::Beijing, "");
+        v.protocol = Protocol::Volc;
+        let failed = json!({ "type": "volc.SessionFailed", "status_code": 45000001, "message": "bad param" });
+        assert_eq!(v.rejection(&failed).unwrap(), "45000001: bad param");
+        assert!(v.rejection(&json!({ "type": "volc.UsageResponse" })).is_none());
     }
 }

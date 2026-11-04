@@ -203,7 +203,7 @@ async fn connect_and_pump(
             }
         }
         let _ = app.emit(RAW_EVENT, &value);
-        if let Some(reason) = rejection(&value) {
+        if let Some(reason) = settings.rejection(&value) {
             return Err(anyhow!(reason));
         }
         let now_ms = sent.load(Ordering::Relaxed) * 1000 / settings.sample_rate() as u64;
@@ -230,24 +230,6 @@ async fn connect_and_pump(
     Ok(())
 }
 
-/// DashScope refuses a session (unknown model, bad parameter) with a bare
-/// `{"code", "message"}` frame — no `type` — and then never sends anything else. Without
-/// this the session sat silent until the idle timeout, with nothing on screen to say why.
-fn rejection(v: &Value) -> Option<String> {
-    // Volc: a failed or cancelled session is over; its meta carries the reason.
-    if let Some("SessionFailed" | "SessionCanceled") = v.get("volc").and_then(Value::as_str) {
-        let code = v.get("status_code").and_then(Value::as_i64).unwrap_or_default();
-        let message = v.get("message").and_then(Value::as_str).unwrap_or_default();
-        return Some(format!("{code}: {message}"));
-    }
-    if v.get("type").is_some() || v.get("volc").is_some() {
-        return None;
-    }
-    let code = v.get("code")?.as_str()?;
-    let message = v.get("message").and_then(Value::as_str).unwrap_or_default();
-    Some(format!("{code}: {message}"))
-}
-
 /// Pulls the PCM out of an audio delta frame and leaves its byte count behind:
 /// several KB of base64 ten times a second is no use in the diagnostics drawer.
 fn take_audio(v: &mut Value) -> Option<Vec<u8>> {
@@ -257,7 +239,7 @@ fn take_audio(v: &mut Value) -> Option<Vec<u8>> {
     );
     // Qwen and OpenAI carry one `delta`; Gemini a list of parts, each with inline data.
     // Volc: TTSResponse audio, base64-encoded by `volc::decode` under `data`.
-    let is_volc = v.get("volc").and_then(Value::as_str) == Some("TTSResponse");
+    let is_volc = v.get("type").and_then(Value::as_str) == Some("volc.TTSResponse");
     let slots: Vec<&mut Value> = if is_volc {
         v.get_mut("data").into_iter().collect()
     } else if is_delta {
@@ -301,8 +283,7 @@ impl TextStream {
     /// then its translation. A translation's Start and End carry the same `start_time` as its
     /// transcript's, so that is the pairing key: a sentence that never gets translated leaves a
     /// row without one, instead of shifting every later translation onto the wrong row.
-    fn volc(&mut self, v: &Value) -> Vec<Event> {
-        let name = v.get("volc").and_then(Value::as_str).unwrap_or_default();
+    fn volc(&mut self, name: &str, v: &Value) -> Vec<Event> {
         let (kind, stage) = match name {
             "SourceSubtitleStart" => ("source", 0),
             "SourceSubtitleResponse" => ("source", 1),
@@ -352,8 +333,8 @@ impl TextStream {
     }
 
     fn next(&mut self, v: &Value) -> Vec<Event> {
-        if v.get("volc").is_some() {
-            return self.volc(v);
+        if let Some(name) = v.get("type").and_then(Value::as_str).and_then(|t| t.strip_prefix("volc.")) {
+            return self.volc(name, v);
         }
         // Gemini: the same two append-only streams as OpenAI, untyped, and one frame may carry
         // either or both alongside the audio.
@@ -763,16 +744,6 @@ mod tests {
     }
 
 
-    /// Captured from a Tokyo workspace, which has no LiveTranslate models.
-    #[test]
-    fn a_bare_code_and_message_frame_ends_the_session() {
-        let v = json!({ "code": "InvalidParameter", "message": "Model not exist.", "request_id": "x" });
-        assert_eq!(rejection(&v).unwrap(), "InvalidParameter: Model not exist.");
-        // Typed frames, including the recoverable `error` event, are not rejections.
-        assert!(rejection(&json!({ "type": "error", "error": { "message": "busy" } })).is_none());
-        assert!(rejection(&json!({ "type": "session.created" })).is_none());
-    }
-
     #[test]
     fn speech_events_carry_their_item_and_audio_offset() {
         let start = classify(&json!({ "type": "input_audio_buffer.speech_started", "item_id": "in1", "audio_start_ms": 1200 })).unwrap();
@@ -803,7 +774,7 @@ mod tests {
     fn volc_sentences_pair_by_start_time_and_carry_their_audio_span() {
         let mut st = TextStream::default();
         let f = |name: &str, text: &str, start: u64, end: u64| {
-            json!({ "volc": name, "text": text, "start_time": start, "end_time": end })
+            json!({ "type": format!("volc.{name}"), "text": text, "start_time": start, "end_time": end })
         };
         let open = st.next(&f("SourceSubtitleStart", "", 20, 1140));
         assert_eq!((open[0].kind, open[0].id.as_str(), open[0].text.as_str()), ("link", "v20", "v20"));
@@ -830,7 +801,7 @@ mod tests {
         st.next(&f("TranslationSubtitleStart", "", 1600, 2580));
         let late = st.next(&f("TranslationSubtitleResponse", "Chinese", 0, 0));
         assert_eq!(late[0].id, "v1600");
-        assert!(st.next(&json!({ "volc": "UsageResponse" })).is_empty());
+        assert!(st.next(&json!({ "type": "volc.UsageResponse" })).is_empty());
     }
 
     #[test]
