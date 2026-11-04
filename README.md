@@ -11,6 +11,7 @@
   <a href="https://github.com/noSugarK/ReaLingo/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/noSugarK/ReaLingo?style=flat-square&color=bf5af2" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/noSugarK/ReaLingo?style=flat-square" /></a>
   <a href="#平台支持"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-8a8f98?style=flat-square" /></a>
+  <a href="https://hub.xerj.org/contributors/noSugarK"><img alt="XERJ Corpus Hub contributor" src="https://hub.xerj.org/contributors/noSugarK/badge.svg" /></a>
 </p>
 
 <p align="center"><a href="https://nosugark.github.io/ReaLingo/">项目主页</a> · <b>简体中文</b> · <a href="README.en.md">English</a></p>

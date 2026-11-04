@@ -1,7 +1,7 @@
 import { reactive, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { load, type Store } from "@tauri-apps/plugin-store";
-import { MODEL_QWEN3_5, MODEL_QWEN3_8, PROTOCOLS, type Vendor } from "./languages";
+import { MODEL_QWEN3_8, PROTOCOLS, type Vendor } from "./languages";
 
 /** Only the regions that serve the LiveTranslate models — see `config::Region` in Rust. */
 export type Region = "beijing" | "singapore";
@@ -90,7 +90,7 @@ export interface Settings {
 }
 
 export const settings = reactive<Settings>({
-  protocol: "qwen35",
+  protocol: "qwen38",
   apiKey: "",
   openaiKey: "",
   geminiKey: "",
@@ -101,7 +101,7 @@ export const settings = reactive<Settings>({
   region: "beijing",
   sourceLang: "auto",
   targetLang: "en",
-  model: MODEL_QWEN3_5,
+  model: MODEL_QWEN3_8,
   history: false,
   hotwords: {},
   speak: false,

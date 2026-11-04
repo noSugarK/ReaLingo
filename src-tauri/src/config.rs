@@ -53,8 +53,8 @@ impl Region {
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     /// Qwen3.5, and Qwen3 with it.
-    #[default]
     Qwen35,
+    #[default]
     Qwen38,
     Openai,
     /// Google's Gemini Live API (`BidiGenerateContent`) with a `translationConfig`.
