@@ -258,19 +258,16 @@ fn take_audio(v: &mut Value) -> Option<Vec<u8>> {
     (!pcm.is_empty()).then_some(pcm)
 }
 
+/// Turns server frames into normalised events. Each protocol shapes its text differently, so
+/// each keeps its own state here; `next` only routes a frame to the one it belongs to.
 #[derive(Default)]
 struct TextStream {
+    /// Qwen: item-keyed deltas, see [`TextStream::itemised`].
     partial: BTreeMap<(&'static str, String), String>,
-    /// OpenAI and Gemini: the one open turn, see [`TextStream::continuous`].
-    turn: u64,
-    open: bool,
-    source: String,
-    target: String,
-    /// OpenAI: the open turn's first and last `elapsed_ms` on the input transcript.
-    span: (Option<u64>, Option<u64>),
-    /// Volc: the id of the sentence open on each side, `[source, target]`. Word deltas carry no
-    /// timing of their own, so they go to whichever sentence is open.
-    volc_open: [String; 2],
+    /// OpenAI and Gemini.
+    continuous: Continuous,
+    /// Volc.
+    volc: VolcSentences,
 }
 
 /// Past this many characters a translation with no sentence end is cut anyway, so a speaker
@@ -278,63 +275,9 @@ struct TextStream {
 const MAX_TURN_CHARS: usize = 150;
 
 impl TextStream {
-    /// Volc, as seen live: per sentence, `*SubtitleStart` (with the audio span), word deltas in
-    /// `*SubtitleResponse`, then `*SubtitleEnd` with the whole sentence — transcript first,
-    /// then its translation. A translation's Start and End carry the same `start_time` as its
-    /// transcript's, so that is the pairing key: a sentence that never gets translated leaves a
-    /// row without one, instead of shifting every later translation onto the wrong row.
-    fn volc(&mut self, name: &str, v: &Value) -> Vec<Event> {
-        let (kind, stage) = match name {
-            "SourceSubtitleStart" => ("source", 0),
-            "SourceSubtitleResponse" => ("source", 1),
-            "SourceSubtitleEnd" => ("source", 2),
-            "TranslationSubtitleStart" => ("target", 0),
-            "TranslationSubtitleResponse" => ("target", 1),
-            "TranslationSubtitleEnd" => ("target", 2),
-            _ => return Vec::new(),
-        };
-        let ms = |k: &str| v.get(k).and_then(Value::as_u64);
-        let open = &mut self.volc_open[usize::from(kind == "target")];
-        if stage != 1 {
-            *open = format!("v{}", ms("start_time").unwrap_or_default());
-        }
-        let id = open.clone();
-        let text = v.get("text").and_then(Value::as_str).unwrap_or_default();
-        let mut out = Vec::new();
-        match stage {
-            0 => {
-                self.partial.insert((kind, id.clone()), String::new());
-                if kind == "source" {
-                    // Transcript and translation share the id, so the link maps it to itself.
-                    out.push(Event { kind: "link", id: id.clone(), text: id.clone(), ..Default::default() });
-                }
-                out.push(Event { kind, id, start_ms: ms("start_time"), end_ms: ms("end_time"), ..Default::default() });
-            }
-            1 => {
-                let acc = self.partial.entry((kind, id.clone())).or_default();
-                acc.push_str(text);
-                out.push(Event { kind, id, text: acc.trim_start().to_string(), ..Default::default() });
-            }
-            _ => {
-                self.partial.remove(&(kind, id.clone()));
-                out.push(Event {
-                    kind,
-                    id,
-                    text: text.trim().to_string(),
-                    lang: v.get("detected_language").and_then(Value::as_str).unwrap_or_default().to_string(),
-                    done: true,
-                    start_ms: ms("start_time"),
-                    end_ms: ms("end_time"),
-                    ..Default::default()
-                });
-            }
-        }
-        out
-    }
-
     fn next(&mut self, v: &Value) -> Vec<Event> {
         if let Some(name) = v.get("type").and_then(Value::as_str).and_then(|t| t.strip_prefix("volc.")) {
-            return self.volc(name, v);
+            return self.volc.next(name, v);
         }
         // Gemini: the same two append-only streams as OpenAI, untyped, and one frame may carry
         // either or both alongside the audio.
@@ -342,7 +285,7 @@ impl TextStream {
             let mut out = Vec::new();
             for (field, is_target) in [("inputTranscription", false), ("outputTranscription", true)] {
                 if let Some(text) = content.pointer(&format!("/{field}/text")).and_then(Value::as_str) {
-                    out.extend(self.continuous(is_target, text));
+                    out.extend(self.continuous.push(is_target, text, None));
                 }
             }
             return out;
@@ -350,22 +293,55 @@ impl TextStream {
         match v.get("type").and_then(Value::as_str) {
             Some(ty @ ("session.input_transcript.delta" | "session.output_transcript.delta")) => {
                 let delta = v.get("delta").and_then(Value::as_str).unwrap_or_default();
-                if let (Some(ms), "session.input_transcript.delta") = (v.get("elapsed_ms").and_then(Value::as_u64), ty) {
-                    self.span = (self.span.0.or(Some(ms)), Some(ms));
-                }
-                self.continuous(ty == "session.output_transcript.delta", delta)
+                // Only the transcript's `elapsed_ms` places the row in the input audio.
+                let is_target = ty == "session.output_transcript.delta";
+                let elapsed = v.get("elapsed_ms").and_then(Value::as_u64).filter(|_| !is_target);
+                self.continuous.push(is_target, delta, elapsed)
             }
             _ => self.itemised(v).into_iter().collect(),
         }
     }
 
-    /// OpenAI sends two bare append-only streams: no turns, no ids, no "done". The frontend's
-    /// turn model needs all three, so they are made up here. Both streams share a turn id, a
-    /// sentence end in the translation closes the turn, and the transcript is cut at its own
-    /// last sentence end with the rest carried into the next turn.
-    // ponytail: punctuation pairing, so a row's source and translation can be a clause apart;
-    // `elapsed_ms` only times the rows (see `span`); pair on it too if that turns out to matter.
-    fn continuous(&mut self, is_target: bool, delta: &str) -> Vec<Event> {
+    fn itemised(&mut self, v: &Value) -> Option<Event> {
+        let kind = match v.get("type")?.as_str()? {
+            "conversation.item.input_audio_transcription.delta" => "source",
+            "response.text.delta" | "response.audio_transcript.delta" => "target",
+            _ => {
+                let ev = classify(v)?;
+                if ev.done {
+                    self.partial.remove(&(ev.kind, ev.id.clone()));
+                }
+                return Some(ev);
+            }
+        };
+        let id = v.get("item_id")?.as_str()?.to_string();
+        let text = self.partial.entry((kind, id.clone())).or_default();
+        text.push_str(v.get("delta")?.as_str()?);
+        Some(Event { kind, id, text: text.clone(), ..Default::default() })
+    }
+}
+
+/// OpenAI and Gemini send two bare append-only streams: no turns, no ids, no "done". The
+/// frontend's turn model needs all three, so they are made up here. Both streams share a turn
+/// id, a sentence end in the translation closes the turn, and the transcript is cut at its own
+/// last sentence end with the rest carried into the next turn.
+// ponytail: punctuation pairing, so a row's source and translation can be a clause apart;
+// `elapsed_ms` only times the rows (see `span`); pair on it too if that turns out to matter.
+#[derive(Default)]
+struct Continuous {
+    turn: u64,
+    open: bool,
+    source: String,
+    target: String,
+    /// OpenAI: the open turn's first and last `elapsed_ms` on the input transcript.
+    span: (Option<u64>, Option<u64>),
+}
+
+impl Continuous {
+    fn push(&mut self, is_target: bool, delta: &str, elapsed: Option<u64>) -> Vec<Event> {
+        if let Some(ms) = elapsed {
+            self.span = (self.span.0.or(Some(ms)), Some(ms));
+        }
         let mut out = Vec::new();
         if is_target { &mut self.target } else { &mut self.source }.push_str(delta);
         if is_target {
@@ -405,23 +381,64 @@ impl TextStream {
             out.push(Event { kind, id: id.clone(), text: text.trim_start().to_string(), done, start_ms, end_ms, ..Default::default() });
         }
     }
+}
 
-    fn itemised(&mut self, v: &Value) -> Option<Event> {
-        let kind = match v.get("type")?.as_str()? {
-            "conversation.item.input_audio_transcription.delta" => "source",
-            "response.text.delta" | "response.audio_transcript.delta" => "target",
-            _ => {
-                let ev = classify(v)?;
-                if ev.done {
-                    self.partial.remove(&(ev.kind, ev.id.clone()));
-                }
-                return Some(ev);
-            }
+/// Volc, as seen live: per sentence, `*SubtitleStart` (with the audio span), word deltas in
+/// `*SubtitleResponse`, then `*SubtitleEnd` with the whole sentence — transcript first, then
+/// its translation. A translation's Start and End carry the same `start_time` as its
+/// transcript's, so that is the pairing key: a sentence that never gets translated leaves a
+/// row without one, instead of shifting every later translation onto the wrong row.
+#[derive(Default)]
+struct VolcSentences {
+    /// The sentence open on each side, `[source, target]`: its id and the words so far. Word
+    /// deltas carry no timing of their own, so they go to whichever sentence is open.
+    open: [(String, String); 2],
+}
+
+impl VolcSentences {
+    fn next(&mut self, name: &str, v: &Value) -> Vec<Event> {
+        let (kind, stage) = match name {
+            "SourceSubtitleStart" => ("source", 0),
+            "SourceSubtitleResponse" => ("source", 1),
+            "SourceSubtitleEnd" => ("source", 2),
+            "TranslationSubtitleStart" => ("target", 0),
+            "TranslationSubtitleResponse" => ("target", 1),
+            "TranslationSubtitleEnd" => ("target", 2),
+            _ => return Vec::new(),
         };
-        let id = v.get("item_id")?.as_str()?.to_string();
-        let text = self.partial.entry((kind, id.clone())).or_default();
-        text.push_str(v.get("delta")?.as_str()?);
-        Some(Event { kind, id, text: text.clone(), ..Default::default() })
+        let ms = |k: &str| v.get(k).and_then(Value::as_u64);
+        let (id, words) = &mut self.open[usize::from(kind == "target")];
+        if stage != 1 {
+            *id = format!("v{}", ms("start_time").unwrap_or_default());
+            words.clear();
+        }
+        let id = id.clone();
+        let text = v.get("text").and_then(Value::as_str).unwrap_or_default();
+        match stage {
+            0 => {
+                let mut out = Vec::new();
+                if kind == "source" {
+                    // Transcript and translation share the id, so the link maps it to itself.
+                    out.push(Event { kind: "link", id: id.clone(), text: id.clone(), ..Default::default() });
+                }
+                out.push(Event { kind, id, start_ms: ms("start_time"), end_ms: ms("end_time"), ..Default::default() });
+                out
+            }
+            1 => {
+                words.push_str(text);
+                vec![Event { kind, id, text: words.trim_start().to_string(), ..Default::default() }]
+            }
+            _ => vec![Event {
+                kind,
+                id,
+                text: text.trim().to_string(),
+                lang: v.get("detected_language").and_then(Value::as_str).unwrap_or_default().to_string(),
+                done: true,
+                start_ms: ms("start_time"),
+                end_ms: ms("end_time"),
+                ..Default::default()
+            }],
+        }
     }
 }
 
