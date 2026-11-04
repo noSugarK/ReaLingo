@@ -4,10 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ReaLingo — 桌面实时同传</title>
-<meta name="description" content="桌面同声传译，支持阿里云百炼 Qwen、OpenAI、Google Gemini：最多 60 种语言互译，译文浮在任何窗口上，还能朗读。Windows / macOS / Linux，开源免费。" />
+<meta name="description" content="桌面同声传译，支持阿里云百炼 Qwen、OpenAI、Google Gemini、火山引擎豆包：最多 60 种语言互译，译文浮在任何窗口上，还能朗读。Windows / macOS / Linux，开源免费。" />
 <link rel="icon" href="mark.png" />
 <meta property="og:title" content="ReaLingo — 桌面实时同传" />
-<meta property="og:description" content="支持 Qwen、OpenAI、Gemini 的实时同传，字幕浮在任何窗口上，译文还能念给你听。开源免费。" />
+<meta property="og:description" content="支持 Qwen、OpenAI、Gemini、豆包的实时同传，字幕浮在任何窗口上，译文还能念给你听。开源免费。" />
 <meta property="og:image" content="https://nosugark.github.io/ReaLingo/promo-poster.jpg" />
 <meta property="og:type" content="website" />
 <meta property="og:video" content="https://nosugark.github.io/ReaLingo/promo.mp4" />
@@ -290,7 +290,7 @@ footer a { text-decoration: none; }
       <a class="btn ghost" href="#film"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l5.5-3.5z"/></svg><span class="zh">看 30 秒宣传片</span><span class="en">Watch the 30s film</span></a>
     </div>
     <p class="cta-note" id="hero-note"></p>
-    <a class="pill reveal" style="--d:.22s" href="#languages"><i></i><span class="zh">0.6 新增：接入 OpenAI 与 Google Gemini ›</span><span class="en">New in 0.6: OpenAI and Google Gemini ›</span></a>
+    <a class="pill reveal" style="--d:.22s" href="#languages"><i></i><span class="zh">0.7 新增：火山引擎豆包同声传译，支持中英互译 ›</span><span class="en">New in 0.7: Doubao Simultaneous Interpretation, Chinese ⇄ English ›</span></a>
     <div class="shot reveal" style="--d:.1s">
       <img src="app.webp" alt="ReaLingo 主界面 / ReaLingo main window" width="1280" height="760" />
       <div class="live" aria-live="polite">
@@ -374,9 +374,9 @@ footer a { text-decoration: none; }
     <div class="head reveal">
       <div class="kicker"><span class="zh">语言</span><span class="en">Languages</span></div>
       <h2 class="h2"><span class="zh">你要的语言，大概率都在</span><span class="en">Your language is probably here</span></h2>
-      <p class="lead"><span class="zh">源语言都能自动检测。切换接口，看看各家能译出哪些语言，带喇叭图标的还能朗读。</span><span class="en">Every API detects the source language. Switch between them to see what each translates into — the ones with a speaker can be read aloud.</span></p>
+      <p class="lead"><span class="zh">切换接口，看看各家能译出哪些语言，带喇叭图标的还能朗读。除了豆包要手动指定源语言，其余都能自动检测。</span><span class="en">Switch between the APIs to see what each translates into — the ones with a speaker can be read aloud. All but Doubao detect the source language for you.</span></p>
     </div>
-    <div class="seg apis reveal" id="apis"><button data-v="qwen" class="on">Qwen3.5 / 3.8</button><button data-v="gemini">Gemini</button><button data-v="openai">OpenAI</button><button data-v="qwen3">Qwen3</button></div>
+    <div class="seg apis reveal" id="apis"><button data-v="qwen" class="on">Qwen3.5 / 3.8</button><button data-v="gemini">Gemini</button><button data-v="openai">OpenAI</button><button data-v="qwen3">Qwen3</button><button data-v="volc">豆包 / Doubao</button></div>
     <div class="langbar reveal">
       <input id="q" type="search" placeholder="搜索语言 / Search…" autocomplete="off" />
       <span class="count" id="count"></span>
@@ -419,7 +419,7 @@ footer a { text-decoration: none; }
           <div class="kicker"><span class="zh">朗读译文</span><span class="en">Read aloud</span></div>
           <h3><span class="zh">不想盯着字幕，就听它念</span><span class="en">Rather listen than read? It speaks</span></h3>
           <ul>
-            <li><span class="zh">语言卡片里一个开关，语音由模型直接合成；Qwen 有 47 种音色任选，OpenAI 和 Gemini 由服务端决定音色</span><span class="en">One switch in the language card, synthesised by the model itself; Qwen offers 47 voices, OpenAI and Gemini choose their own</span></li>
+            <li><span class="zh">语言卡片里一个开关，语音由模型直接合成；Qwen 有 47 种音色任选，OpenAI 和 Gemini 由服务端决定音色，豆包可以复刻说话人自己的声音</span><span class="en">One switch in the language card, synthesised by the model itself; Qwen offers 47 voices, OpenAI and Gemini choose their own, Doubao can clone the speaker’s own voice</span></li>
             <li><span class="zh">录系统声音时，Windows 和 macOS 会把 ReaLingo 自己的朗读排除在外，不会录回去再翻一遍</span><span class="en">When capturing system audio, Windows and macOS leave ReaLingo’s own voice out, so it never translates itself</span></li>
             <li><span class="zh">用麦克风时扬声器的声音会被收回去，建议戴耳机；Linux 录系统声音时不朗读</span><span class="en">With a microphone, use headphones; on Linux it stays silent while capturing system audio</span></li>
           </ul>
@@ -450,7 +450,7 @@ footer a { text-decoration: none; }
           <div class="kicker"><span class="zh">隐私</span><span class="en">Privacy</span></div>
           <h3><span class="zh">你的 Key，只在你的电脑上</span><span class="en">Your key stays on your machine</span></h3>
           <ul>
-            <li><span class="zh">没有中转服务器：应用直接连你选的服务（百炼、OpenAI 或 Gemini），音频只发给它</span><span class="en">No relay server: the app talks straight to the service you pick (Model Studio, OpenAI or Gemini), and audio goes nowhere else</span></li>
+            <li><span class="zh">没有中转服务器：应用直接连你选的服务（百炼、OpenAI、Gemini 或火山引擎），音频只发给它</span><span class="en">No relay server: the app talks straight to the service you pick (Model Studio, OpenAI, Gemini or Volcengine), and audio goes nowhere else</span></li>
             <li><span class="zh">API Key 存进 Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service</span><span class="en">The key lives in Credential Manager, Keychain or Secret Service</span></li>
             <li><span class="zh">代码全部开源（MIT），可以自己检查、自己编译</span><span class="en">All of it is open source (MIT) — read it, build it yourself</span></li>
           </ul>
@@ -492,8 +492,8 @@ footer a { text-decoration: none; }
       <h2 class="h2"><span class="zh">你可能想问</span><span class="en">You might be wondering</span></h2>
     </div>
     <div class="faq reveal">
-      <details><summary><span class="zh">要花钱吗？</span><span class="en">Does it cost anything?</span></summary><p><span class="zh">ReaLingo 本身开源免费。翻译由你选的服务（阿里云百炼、OpenAI 或 Google Gemini）提供，按你自己账号的用量计费，具体价格以各家官网为准。</span><span class="en">ReaLingo is free and open source. Translation runs on your own account with the service you pick (Alibaba Cloud Model Studio, OpenAI or Google Gemini) and is billed to it — see their pricing.</span></p></details>
-      <details><summary><span class="zh">选哪个接口？</span><span class="en">Which API should I pick?</span></summary><p><span class="zh">手上有哪家的 Key 就选哪家。语言最全的是 Qwen3.5 / 3.8（60 种，Qwen 还支持热词和 47 种音色）；Gemini 覆盖 54 种且全部能朗读；OpenAI 能译出 13 种。模型和接入地址都能自己改，接代理或兼容服务也行。</span><span class="en">Use whichever key you have. Qwen3.5 / 3.8 cover the most languages (60, plus hotwords and 47 voices); Gemini covers 54, all spoken; OpenAI translates into 13. Model and endpoint are editable, so a proxy or compatible service works too.</span></p></details>
+      <details><summary><span class="zh">要花钱吗？</span><span class="en">Does it cost anything?</span></summary><p><span class="zh">ReaLingo 本身开源免费。翻译由你选的服务（阿里云百炼、OpenAI、Google Gemini 或火山引擎）提供，按你自己账号的用量计费。按官方价目粗算，只听不朗读每分钟大约几分钱人民币，开朗读会贵几倍；各家单价和折算见 <a href="https://github.com/noSugarK/ReaLingo#接口对比">README 的接口对比</a>，最终以各家官网为准。</span><span class="en">ReaLingo is free and open source. Translation runs on your own account with the service you pick (Alibaba Cloud Model Studio, OpenAI, Google Gemini or Volcengine) and is billed to it. By the official list prices, listening alone costs a few US cents per minute at most, and reading aloud several times that; the <a href="https://github.com/noSugarK/ReaLingo/blob/main/README.en.md#comparing-the-apis">API comparison in the README</a> has each rate — the vendors’ own pages have the final word.</span></p></details>
+      <details><summary><span class="zh">选哪个接口？</span><span class="en">Which API should I pick?</span></summary><p><span class="zh">手上有哪家的 Key 就选哪家。语言最全的是 Qwen3.5 / 3.8（60 种，Qwen 还支持热词和 47 种音色）；Gemini 覆盖 54 种且全部能朗读；OpenAI 能译出 13 种；要中英对话互译就选豆包，一场会话里说中文出英文、说英文出中文。模型和接入地址都能自己改，接代理或兼容服务也行。</span><span class="en">Use whichever key you have. Qwen3.5 / 3.8 cover the most languages (60, plus hotwords and 47 voices); Gemini covers 54, all spoken; OpenAI translates into 13; for a Chinese–English conversation pick Doubao, which translates both ways in one session. Model and endpoint are editable, so a proxy or compatible service works too.</span></p></details>
       <details><summary><span class="zh">百炼选北京还是新加坡地域？</span><span class="en">Model Studio: Beijing or Singapore region?</span></summary><p><span class="zh">跟你的百炼账号走：国内站的 Key 选北京，国际站的 Key 选新加坡。目前只有这两个地域提供实时翻译模型。设置页「高级」里会显示最终连接的地址；业务空间 ID 选填，填了走专属域名。</span><span class="en">Match your account: China-site keys use Beijing, international keys use Singapore — the only regions serving the realtime translation models today. Settings → Advanced shows the exact endpoint; a workspace ID is optional and switches to its dedicated domain.</span></p></details>
       <details><summary><span class="zh">macOS 提示「已损坏」或打不开？</span><span class="en">macOS says the app is damaged?</span></summary><p><span class="zh">应用没有经过 Apple 公证。把它拖进「应用程序」后，在终端执行 <code>xattr -dr com.apple.quarantine /Applications/ReaLingo.app</code>，或到「系统设置 → 隐私与安全性」点「仍要打开」。升级后系统声音没反应，就在「屏幕与系统录音」里删掉 ReaLingo 重新授权。</span><span class="en">It is not notarised. After moving it to Applications, run <code>xattr -dr com.apple.quarantine /Applications/ReaLingo.app</code>, or click “Open Anyway” in System Settings → Privacy &amp; Security. If system audio goes quiet after an update, remove ReaLingo under Screen &amp; System Audio Recording and grant it again.</span></p></details>
       <details><summary><span class="zh">朗读会不会被录回去，越翻越乱？</span><span class="en">Will it record its own voice and loop?</span></summary><p><span class="zh">录系统声音时不会：Windows 和 macOS 都会把 ReaLingo 自己的进程排除在采集之外，Linux 上则不朗读。用麦克风时，扬声器的声音会被物理地收进去，请戴耳机。</span><span class="en">Not with system audio: Windows and macOS leave ReaLingo’s own process out of the capture, and Linux does not speak at all. With a microphone the speakers are physically picked up — use headphones.</span></p></details>
@@ -685,7 +685,8 @@ footer a { text-decoration: none; }
     qwen: { has: function () { return true; }, speaksAll: false },
     qwen3: { has: function (c) { return "en zh ru fr de pt es it id ko ja vi th ar yue hi el tr".split(" ").indexOf(c) >= 0; }, speaksAll: false },
     openai: { has: function (c) { return "es pt fr ja ru zh de ko hi id vi it en".split(" ").indexOf(c) >= 0; }, speaksAll: true },
-    gemini: { has: function (c) { return "yue ast bs ceb ky tg".split(" ").indexOf(c) < 0; }, speaksAll: true }
+    gemini: { has: function (c) { return "yue ast bs ceb ky tg".split(" ").indexOf(c) < 0; }, speaksAll: true },
+    volc: { has: function (c) { return "zh en de fr es id ja pt ko tr ms nl ro pl cs ar th vi ru it".split(" ").indexOf(c) >= 0; }, speaks: function (c) { return "zh en de fr es id ja pt".split(" ").indexOf(c) >= 0; } }
   };
   var api = APIS.qwen, box = $("#langs"), q = $("#q");
   function renderLangs() {
@@ -694,7 +695,7 @@ footer a { text-decoration: none; }
     box.innerHTML = sorted.map(function (l) {
       var has = api.has(l[0]);
       return '<div' + (has ? "" : ' class="no"') + ' data-k="' + (l[0] + " " + l[1] + " " + l[2]).toLowerCase() + '"><span>' + (zh() ? l[1] : l[2]) +
-        ' <small>' + l[0] + "</small></span>" + (has && (api.speaksAll || l[3]) ? SPK : "") + "</div>";
+        ' <small>' + l[0] + "</small></span>" + (has && (api.speaks ? api.speaks(l[0]) : api.speaksAll || l[3]) ? SPK : "") + "</div>";
     }).join("");
     filter();
   }
