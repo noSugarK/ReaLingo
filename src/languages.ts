@@ -92,22 +92,44 @@ export const MODEL_VOLC = "doubao-ast-2.0";
 /** Who issues the key and runs the endpoint. Protocols of one vendor share both. */
 export type Vendor = "qwen" | "openai" | "gemini" | "volc";
 
+/** Qwen3 covers only these 18 languages. */
+const QWEN3_CODES = new Set(
+  "en zh ru fr de pt es it id ko ja vi th ar yue hi el tr".split(" ")
+);
+/** gpt-realtime-translate hears 70+ languages but speaks only these 13 (all tts-capable). */
+const OPENAI_CODES = new Set("es pt fr ja ru zh de ko hi id vi it en".split(" "));
+
+/** Of this table, the ones Gemini Live Translate's 70+ language list does not include. */
+const GEMINI_MISSING = new Set("yue ast bs ceb ky tg".split(" "));
+const GEMINI_CODES = new Set(LANGUAGES.map((l) => l.code).filter((c) => !GEMINI_MISSING.has(c)));
+
+/** Volcengine AST: its 20 languages, one side of every pair Chinese or English. */
+const VOLC_CODES = new Set("zh en de fr es id ja pt ko tr ms nl ro pl cs ar th vi ru it".split(" "));
+/** The ones it can also speak, cloning the speaker's voice (the presets speak zh/en). */
+const VOLC_SPEAKS = new Set("zh en de fr es id ja pt".split(" "));
+
+/**
+ * How the source language is set: always detected by the service, detected or named by the
+ * user, or named and never detected.
+ */
+export type SourceMode = "detected" | "either" | "named";
+
 /**
  * Everything the UI decides per protocol, in one place: each of these used to be its own
- * `=== "openai" || === "gemini"` check, written differently at every site.
+ * `=== "openai" || === "gemini"` check, written differently at every site. A component that
+ * needs a new per-protocol difference adds a field here rather than testing the protocol.
  */
 export interface ProtocolInfo {
   vendor: Vendor;
-  /** The service chooses the voice: no voice picker, a hint instead. */
-  serverVoice: boolean;
-  /** The source language is always detected: the source picker offers only "auto". */
-  autoSource: boolean;
-  /** Every offered target language can be read aloud (Qwen speaks only some). */
-  speaksAll: boolean;
+  source: SourceMode;
+  /** The languages it translates; absent means the whole table. */
+  langs?: ReadonlySet<string>;
+  /** Which target languages it reads aloud: all of them, those the table marks, or these. */
+  speaks: "all" | "table" | ReadonlySet<string>;
+  /** The voices to offer; null when the service chooses the voice itself. */
+  voices: VoiceList | null;
   /** A custom URL is dialled exactly as typed: the model goes in the setup message, not the URL. */
   urlAsIs: boolean;
-  /** The source must be named: the picker has no "auto". */
-  namedSource: boolean;
   /** Can translate both ways between Chinese and English in one session. */
   twoWay: boolean;
   /** Every pair must have one of these on one side; empty means any pair goes. */
@@ -115,11 +137,11 @@ export interface ProtocolInfo {
 }
 
 export const PROTOCOLS: Record<Protocol, ProtocolInfo> = {
-  qwen35: { vendor: "qwen", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false, hub: [] },
-  qwen38: { vendor: "qwen", serverVoice: false, autoSource: true, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false, hub: [] },
-  openai: { vendor: "openai", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: false, namedSource: false, twoWay: false, hub: [] },
-  gemini: { vendor: "gemini", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: true, namedSource: false, twoWay: false, hub: [] },
-  volc: { vendor: "volc", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: true, namedSource: true, twoWay: true, hub: ["zh", "en"] },
+  qwen35: { vendor: "qwen", source: "either", speaks: "table", voices: "qwen", urlAsIs: false, twoWay: false, hub: [] },
+  qwen38: { vendor: "qwen", source: "detected", speaks: "table", voices: "qwen", urlAsIs: false, twoWay: false, hub: [] },
+  openai: { vendor: "openai", source: "detected", langs: OPENAI_CODES, speaks: "all", voices: null, urlAsIs: false, twoWay: false, hub: [] },
+  gemini: { vendor: "gemini", source: "detected", langs: GEMINI_CODES, speaks: "all", voices: null, urlAsIs: true, twoWay: false, hub: [] },
+  volc: { vendor: "volc", source: "named", langs: VOLC_CODES, speaks: VOLC_SPEAKS, voices: "volc", urlAsIs: true, twoWay: true, hub: ["zh", "en"] },
 };
 
 export interface Preset {
@@ -145,33 +167,19 @@ export function modelName(protocol: Protocol, model: string): string {
   return PRESETS[protocol].find((p) => p.id === model)?.name ?? (model || PRESETS[protocol][0].name);
 }
 
-/** Qwen3 covers only these 18 languages. */
-const QWEN3_CODES = new Set(
-  "en zh ru fr de pt es it id ko ja vi th ar yue hi el tr".split(" ")
-);
-/** gpt-realtime-translate hears 70+ languages but speaks only these 13 (all tts-capable). */
-const OPENAI_CODES = new Set("es pt fr ja ru zh de ko hi id vi it en".split(" "));
-
-/** Of this table, the ones Gemini Live Translate's 70+ language list does not include. */
-const GEMINI_MISSING = new Set("yue ast bs ceb ky tg".split(" "));
-
-/** Volcengine AST: its 20 languages, one side of every pair Chinese or English. */
-const VOLC_CODES = new Set("zh en de fr es id ja pt ko tr ms nl ro pl cs ar th vi ru it".split(" "));
-/** The ones it can also speak, cloning the speaker's voice (the presets speak zh/en). */
-const VOLC_SPEAKS = new Set("zh en de fr es id ja pt".split(" "));
-
-/** Codes the given model can actually translate into. */
+/** Codes the given model can actually translate into. Qwen3 is a model of the Qwen3.5
+ * protocol with a smaller list, so the model has the last word there. */
 export function languageCodes(protocol: Protocol, model: string): string[] {
   const all = LANGUAGES.map((l) => l.code);
-  if (protocol === "openai") return all.filter((c) => OPENAI_CODES.has(c));
-  if (protocol === "gemini") return all.filter((c) => !GEMINI_MISSING.has(c));
-  if (protocol === "volc") return all.filter((c) => VOLC_CODES.has(c));
-  return model === MODEL_QWEN3 ? all.filter((c) => QWEN3_CODES.has(c)) : all;
+  const only = model === MODEL_QWEN3 ? QWEN3_CODES : PROTOCOLS[protocol].langs;
+  return only ? all.filter((c) => only.has(c)) : all;
 }
 
 export function canSpeak(protocol: Protocol, code: string): boolean {
-  if (protocol === "volc") return VOLC_SPEAKS.has(code);
-  return PROTOCOLS[protocol].speaksAll || (BY_CODE.get(code)?.tts ?? false);
+  const speaks = PROTOCOLS[protocol].speaks;
+  if (speaks === "all") return true;
+  if (speaks === "table") return BY_CODE.get(code)?.tts ?? false;
+  return speaks.has(code);
 }
 
 // Voices the LiveTranslate models accept for `session.voice`, from the Model Studio voice list
@@ -232,6 +240,8 @@ export interface Voice {
   zh: string;
   descZh: string;
   descEn: string;
+  /** What the picker shows, when the id is an API name no one should have to read. */
+  label?: { zh: string; en: string };
 }
 
 export const VOICES: Voice[] = VOICE_TABLE.trim()
@@ -241,12 +251,25 @@ export const VOICES: Voice[] = VOICE_TABLE.trim()
     return { id, zh, descZh, descEn };
   });
 
-/** Volcengine's two preset voices (Chinese and English only); any other id clones the speaker. */
+/**
+ * Volcengine: clone the speaker, or one of its two preset voices (Chinese and English only).
+ * The preset ids mirror `volc::VOICES` in src-tauri/src/volc.rs; `clone` is `volc::CLONE`.
+ */
 export const VOLC_VOICES: Voice[] = [
-  { id: "clone", zh: "复刻说话人", descZh: "用说话人自己的音色朗读", descEn: "Clone the speaker's own voice" },
-  { id: "zh_female_vv_uranus_bigtts", zh: "vv", descZh: "女声，仅中英", descEn: "Female, Chinese and English only" },
-  { id: "zh_male_jingqiangkanye_emo_mars_bigtts", zh: "京腔侃爷", descZh: "男声，仅中英", descEn: "Male, Chinese and English only" },
+  { id: "clone", zh: "复刻说话人", descZh: "用说话人自己的音色朗读", descEn: "Clone the speaker's own voice", label: { zh: "复刻说话人", en: "Speaker's own voice" } },
+  { id: "zh_female_vv_uranus_bigtts", zh: "vv", descZh: "女声，仅中英", descEn: "Female, Chinese and English only", label: { zh: "vv", en: "vv" } },
+  { id: "zh_male_jingqiangkanye_emo_mars_bigtts", zh: "京腔侃爷", descZh: "男声，仅中英", descEn: "Male, Chinese and English only", label: { zh: "京腔侃爷", en: "Jingqiang Kanye" } },
 ];
+
+/** The voice lists `ProtocolInfo.voices` names. */
+export type VoiceList = "qwen" | "volc";
+export const VOICE_LISTS: Record<VoiceList, Voice[]> = { qwen: VOICES, volc: VOLC_VOICES };
+
+/** A voice as the picker shows it: its own label if it has one, else the name it is called by. */
+export function voiceLabel(v: Voice, locale: "zh" | "en"): string {
+  if (v.label) return v.label[locale];
+  return locale === "zh" ? `${v.id} · ${v.zh}` : v.id;
+}
 
 export function langName(code: string, locale: "zh" | "en"): string {
   if (code === "auto") return locale === "zh" ? "自动检测" : "Auto detect";

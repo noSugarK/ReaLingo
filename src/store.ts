@@ -1,7 +1,7 @@
 import { reactive, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { load, type Store } from "@tauri-apps/plugin-store";
-import { MODEL_QWEN3_8, PROTOCOLS, type Vendor } from "./languages";
+import { MODEL_QWEN3_8, PROTOCOLS, type Vendor, type VoiceList } from "./languages";
 
 /** Only the regions that serve the LiveTranslate models — see `config::Region` in Rust. */
 export type Region = "beijing" | "singapore";
@@ -73,8 +73,8 @@ export interface Settings {
   /** What each protocol / vendor was last set to, restored when switching back to it. */
   savedModels: Partial<Record<Protocol, string>>;
   savedUrls: Partial<Record<Vendor, string>>;
-  /** The voice last picked from each voice list, Volcengine's and Qwen's, which share `voice`. */
-  savedVoices: Partial<Record<"volc" | "qwen", string>>;
+  /** The voice last picked from each voice list; the lists share `voice`. */
+  savedVoices: Partial<Record<VoiceList, string>>;
   workspaceId: string;
   region: Region;
   sourceLang: string;

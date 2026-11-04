@@ -14,7 +14,7 @@ import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
 import History from "./components/History.vue";
 import { locale, setLocale, t } from "./i18n";
-import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICES, VOLC_VOICES } from "./languages";
+import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICE_LISTS, voiceLabel } from "./languages";
 import { check, checkUpdateAtStartup, openHome } from "./update";
 import { activeKey, settings, initSettings, resolvedTheme, SUB_SIZE, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
 import {
@@ -116,28 +116,30 @@ async function chooseFile() {
 /* ---------- read aloud ---------- */
 // The note says what the voice sounds like; search matches names and descriptions in both
 // UI languages, so typing "温柔" or "British" narrows the list.
-const isVolc = computed(() => settings.protocol === "volc");
+/** The protocol's voice list; null when the service picks the voice itself. */
+const voiceList = computed(() => PROTOCOLS[settings.protocol].voices);
 const voiceOptions = computed(() =>
-  (isVolc.value ? VOLC_VOICES : VOICES).map((v) => ({
+  VOICE_LISTS[voiceList.value ?? "qwen"].map((v) => ({
     value: v.id,
-    label: isVolc.value ? (locale.value === "zh" ? v.zh : v.descEn) : locale.value === "zh" ? `${v.id} · ${v.zh}` : v.id,
+    label: voiceLabel(v, locale.value),
     note: locale.value === "zh" ? v.descZh : v.descEn,
     keywords: `${v.zh} ${v.descZh} ${v.descEn}`,
   }))
 );
-// One `voice` setting serves both lists, so each list's pick is parked on the way out and
+// One `voice` setting serves every list, so each list's pick is parked on the way out and
 // brought back on the way in — a round trip through Volcengine keeps the Qwen voice.
-watch(isVolc, (volc, was) => {
-  if (was !== undefined) settings.savedVoices[was ? "volc" : "qwen"] = settings.voice;
-  const list = volc ? VOLC_VOICES : VOICES;
-  const back = settings.savedVoices[volc ? "volc" : "qwen"];
+watch(voiceList, (now, was) => {
+  if (was) settings.savedVoices[was] = settings.voice;
+  if (!now) return;
+  const list = VOICE_LISTS[now];
+  const back = settings.savedVoices[now];
   if (back && list.some((v) => v.id === back)) settings.voice = back;
   else if (!list.some((v) => v.id === settings.voice)) settings.voice = list[0].id;
 }, { immediate: true });
-// Some protocols always detect the source language themselves (see PROTOCOLS).
-const autoSourceOnly = computed(() => PROTOCOLS[settings.protocol].autoSource);
-watch(autoSourceOnly, (only) => {
-  if (only) settings.sourceLang = "auto";
+// How the source language is set (see PROTOCOLS): some services always detect it.
+const sourceMode = computed(() => PROTOCOLS[settings.protocol].source);
+watch(sourceMode, (mode) => {
+  if (mode === "detected") settings.sourceLang = "auto";
 }, { immediate: true });
 // Why speaking cannot happen with the current choices, if it cannot. Linux has no way to
 // leave our own playback out of a monitor source, so system audio would hear itself.
@@ -220,8 +222,6 @@ const langOptions = computed(() =>
     keywords: `${langName(c, "zh")} ${langName(c, "en")}`,
   }))
 );
-/** Volcengine will not detect the source: it has to be named, so "auto" is not offered. */
-const namedSource = computed(() => PROTOCOLS[settings.protocol].namedSource);
 /** Volcengine wants Chinese or English on one side of every pair (PROTOCOLS `hub`). */
 const hub = computed(() => PROTOCOLS[settings.protocol].hub);
 const onHub = (code: string) => !hub.value.length || hub.value.includes(code);
@@ -229,19 +229,19 @@ const onHub = (code: string) => !hub.value.length || hub.value.includes(code);
 const pairableWith = (other: string) =>
   onHub(other) ? langOptions.value : langOptions.value.filter((o) => onHub(o.value));
 const sourceLangOptions = computed(() => [
-  ...(namedSource.value ? [] : [{ value: "auto", label: langName("auto", locale.value) }]),
-  ...(autoSourceOnly.value ? [] : pairableWith(settings.targetLang)),
+  ...(sourceMode.value === "named" ? [] : [{ value: "auto", label: langName("auto", locale.value) }]),
+  ...(sourceMode.value === "detected" ? [] : pairableWith(settings.targetLang)),
 ]);
 const targetLangOptions = computed(() => pairableWith(settings.sourceLang));
 
 // Switching to the smaller model can strand a language it cannot translate into; the
 // session would then be refused server-side, so repair the selection here instead. The
 // pickers keep a pair valid from then on; this covers arriving with one already invalid.
-watch([langCodes, namedSource, hub], ([codes, named]) => {
+watch([langCodes, sourceMode, hub], ([codes, mode]) => {
   const ok = new Set(codes);
   if (settings.sourceLang !== "auto" && !ok.has(settings.sourceLang)) settings.sourceLang = "auto";
   if (!ok.has(settings.targetLang)) settings.targetLang = ok.has("en") ? "en" : codes[0];
-  if (named && settings.sourceLang === "auto") settings.sourceLang = settings.targetLang === "zh" ? "en" : "zh";
+  if (mode === "named" && settings.sourceLang === "auto") settings.sourceLang = settings.targetLang === "zh" ? "en" : "zh";
   if (!onHub(settings.sourceLang) && !onHub(settings.targetLang)) settings.targetLang = hub.value[0];
 }, { immediate: true });
 
@@ -538,7 +538,7 @@ watch([lines, current], async () => {
             <p v-if="settings.speak && speakBlocked" class="hint">{{ t(speakBlocked) }}</p>
             <template v-else-if="settings.speak">
               <!-- OpenAI and Gemini pick their own voice; there is nothing to choose. -->
-              <p v-if="PROTOCOLS[settings.protocol].serverVoice" class="hint">{{ t("voiceServer") }}</p>
+              <p v-if="!voiceList" class="hint">{{ t("voiceServer") }}</p>
               <div v-else class="line">
                 <span>{{ t("voice") }}</span>
                 <Picker v-model="settings.voice" class="grow" :options="voiceOptions" :disabled="isRunning()" />
