@@ -12,7 +12,10 @@ use crate::config::Settings;
 
 pub const URL: &str = "wss://openspeech.bytedance.com/api/v4/ast/v2/translate";
 pub const RESOURCE_ID: &str = "volc.service_type.10053";
-/// The preset voices; anything else (empty included) clones the speaker's own voice.
+/// The voice setting that asks for the speaker's own voice to be cloned: the service clones
+/// whenever no preset is named. Mirrors `VOLC_VOICES` in src/languages.ts.
+pub const CLONE: &str = "clone";
+/// The preset voices, which speak only Chinese and English. Mirrors `VOLC_VOICES`.
 pub const VOICES: [&str; 2] = ["zh_female_vv_uranus_bigtts", "zh_male_jingqiangkanye_emo_mars_bigtts"];
 
 /// `common/events.proto`, the values this protocol uses.
@@ -113,7 +116,7 @@ pub fn start(settings: &Settings, session: &str) -> Vec<u8> {
     req.source_audio = Some(Audio {
         format: "wav".into(),
         codec: "raw".into(),
-        rate: 16_000,
+        rate: settings.sample_rate() as i32,
         bits: 16,
         channel: 1,
         ..Default::default()
@@ -125,8 +128,8 @@ pub fn start(settings: &Settings, session: &str) -> Vec<u8> {
     } else {
         (settings.source_lang.clone(), settings.target_lang.clone())
     };
-    // The preset voices speak only Chinese and English; for any other target the speaker's
-    // own voice is cloned instead. Another protocol's voice name means clone too.
+    // A preset only where it can speak the target; otherwise `CLONE` — asked for, or the
+    // fallback for a preset that cannot speak this target (or a voice from another list).
     let preset = VOICES.contains(&settings.voice.as_str()) && matches!(target.as_str(), "zh" | "en" | "zhen");
     req.request = Some(ReqParams {
         mode: if settings.speak { "s2s" } else { "s2t" }.into(),
@@ -233,5 +236,17 @@ mod tests {
         assert_eq!(req.event, event::TASK_REQUEST);
         assert_eq!(req.request_meta.unwrap().session_id, "s1");
         assert_eq!(req.source_audio.unwrap().binary_data, vec![7, 8]);
+    }
+
+    #[test]
+    fn a_preset_voice_is_named_only_where_it_can_speak_the_target() {
+        let speaker = |voice: &str, target: &str| {
+            let settings: Settings = serde_json::from_value(json!({ "protocol": "volc", "voice": voice, "sourceLang": "en", "targetLang": target, "speak": true })).unwrap();
+            TranslateRequest::decode(start(&settings, "s").as_slice()).unwrap().request.unwrap().speaker_id
+        };
+        assert_eq!(speaker(VOICES[0], "zh"), VOICES[0]);
+        assert_eq!(speaker(VOICES[0], "ja"), "");
+        assert_eq!(speaker(CLONE, "zh"), "");
+        assert_eq!(speaker("Tina", "zh"), "");
     }
 }

@@ -3,7 +3,7 @@ import { computed, ref, watch, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { activeKey, keyringOk, REGION_ID, setActiveKey, settings, type Protocol, type Region } from "../store";
 import { isRunning } from "../stream";
-import { PRESETS, PROTOCOLS } from "../languages";
+import { PRESETS, PROTOCOLS, type Vendor } from "../languages";
 import { t } from "../i18n";
 import Picker from "./Picker.vue";
 import Sheet from "./Sheet.vue";
@@ -108,8 +108,10 @@ const keyConsole = computed(
     })[vendor.value]
 );
 const KEY_LABEL = { qwen: "apiKeyGet", openai: "apiKeyGetOpenai", gemini: "apiKeyGetGemini", volc: "apiKeyGetVolc" } as const;
-/** A Volcengine key works only once the service is switched on, on a page of its own. */
-const VOLC_ACTIVATE = "https://console.volcengine.com/speech/new/setting/activate";
+/** Where a vendor's key has to be switched on before it works: Volcengine's needs the model
+ *  enabled by hand, on a page of its own. */
+const ACTIVATE: Partial<Record<Vendor, string>> = { volc: "https://console.volcengine.com/speech/new/setting/activate" };
+const activateUrl = computed(() => ACTIVATE[vendor.value]);
 const keyConsoleLabel = computed(() => t(KEY_LABEL[vendor.value]));
 // The opener plugin, not an <a href>: a plain link navigates the app's own webview away.
 const openUrl = (url: string) => invoke("plugin:opener|open_url", { url });
@@ -147,7 +149,7 @@ const advancedOpen = !!settings.url;
           <button class="link" @click.prevent="openUrl(keyConsole)">
             {{ keyConsoleLabel }} ↗
           </button>
-          <button v-if="vendor === 'volc'" class="link" @click.prevent="openUrl(VOLC_ACTIVATE)">
+          <button v-if="activateUrl" class="link" @click.prevent="openUrl(activateUrl)">
             {{ t("volcActivate") }} ↗
           </button>
         </small>
