@@ -125,10 +125,14 @@ const voiceOptions = computed(() =>
     keywords: `${v.zh} ${v.descZh} ${v.descEn}`,
   }))
 );
-// One `voice` setting serves both lists; a name from the other list means nothing here.
-watch(isVolc, (volc) => {
+// One `voice` setting serves both lists, so each list's pick is parked on the way out and
+// brought back on the way in — a round trip through Volcengine keeps the Qwen voice.
+watch(isVolc, (volc, was) => {
+  if (was !== undefined) settings.savedVoices[was ? "volc" : "qwen"] = settings.voice;
   const list = volc ? VOLC_VOICES : VOICES;
-  if (!list.some((v) => v.id === settings.voice)) settings.voice = list[0].id;
+  const back = settings.savedVoices[volc ? "volc" : "qwen"];
+  if (back && list.some((v) => v.id === back)) settings.voice = back;
+  else if (!list.some((v) => v.id === settings.voice)) settings.voice = list[0].id;
 }, { immediate: true });
 // Some protocols always detect the source language themselves (see PROTOCOLS).
 const autoSourceOnly = computed(() => PROTOCOLS[settings.protocol].autoSource);

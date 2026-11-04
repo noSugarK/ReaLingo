@@ -73,6 +73,8 @@ export interface Settings {
   /** What each protocol / vendor was last set to, restored when switching back to it. */
   savedModels: Partial<Record<Protocol, string>>;
   savedUrls: Partial<Record<Vendor, string>>;
+  /** The voice last picked from each voice list, Volcengine's and Qwen's, which share `voice`. */
+  savedVoices: Partial<Record<"volc" | "qwen", string>>;
   workspaceId: string;
   region: Region;
   sourceLang: string;
@@ -101,6 +103,7 @@ export const settings = reactive<Settings>({
   url: "",
   savedModels: {},
   savedUrls: {},
+  savedVoices: {},
   workspaceId: "",
   region: "beijing",
   sourceLang: "auto",
