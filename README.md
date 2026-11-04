@@ -67,6 +67,40 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
   该版本的新增与修复（按界面语言显示），以及仓库与作者链接。标题栏 logo 下方显示当前模型，点它直达设置
 - 内置 `rt://raw` 事件查看器（标题栏 `< >` 按钮），用于排查协议字段
 
+## 接口对比
+
+<details>
+<summary><b>展开：语言、朗读、连接地址与价格</b></summary>
+
+| 接口 | 默认模型 | 语言 | 朗读 | 中英互译 | 连接地址 | 鉴权 |
+|---|---|---|---|---|---|---|
+| Qwen3.8（百炼） | `qwen3.8-livetranslate-flash-realtime` | 60 种，源语言自动检测 | 29 种目标语言，47 种音色 | — | `wss://dashscope.aliyuncs.com/api-ws/v1/realtime`（北京）<br>`wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime`（新加坡） | `Authorization: Bearer` |
+| Qwen3.5 / 3（百炼） | `qwen3.5-livetranslate-flash-realtime` | 60 种（Qwen3 为 18 种），源语言可指定 | 同上 | — | 同上 | 同上 |
+| OpenAI | `gpt-realtime-translate` | 听 70+ 种，输出 13 种 | 全部目标语言，服务端定音色 | — | `wss://api.openai.com/v1/realtime/translations` | `Authorization: Bearer` |
+| Gemini（Google） | `gemini-3.5-live-translate-preview` | 54 种 | 全部目标语言，服务端定音色 | — | `wss://generativelanguage.googleapis.com/ws/…BidiGenerateContent` | URL 参数 `key=` |
+| 豆包同声传译（火山引擎） | 豆包同声传译 2.0 | 20 种，每对须含中文或英文；源语言必须指定 | 8 种目标语言，复刻说话人或 2 个预置音色 | ✓ | `wss://openspeech.bytedance.com/api/v4/ast/v2/translate` | `X-Api-Key` + `X-Api-Resource-Id` |
+
+**价格**（2026-11 查询各家官方价目，不含促销；以控制台为准）
+
+| 接口 | 官方单价 | 折合每分钟（估算） | 免费额度 |
+|---|---|---|---|
+| Qwen3.8 | 每百万 token：音频输入 $7.5、文本输出 $20、音频输出 $30（新加坡）；$5.653 / $14.133 / $22.613（北京） | 听 1 分钟约 $0.003（新加坡）；朗读每分钟另约 $0.023 | 新加坡 100 万 token，90 天 |
+| Qwen3.5 | 新加坡同 Qwen3.8；北京 $5.501 / $13.752 / $22.003 | 同上 | 无 |
+| OpenAI | $0.034 / 分钟（按输入音频时长计） | $0.034 | 无 |
+| Gemini | 每百万 token：音频输入 $3.50、音频输出 $21.00（预览价） | 听 $0.0053 + 朗读 $0.0315，官方合计约 $0.0368 | 免费层可用 |
+| 豆包同声传译 | 每百万 token：输入 ¥80、文本输出 ¥80、音频输出 ¥300（后付费）；预付费资源包折合 ¥40–56 / 百万 token | 听 1 分钟约 ¥0.03；朗读每分钟另约 ¥0.45 | 100 万 token，在[开通管理](https://console.volcengine.com/speech/new/setting/activate)里手动开通同声传译模型后发放 |
+
+「折合每分钟」按官方给的音频 token 折算：Qwen 输入每秒 7 个、输出每秒 12.5 个；豆包输入每秒 6.25 个、输出每秒 25 个；
+Gemini 和 OpenAI 直接取官方的每分钟价。译文文本按字数另计，通常远小于音频部分。
+Qwen3 的 LiveTranslate 已不在百炼当前价目表里。
+
+价格来源：[百炼模型价格](https://www.alibabacloud.com/help/en/model-studio/model-pricing)、
+[OpenAI 价格](https://developers.openai.com/api/docs/pricing)、
+[Gemini API 价格](https://aistudio.google.com/docs/pricing)、
+[豆包语音计费说明](https://docs.volcengine.com/docs/doubao-voice/billing-instructions?lang=zh)
+
+</details>
+
 ## 配置
 
 首次启动后点右上角齿轮（或标题栏 logo 下方的模型名）。设置分「连接 / 翻译 / 高级」三组：

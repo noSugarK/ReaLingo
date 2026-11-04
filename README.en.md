@@ -79,6 +79,41 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
   The model name under the logo opens Settings
 - Built-in `rt://raw` event inspector (the `< >` button in the title bar) for protocol debugging
 
+## Comparing the APIs
+
+<details>
+<summary><b>Show languages, read-aloud, endpoints and prices</b></summary>
+
+| API | Default model | Languages | Read aloud | Chinese ⇄ English | Endpoint | Auth |
+|---|---|---|---|---|---|---|
+| Qwen3.8 (Model Studio) | `qwen3.8-livetranslate-flash-realtime` | 60, source detected | 29 target languages, 47 voices | — | `wss://dashscope.aliyuncs.com/api-ws/v1/realtime` (Beijing)<br>`wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime` (Singapore) | `Authorization: Bearer` |
+| Qwen3.5 / 3 (Model Studio) | `qwen3.5-livetranslate-flash-realtime` | 60 (Qwen3: 18), source can be named | Same | — | Same | Same |
+| OpenAI | `gpt-realtime-translate` | Hears 70+, outputs 13 | Every target language, server's voice | — | `wss://api.openai.com/v1/realtime/translations` | `Authorization: Bearer` |
+| Gemini (Google) | `gemini-3.5-live-translate-preview` | 54 | Every target language, server's voice | — | `wss://generativelanguage.googleapis.com/ws/…BidiGenerateContent` | `key=` URL parameter |
+| Doubao Simultaneous Interpretation (Volcengine) | Doubao SI 2.0 | 20, each pair with Chinese or English; source must be named | 8 target languages, the speaker's cloned voice or 2 presets | ✓ | `wss://openspeech.bytedance.com/api/v4/ast/v2/translate` | `X-Api-Key` + `X-Api-Resource-Id` |
+
+**Prices** (each vendor's official list price, checked 2026-11, promotions excluded; the console has the final word)
+
+| API | Official rate | Per minute (estimate) | Free quota |
+|---|---|---|---|
+| Qwen3.8 | Per 1M tokens: audio in $7.5, text out $20, audio out $30 (Singapore); $5.653 / $14.133 / $22.613 (Beijing) | ~$0.003 per minute heard (Singapore); reading aloud ~$0.023 per minute more | 1M tokens for 90 days, Singapore |
+| Qwen3.5 | Singapore as Qwen3.8; Beijing $5.501 / $13.752 / $22.003 | Same | None |
+| OpenAI | $0.034 / minute (by input audio length) | $0.034 | None |
+| Gemini | Per 1M tokens: audio in $3.50, audio out $21.00 (preview pricing) | $0.0053 heard + $0.0315 spoken, ~$0.0368 combined per Google | Free tier available |
+| Doubao SI | Per 1M tokens: input ¥80, text out ¥80, audio out ¥300 (pay as you go); prepaid packs work out to ¥40–56 per 1M | ~¥0.03 per minute heard; reading aloud ~¥0.45 per minute more | 1M tokens, granted once the interpretation model is switched on by hand under [Activation](https://console.volcengine.com/speech/new/setting/activate) |
+
+Per-minute figures convert the official audio token rates: Qwen counts 7 tokens per second in and
+12.5 out, Doubao 6.25 in and 25 out; Gemini and OpenAI publish per-minute prices themselves. The
+translated text is billed on top by length and is usually far smaller than the audio. Qwen3's
+LiveTranslate model no longer appears on Model Studio's current price list.
+
+Sources: [Model Studio pricing](https://www.alibabacloud.com/help/en/model-studio/model-pricing),
+[OpenAI pricing](https://developers.openai.com/api/docs/pricing),
+[Gemini API pricing](https://aistudio.google.com/docs/pricing),
+[Doubao Speech billing](https://docs.volcengine.com/docs/doubao-voice/billing-instructions?lang=zh)
+
+</details>
+
 ## Configuration
 
 Open the gear icon in the top-right after first launch (or click the model name under the logo).
