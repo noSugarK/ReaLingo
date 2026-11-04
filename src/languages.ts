@@ -110,14 +110,16 @@ export interface ProtocolInfo {
   namedSource: boolean;
   /** Can translate both ways between Chinese and English in one session. */
   twoWay: boolean;
+  /** Every pair must have one of these on one side; empty means any pair goes. */
+  hub: readonly string[];
 }
 
 export const PROTOCOLS: Record<Protocol, ProtocolInfo> = {
-  qwen35: { vendor: "qwen", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false },
-  qwen38: { vendor: "qwen", serverVoice: false, autoSource: true, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false },
-  openai: { vendor: "openai", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: false, namedSource: false, twoWay: false },
-  gemini: { vendor: "gemini", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: true, namedSource: false, twoWay: false },
-  volc: { vendor: "volc", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: true, namedSource: true, twoWay: true },
+  qwen35: { vendor: "qwen", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false, hub: [] },
+  qwen38: { vendor: "qwen", serverVoice: false, autoSource: true, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false, hub: [] },
+  openai: { vendor: "openai", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: false, namedSource: false, twoWay: false, hub: [] },
+  gemini: { vendor: "gemini", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: true, namedSource: false, twoWay: false, hub: [] },
+  volc: { vendor: "volc", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: true, namedSource: true, twoWay: true, hub: ["zh", "en"] },
 };
 
 export interface Preset {

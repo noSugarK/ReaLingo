@@ -218,19 +218,27 @@ const langOptions = computed(() =>
 );
 /** Volcengine will not detect the source: it has to be named, so "auto" is not offered. */
 const namedSource = computed(() => PROTOCOLS[settings.protocol].namedSource);
+/** Volcengine wants Chinese or English on one side of every pair (PROTOCOLS `hub`). */
+const hub = computed(() => PROTOCOLS[settings.protocol].hub);
+const onHub = (code: string) => !hub.value.length || hub.value.includes(code);
+/** Once one side is off the hub, the other side may only offer the hub's languages. */
+const pairableWith = (other: string) =>
+  onHub(other) ? langOptions.value : langOptions.value.filter((o) => onHub(o.value));
 const sourceLangOptions = computed(() => [
   ...(namedSource.value ? [] : [{ value: "auto", label: langName("auto", locale.value) }]),
-  ...(autoSourceOnly.value ? [] : langOptions.value),
+  ...(autoSourceOnly.value ? [] : pairableWith(settings.targetLang)),
 ]);
+const targetLangOptions = computed(() => pairableWith(settings.sourceLang));
 
 // Switching to the smaller model can strand a language it cannot translate into; the
-// session would then be refused server-side, so repair the selection here instead.
-watch([langCodes, namedSource], ([codes, named]) => {
+// session would then be refused server-side, so repair the selection here instead. The
+// pickers keep a pair valid from then on; this covers arriving with one already invalid.
+watch([langCodes, namedSource, hub], ([codes, named]) => {
   const ok = new Set(codes);
   if (settings.sourceLang !== "auto" && !ok.has(settings.sourceLang)) settings.sourceLang = "auto";
   if (!ok.has(settings.targetLang)) settings.targetLang = ok.has("en") ? "en" : codes[0];
-  // One side of a Volcengine pair must be Chinese or English; this keeps that true.
   if (named && settings.sourceLang === "auto") settings.sourceLang = settings.targetLang === "zh" ? "en" : "zh";
+  if (!onHub(settings.sourceLang) && !onHub(settings.targetLang)) settings.targetLang = hub.value[0];
 }, { immediate: true });
 
 /** Chinese ⇄ English in one session; only where the protocol can, and then pickers step aside. */
@@ -510,7 +518,7 @@ watch([lines, current], async () => {
               </button>
               <div class="col grow">
                 <span class="mini">{{ t("to") }}</span>
-                <Picker v-model="settings.targetLang" :options="langOptions" :disabled="isRunning()" />
+                <Picker v-model="settings.targetLang" :options="targetLangOptions" :disabled="isRunning()" />
               </div>
             </div>
 
