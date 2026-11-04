@@ -33,6 +33,11 @@ pub struct Entry {
     at: i64,
     source: String,
     target: String,
+    /// Place in the input audio, ms. Absent on lines written before it was recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    start: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    end: Option<i64>,
 }
 
 /// What the history panel lists: the session's own meta line plus what it costs.
@@ -191,5 +196,10 @@ mod tests {
         let e: Entry = serde_json::from_str(entry).unwrap();
         assert_eq!(e.source, "你好");
         assert_eq!(serde_json::to_string(&e).unwrap(), entry);
+
+        let timed = r#"{"at":1758153806000,"source":"你好","target":"Hello","start":1200,"end":3400}"#;
+        let e: Entry = serde_json::from_str(timed).unwrap();
+        assert_eq!((e.start, e.end), (Some(1200), Some(3400)));
+        assert_eq!(serde_json::to_string(&e).unwrap(), timed);
     }
 }

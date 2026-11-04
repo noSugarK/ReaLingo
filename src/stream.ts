@@ -11,6 +11,9 @@ export interface Line {
   source: string;
   target: string;
   at: number;
+  /** Place in the input audio, ms; absent on history written before it was recorded. */
+  start?: number;
+  end?: number;
 }
 
 /** `stopping`: input has ended, the last sentence is still on its way. */
@@ -79,6 +82,12 @@ interface Turn {
   sourceDone: boolean;
   targetDone: boolean;
   at: number;
+  /** Audio-time span the server reported, when it does. */
+  startMs?: number;
+  endMs?: number;
+  /** Fallback: the audio clock when this turn's text first and last arrived. */
+  firstAt?: number;
+  lastAt?: number;
   /** Set once the turn has a row in `lines`; the row is patched in place afterwards. */
   lineId?: number;
 }
@@ -86,6 +95,19 @@ interface Turn {
 const turns = new Map<string, Turn>();
 /** Input item id -> turn key, from the server's `link` event. */
 const byInput = new Map<string, string>();
+/** Input item id -> its speech_started / speech_stopped offsets, until a turn claims them. */
+const speechAt = new Map<string, { start?: number; end?: number }>();
+
+function timeTurn(t: Turn, e: { startMs?: number; endMs?: number; atMs?: number }) {
+  if (e.startMs != null) t.startMs = Math.min(t.startMs ?? e.startMs, e.startMs);
+  if (e.endMs != null) t.endMs = Math.max(t.endMs ?? e.endMs, e.endMs);
+  if (e.atMs != null) {
+    t.firstAt ??= e.atMs;
+    t.lastAt = e.atMs;
+  }
+}
+
+const span = (t: Turn) => ({ start: t.startMs ?? t.firstAt, end: t.endMs ?? t.lastAt });
 
 const oldestTurn = () => turns.values().next().value as Turn | undefined;
 const newestTurn = () => [...turns.values()].pop();
@@ -117,7 +139,7 @@ function publish(t: Turn) {
   if (!t.source && !t.target) return;
   if (t.lineId === undefined) {
     t.lineId = nextId++;
-    lines.value.push({ id: t.lineId, source: t.source, target: t.target, at: t.at });
+    lines.value.push({ id: t.lineId, source: t.source, target: t.target, at: t.at, ...span(t) });
     if (lines.value.length > 500) lines.value.splice(0, lines.value.length - 500);
     return;
   }
@@ -125,6 +147,7 @@ function publish(t: Turn) {
   if (row) {
     row.source = t.source;
     row.target = t.target;
+    Object.assign(row, span(t));
   }
 }
 
@@ -137,10 +160,13 @@ function settle(t: Turn) {
 function close(t: Turn) {
   publish(t);
   if (t.source || t.target) {
-    record("history_append", { entry: { at: t.at, source: t.source, target: t.target } });
+    record("history_append", { entry: { at: t.at, source: t.source, target: t.target, ...span(t) } });
   }
   turns.delete(t.key);
-  if (t.input) byInput.delete(t.input);
+  if (t.input) {
+    byInput.delete(t.input);
+    speechAt.delete(t.input);
+  }
   syncCurrent();
 }
 
@@ -165,6 +191,7 @@ function syncCurrent() {
 function resetTurns() {
   turns.clear();
   byInput.clear();
+  speechAt.clear();
   syncCurrent();
 }
 
@@ -176,6 +203,9 @@ interface RtEvent {
   /** Turn id: the assistant item for translations, the input item for transcripts. */
   id: string;
   done: boolean;
+  startMs?: number;
+  endMs?: number;
+  atMs?: number;
 }
 
 void listen<RtEvent>("rt://event", ({ payload: e }) => {
@@ -194,6 +224,8 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
     case "link": {
       byInput.set(e.text, e.id);
       turnFor(e.id).input = e.text;
+      const at = speechAt.get(e.text);
+      if (at) timeTurn(turnFor(e.id), { startMs: at.start, endMs: at.end });
       break;
     }
 
@@ -203,6 +235,7 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
       const key = byInput.get(e.id) ?? newestTurn()?.key;
       if (!key) break;
       const t = turnFor(key);
+      timeTurn(t, e);
       t.source = e.text;
       t.sourceStash = e.done ? "" : e.stash;
       if (e.lang) detectedLang.value = e.lang;
@@ -218,6 +251,7 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
 
     case "target": {
       const t = turnFor(e.id);
+      timeTurn(t, e);
       t.target = e.text;
       t.targetStash = e.done ? "" : e.stash;
       speaking.value = !e.done;
@@ -232,9 +266,16 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
       break;
     }
 
-    case "speech":
+    case "speech": {
       speaking.value = e.text === "start";
+      if (!e.id) break;
+      // Usually ahead of the link that names its turn; held until then.
+      const at = { ...speechAt.get(e.id), ...(e.startMs != null && { start: e.startMs }), ...(e.endMs != null && { end: e.endMs }) };
+      speechAt.set(e.id, at);
+      const key = byInput.get(e.id);
+      if (key) timeTurn(turnFor(key), { startMs: at.start, endMs: at.end });
       break;
+    }
     case "progress":
       if (e.text === "done") fileProgress.value = null;
       else {
@@ -308,13 +349,22 @@ export function exportTxt(rows: Line[] = lines.value): string {
   return rows.map((l) => (l.source ? `${l.source}\n${l.target}` : l.target)).join("\n\n");
 }
 
-/** SRT timings are derived from arrival time — good enough to follow along, not frame-accurate. */
+/**
+ * SRT timings are the line's place in the input audio — exact where the server reports it,
+ * otherwise when its text arrived on the audio's clock (late by the model's latency). History
+ * written before that was recorded falls back to wall-clock arrival, counted from the first line.
+ */
 export function exportSrt(rows: Line[] = lines.value): string {
+  const timed = rows.length > 0 && rows.every((l) => l.start != null);
   const t0 = rows[0]?.at ?? Date.now();
+  const startOf = (l: Line) => (timed ? l.start! : l.at - t0);
   return rows
     .map((l, i) => {
-      const start = l.at - t0;
-      const end = (rows[i + 1]?.at ?? l.at + 3000) - t0;
+      const start = startOf(l);
+      const next = rows[i + 1] ? startOf(rows[i + 1]) : undefined;
+      // Never past the next line's start, never shorter than a glance.
+      const wanted = timed && l.end != null ? l.end : (next ?? start + 3000);
+      const end = Math.max(start + 1000, next != null ? Math.min(wanted, next) : wanted);
       const body = l.source ? `${l.source}\n${l.target}` : l.target;
       return `${i + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${body}\n`;
     })

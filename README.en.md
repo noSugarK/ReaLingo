@@ -62,7 +62,10 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
   overlay on/off, subtitle content, click-through and quit.
   Windows 11 hides new tray icons under `^` by default — drag it onto the taskbar to pin it
 - **Interface in Chinese or English**, light / dark / follow system
-- Export transcripts as TXT or SRT
+- Export transcripts as TXT or SRT. SRT timings are each sentence's **place in the audio**, counted
+  from its start, so the file lines up with the original video: Qwen3.5 and Doubao use the
+  server's own start/end times, OpenAI its `elapsed_ms`, and Gemini, which gives none, how much
+  audio had been sent when the text arrived (late by the model's latency)
 - **History**: off by default. Flip the switch above the stream and the run is saved to its
   own file; browse, search, export and delete past runs from the History panel. One JSONL
   file per run under `app-data/history/`, appended as you go

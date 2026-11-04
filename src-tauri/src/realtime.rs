@@ -10,7 +10,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
@@ -55,6 +55,15 @@ pub struct Event {
     /// the normal order — gets attached to whatever turn happens to be open.
     pub id: String,
     pub done: bool,
+    /// Where this speech sits in the input audio, ms from its start, when the server says.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_ms: Option<u64>,
+    /// How much audio had been sent when this arrived — the fallback timeline for servers
+    /// that give no timing. Late by the model's latency, but on the audio's clock.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub at_ms: Option<u64>,
 }
 
 pub fn emit(app: &AppHandle, ev: Event) {
@@ -110,13 +119,16 @@ async fn connect_and_pump(
 
     // Uplink: PCM chunks -> base64 -> the protocol's audio frame, until the user stops or
     // the source runs out (a file at EOF drops its sender).
-    let (stop_up, ready_up, wire) = (stop.clone(), ready.clone(), settings.clone());
+    // Samples sent so far: the audio clock behind `Event::at_ms`.
+    let sent = Arc::new(AtomicU64::new(0));
+    let (stop_up, ready_up, wire, sent_up) = (stop.clone(), ready.clone(), settings.clone(), sent.clone());
     let uplink = tokio::spawn(async move {
         ready_up.notified().await;
         while let Some(chunk) = audio_rx.recv().await {
             if stop_up.load(Ordering::Relaxed) {
                 break;
             }
+            sent_up.fetch_add(chunk.len() as u64, Ordering::Relaxed);
             let mut bytes = Vec::with_capacity(chunk.len() * 2);
             for s in &chunk {
                 bytes.extend_from_slice(&s.to_le_bytes());
@@ -194,9 +206,13 @@ async fn connect_and_pump(
         if let Some(reason) = rejection(&value) {
             return Err(anyhow!(reason));
         }
-        for ev in text_stream.next(&value) {
+        let now_ms = sent.load(Ordering::Relaxed) * 1000 / settings.sample_rate() as u64;
+        for mut ev in text_stream.next(&value) {
             if !ev.text.is_empty() {
                 heard = Instant::now();
+            }
+            if matches!(ev.kind, "source" | "target") {
+                ev.at_ms = Some(now_ms);
             }
             emit(app, ev);
         }
@@ -272,6 +288,8 @@ struct TextStream {
     open: bool,
     source: String,
     target: String,
+    /// OpenAI: the open turn's first and last `elapsed_ms` on the input transcript.
+    span: (Option<u64>, Option<u64>),
 }
 
 /// Past this many characters a translation with no sentence end is cut anyway, so a speaker
@@ -294,6 +312,9 @@ impl TextStream {
         match v.get("type").and_then(Value::as_str) {
             Some(ty @ ("session.input_transcript.delta" | "session.output_transcript.delta")) => {
                 let delta = v.get("delta").and_then(Value::as_str).unwrap_or_default();
+                if let (Some(ms), "session.input_transcript.delta") = (v.get("elapsed_ms").and_then(Value::as_u64), ty) {
+                    self.span = (self.span.0.or(Some(ms)), Some(ms));
+                }
                 self.continuous(ty == "session.output_transcript.delta", delta)
             }
             _ => self.itemised(v).into_iter().collect(),
@@ -305,7 +326,7 @@ impl TextStream {
     /// sentence end in the translation closes the turn, and the transcript is cut at its own
     /// last sentence end with the rest carried into the next turn.
     // ponytail: punctuation pairing, so a row's source and translation can be a clause apart;
-    // align on `elapsed_ms` if that turns out to matter.
+    // `elapsed_ms` only times the rows (see `span`); pair on it too if that turns out to matter.
     fn continuous(&mut self, is_target: bool, delta: &str) -> Vec<Event> {
         let mut out = Vec::new();
         if is_target { &mut self.target } else { &mut self.source }.push_str(delta);
@@ -317,6 +338,8 @@ impl TextStream {
                 let source_cut = last_sentence_end(&self.source).unwrap_or(self.source.len());
                 let source_rest = self.source.split_off(source_cut);
                 self.emit_turn(&mut out, true);
+                // What is carried over started no later than where this turn stopped.
+                self.span = (if source_rest.trim().is_empty() { None } else { self.span.1 }, None);
                 self.target = target_rest.trim_start().to_string();
                 self.source = source_rest.trim_start().to_string();
                 self.turn += 1;
@@ -340,7 +363,8 @@ impl TextStream {
         }
         // Deltas carry their own leading space (" Welcome"), which is noise at a row's start.
         for (kind, text) in [("target", &self.target), ("source", &self.source)] {
-            out.push(Event { kind, id: id.clone(), text: text.trim_start().to_string(), done, ..Default::default() });
+            let (start_ms, end_ms) = if kind == "source" { self.span } else { (None, None) };
+            out.push(Event { kind, id: id.clone(), text: text.trim_start().to_string(), done, start_ms, end_ms, ..Default::default() });
         }
     }
 
@@ -408,7 +432,7 @@ fn classify(v: &Value) -> Option<Event> {
             stash: field("stash"),
             lang: field("language"),
             id: field("item_id"),
-            done: false,
+            ..Default::default()
         },
         "conversation.item.input_audio_transcription.completed" => Event {
             kind: "source",
@@ -434,8 +458,22 @@ fn classify(v: &Value) -> Option<Event> {
             done: true,
             ..Default::default()
         },
-        "input_audio_buffer.speech_started" => Event { kind: "speech", text: "start".into(), ..Default::default() },
-        "input_audio_buffer.speech_stopped" => Event { kind: "speech", text: "stop".into(), ..Default::default() },
+        // Carry the input item and the audio offset, so the turn gets its real place on the
+        // timeline rather than when its text happened to arrive.
+        "input_audio_buffer.speech_started" => Event {
+            kind: "speech",
+            text: "start".into(),
+            id: field("item_id"),
+            start_ms: v.get("audio_start_ms").and_then(Value::as_u64),
+            ..Default::default()
+        },
+        "input_audio_buffer.speech_stopped" => Event {
+            kind: "speech",
+            text: "stop".into(),
+            id: field("item_id"),
+            end_ms: v.get("audio_end_ms").and_then(Value::as_u64),
+            ..Default::default()
+        },
         "session.created" | "session.updated" => Event { kind: "status", text: "connected".into(), ..Default::default() },
         "session.finished" | "session.closed" => Event { kind: "status", text: "closed".into(), ..Default::default() },
         // A server `error` frame (e.g. "previous turn is still processing") does not end
@@ -689,6 +727,31 @@ mod tests {
         // Typed frames, including the recoverable `error` event, are not rejections.
         assert!(rejection(&json!({ "type": "error", "error": { "message": "busy" } })).is_none());
         assert!(rejection(&json!({ "type": "session.created" })).is_none());
+    }
+
+    #[test]
+    fn speech_events_carry_their_item_and_audio_offset() {
+        let start = classify(&json!({ "type": "input_audio_buffer.speech_started", "item_id": "in1", "audio_start_ms": 1200 })).unwrap();
+        assert_eq!((start.id.as_str(), start.start_ms, start.end_ms), ("in1", Some(1200), None));
+        let stop = classify(&json!({ "type": "input_audio_buffer.speech_stopped", "item_id": "in1", "audio_end_ms": 3400 })).unwrap();
+        assert_eq!((stop.text.as_str(), stop.end_ms), ("stop", Some(3400)));
+    }
+
+    #[test]
+    fn openai_turns_are_timed_by_the_transcripts_elapsed_ms() {
+        let mut st = TextStream::default();
+        let at = |st: &mut TextStream, ty: &str, delta: &str, ms: u64| {
+            st.next(&json!({ "type": format!("session.{ty}_transcript.delta"), "delta": delta, "elapsed_ms": ms }))
+        };
+        at(&mut st, "input", "Good morning.", 400);
+        at(&mut st, "input", " Welcome", 1200);
+        let evs = at(&mut st, "output", "早上好。", 1400);
+        let src = evs.iter().find(|e| e.kind == "source" && e.done).unwrap();
+        assert_eq!((src.start_ms, src.end_ms), (Some(400), Some(1200)));
+        // The carried-over "Welcome" opens the next turn where this one stopped.
+        let next = at(&mut st, "input", " to", 1600);
+        let src = next.iter().find(|e| e.kind == "source").unwrap();
+        assert_eq!((src.start_ms, src.end_ms), (Some(1200), Some(1600)));
     }
 
     #[test]
