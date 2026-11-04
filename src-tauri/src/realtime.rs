@@ -16,13 +16,10 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::handshake::client::Request;
-use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::config::{with_param, Protocol, Settings};
+use crate::config::Settings;
 use crate::player::Player;
 use crate::resample::chunk_samples;
 
@@ -101,7 +98,7 @@ async fn connect_and_pump(
         return Err(anyhow!("API key is empty"));
     }
 
-    let (ws, _) = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async(client_request(settings)?))
+    let (ws, _) = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async(settings.client_request()?))
         .await
         .map_err(|_| anyhow!("connection timed out after 15s"))?
         .map_err(|e| anyhow!("connect failed: {e}"))?;
@@ -110,7 +107,7 @@ async fn connect_and_pump(
     let mut text_stream = TextStream::default();
     // Volc names every frame with a session id of our choosing.
     let session = format!("realingo-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos());
-    write.send(setup_message(settings, &session)).await?;
+    write.send(settings.setup_message(&session)).await?;
     note(app, "status", "connected");
 
     // Released at once, except for Gemini, which drops audio sent before `setupComplete`.
@@ -135,7 +132,7 @@ async fn connect_and_pump(
             for s in &chunk {
                 bytes.extend_from_slice(&s.to_le_bytes());
             }
-            if write.send(audio_message(&wire, &sid, bytes)).await.is_err() {
+            if write.send(wire.audio_message(&sid, bytes)).await.is_err() {
                 return None;
             }
         }
@@ -145,12 +142,12 @@ async fn connect_and_pump(
         // the file decoder rather than dumped at once.
         let chunk = chunk_samples(wire.sample_rate());
         for _ in 0..wire.flush_silence() / chunk {
-            if write.send(audio_message(&wire, &sid, vec![0u8; chunk * 2])).await.is_err() {
+            if write.send(wire.audio_message(&sid, vec![0u8; chunk * 2])).await.is_err() {
                 return None;
             }
             tokio::time::sleep(Duration::from_millis(80)).await;
         }
-        let _ = write.send(finish_message(&wire, &sid)).await;
+        let _ = write.send(wire.finish_message(&sid)).await;
         // Not closed here: a close frame makes the server hang up before the last sentence
         // is out. The reader closes it once `is_finished` says everything has arrived.
         Some(write)
@@ -175,17 +172,16 @@ async fn connect_and_pump(
             Ok(None) => break,
             Ok(Some(m)) => m,
         };
-        let payload = match msg {
-            Ok(Message::Text(text)) => text.as_str().to_owned(),
-            // Volc speaks protobuf; decoded straight to JSON so it shares the path below.
-            Ok(Message::Binary(bytes)) if settings.protocol == Protocol::Volc => match crate::volc::decode(&bytes) {
-                Some(v) => v.to_string(),
-                None => continue,
-            },
-            // Gemini sends its JSON in binary frames.
-            Ok(Message::Binary(bytes)) => match String::from_utf8(bytes.to_vec()) {
-                Ok(text) => text,
+        let mut value = match msg {
+            Ok(Message::Text(text)) => match serde_json::from_str::<Value>(text.as_str()) {
+                Ok(v) => v,
                 Err(_) => continue,
+            },
+            // Gemini sends its JSON in binary frames; Volc speaks protobuf. Either way it comes
+            // out as JSON, so everything below is the same for every protocol.
+            Ok(Message::Binary(bytes)) => match settings.decode_binary(&bytes) {
+                Some(v) => v,
+                None => continue,
             },
             // Gemini reports a bad key or setup by closing with a reason, not with a frame.
             Ok(Message::Close(Some(frame))) if frame.code != CloseCode::Normal && !frame.reason.is_empty() => {
@@ -195,7 +191,6 @@ async fn connect_and_pump(
             Ok(_) => continue,
             Err(e) => return Err(anyhow!("socket error: {e}")),
         };
-        let Ok(mut value) = serde_json::from_str::<Value>(&payload) else { continue };
         if settings.is_ready(&value) {
             ready.notify_one();
         }
@@ -233,51 +228,6 @@ async fn connect_and_pump(
         let _ = write.close().await;
     }
     Ok(())
-}
-
-/// The session's configuration, first frame on the socket.
-pub fn setup_message(settings: &Settings, session: &str) -> Message {
-    match settings.protocol {
-        Protocol::Volc => Message::Binary(crate::volc::start(settings, session).into()),
-        _ => Message::Text(settings.session_update().to_string().into()),
-    }
-}
-
-/// One chunk of PCM16 little-endian, framed for the protocol.
-pub fn audio_message(settings: &Settings, session: &str, pcm: Vec<u8>) -> Message {
-    match settings.protocol {
-        Protocol::Volc => Message::Binary(crate::volc::audio(session, pcm).into()),
-        _ => Message::Text(settings.audio_frame(BASE64_STANDARD.encode(&pcm)).to_string().into()),
-    }
-}
-
-pub fn finish_message(settings: &Settings, session: &str) -> Message {
-    match settings.protocol {
-        Protocol::Volc => Message::Binary(crate::volc::finish(session).into()),
-        _ => Message::Text(settings.finish_frame().to_string().into()),
-    }
-}
-
-/// The handshake request, with the key where the protocol expects it. Public so the probe
-/// example dials exactly what the app does.
-pub fn client_request(settings: &Settings) -> Result<Request> {
-    let key = settings.key().trim();
-    if settings.protocol == Protocol::Volc {
-        // The new console's API key; the resource id names the AST service.
-        let mut request = settings.ws_url().into_client_request()?;
-        let headers = request.headers_mut();
-        headers.insert("X-Api-Key", HeaderValue::from_str(key)?);
-        headers.insert("X-Api-Resource-Id", HeaderValue::from_static(crate::volc::RESOURCE_ID));
-        return Ok(request);
-    }
-    if settings.protocol == Protocol::Gemini {
-        // The Live API takes the key as a query parameter. Added here, never in `ws_url`,
-        // which the Settings sheet displays; a custom URL that already carries one keeps it.
-        return Ok(with_param(&settings.ws_url(), "key", key).into_client_request()?);
-    }
-    let mut request = settings.ws_url().into_client_request()?;
-    request.headers_mut().insert("Authorization", HeaderValue::from_str(&format!("Bearer {key}"))?);
-    Ok(request)
 }
 
 /// DashScope refuses a session (unknown model, bad parameter) with a bare
@@ -812,19 +762,6 @@ mod tests {
         assert!(take_audio(&mut json!({ "setupComplete": {} })).is_none());
     }
 
-    #[test]
-    fn gemini_puts_the_key_in_the_url_and_the_others_in_a_header() {
-        let mut s: Settings = serde_json::from_value(json!({ "protocol": "gemini", "geminiKey": "AIza-test" })).unwrap();
-        let req = client_request(&s).unwrap();
-        assert!(req.uri().to_string().ends_with("BidiGenerateContent?key=AIza-test"));
-        assert!(req.headers().get("Authorization").is_none());
-
-        s.protocol = Protocol::Openai;
-        s.openai_key = "sk-test".into();
-        let req = client_request(&s).unwrap();
-        assert_eq!(req.headers()["Authorization"], "Bearer sk-test");
-        assert!(!req.uri().to_string().contains("key="));
-    }
 
     /// Captured from a Tokyo workspace, which has no LiveTranslate models.
     #[test]

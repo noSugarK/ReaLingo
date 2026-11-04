@@ -11,7 +11,7 @@
 //!   set PROBE_PROTOCOL=qwen38            (qwen35 | qwen38 | openai | gemini | volc; default follows the key)
 
 use realingo_lib::config::{Protocol, Settings};
-use realingo_lib::{decode, realtime};
+use realingo_lib::decode;
 
 use futures_util::{SinkExt, StreamExt};
 use std::sync::atomic::AtomicBool;
@@ -55,29 +55,29 @@ async fn main() -> anyhow::Result<()> {
 
     // The URL as Settings shows it: for Gemini that is without the key.
     println!("→ {}", settings.ws_url());
-    let (ws, response) = tokio_tungstenite::connect_async(realtime::client_request(&settings)?).await?;
+    let (ws, response) = tokio_tungstenite::connect_async(settings.client_request()?).await?;
     println!("← handshake {}", response.status());
 
     let (mut write, mut read) = ws.split();
     let session = "probe-session".to_string();
-    let setup = realtime::setup_message(&settings, &session);
+    let setup = settings.setup_message(&session);
     println!("→ {setup:?}");
     write.send(setup).await?;
 
     let idle = std::time::Duration::from_secs(20);
-    // Gemini text arrives in binary frames; print both kinds the same way. Volc's are
-    // protobuf, decoded to the JSON the app reads, with TTS audio cut down to its size.
-    let volc = settings.protocol == Protocol::Volc;
-    let text = move |msg: &Message| match msg {
-        Message::Text(t) => Some(t.to_string()),
-        Message::Binary(b) if volc => realingo_lib::volc::decode(b).map(|mut v| {
-            if let Some(n) = v.get("data").and_then(|d| d.as_str()).map(str::len) {
-                v["data"] = format!("<{n} b64 chars>").into();
-            }
-            v.to_string()
-        }),
-        Message::Binary(b) => String::from_utf8(b.to_vec()).ok(),
-        _ => None,
+    // Every frame as the JSON the app reads (Gemini sends JSON in binary frames, Volc
+    // protobuf), with Volc's TTS audio cut down to its size: base64 is no use on screen.
+    let reader = settings.clone();
+    let as_json = move |msg: &Message| -> Option<serde_json::Value> {
+        let mut v = match msg {
+            Message::Text(t) => serde_json::from_str(t.as_str()).ok()?,
+            Message::Binary(b) => reader.decode_binary(b)?,
+            _ => return None,
+        };
+        if let Some(n) = v.get("data").and_then(|d| d.as_str()).map(str::len) {
+            v["data"] = format!("<{n} b64 chars>").into();
+        }
+        Some(v)
     };
     if settings.waits_for_setup() {
         while let Ok(Some(Ok(msg))) = tokio::time::timeout(idle, read.next()).await {
@@ -85,9 +85,9 @@ async fn main() -> anyhow::Result<()> {
                 println!("← close {c:?}");
                 return Ok(());
             }
-            let Some(t) = text(&msg) else { continue };
-            println!("← {t}");
-            if t.contains("setupComplete") || t.contains("SessionStarted") {
+            let Some(v) = as_json(&msg) else { continue };
+            println!("← {v}");
+            if settings.is_ready(&v) {
                 break;
             }
         }
@@ -111,13 +111,13 @@ async fn main() -> anyhow::Result<()> {
             for s in &chunk {
                 bytes.extend_from_slice(&s.to_le_bytes());
             }
-            if write.send(realtime::audio_message(&wire, &sid, bytes)).await.is_err() {
+            if write.send(wire.audio_message(&sid, bytes)).await.is_err() {
                 return;
             }
             chunks += 1;
         }
         eprintln!("[uplink] sent {chunks} chunks ({}s of audio)", chunks / 10);
-        let _ = write.send(realtime::finish_message(&wire, &sid)).await;
+        let _ = write.send(wire.finish_message(&sid)).await;
     });
 
     while let Ok(Some(Ok(msg))) = tokio::time::timeout(idle, read.next()).await {
@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
             println!("← close {c:?}");
             break;
         }
-        if let Some(t) = text(&msg) {
+        if let Some(t) = as_json(&msg) {
             println!("← {t}");
         }
     }
