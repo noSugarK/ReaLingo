@@ -2,7 +2,7 @@
   <img src="brand/banner.png" width="380" alt="ReaLingo" />
 </p>
 
-<p align="center"><b>Realtime speech translation</b> — a desktop simultaneous interpreter for Alibaba Cloud Qwen, OpenAI and Google Gemini</p>
+<p align="center"><b>Realtime speech translation</b> — a desktop simultaneous interpreter for Alibaba Cloud Qwen, OpenAI, Google Gemini and Volcengine Doubao</p>
 
 <p align="center">
   <a href="https://github.com/noSugarK/ReaLingo/actions/workflows/build.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/noSugarK/ReaLingo/build.yml?style=flat-square&label=build" /></a>
@@ -39,14 +39,19 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 
 - **Three audio sources**: microphone / system audio / a local audio file
   (Windows, macOS and Ubuntu can all capture system audio directly)
-- **Four APIs to choose from**: Alibaba Cloud Model Studio Qwen3.5 / Qwen3 (60 / 18 languages), Qwen3.8
-  (60), OpenAI `gpt-realtime-translate` (13 output languages) and Google Gemini Live Translate (54).
-  Model and endpoint are both editable, so any service speaking the same API (a proxy, a private
-  deployment) works too; each vendor's API key is stored separately
-- **Automatic source-language detection** (Qwen3.5 also lets you pick the source)
+- **Five APIs to choose from**: Alibaba Cloud Model Studio Qwen3.8 (60 languages, default), Qwen3.5 /
+  Qwen3 (60 / 18), OpenAI `gpt-realtime-translate` (13 output languages), Google Gemini Live Translate
+  (54) and Volcengine Doubao Simultaneous Interpretation 2.0 (20; one side of every pair must be
+  Chinese or English). Model and endpoint are both editable, so any service speaking the same API (a
+  proxy, a private deployment) works too; each vendor's API key is stored separately
+- **Automatic source-language detection** (Qwen3.5 also lets you pick the source; Doubao requires it)
+- **Chinese ⇄ English**: with Doubao, switch the language card to two-way — speak Chinese and get
+  English, speak English and get Chinese, in the same session; a dot marks the side being spoken
 - **Read the translation aloud**: switch it on in the language card; the model synthesizes the speech itself,
   no separate TTS. Qwen offers 47 voices and speaks 29 target languages (for the rest the switch is greyed
-  out); OpenAI and Gemini speak every target language they offer, in a voice they choose themselves.
+  out); OpenAI and Gemini speak every target language they offer, in a voice they choose themselves;
+  Doubao speaks 8 target languages, cloning the speaker's own voice by default, with 2 preset
+  voices on offer when the target is Chinese or English.
   When capturing system audio, Windows and macOS leave ReaLingo's own speech out
   of the capture so it is not recorded and translated again (see Platform support); with a microphone,
   speech from your speakers will be picked up, so use headphones
@@ -81,13 +86,13 @@ Settings come in three groups — Connection, Translation, Advanced:
 
 | Setting | Notes |
 |---|---|
-| API | Which message format to speak: **Qwen3.5 / 3**, **Qwen3.8** (Alibaba Cloud Model Studio), **OpenAI**, **Gemini Live Translate** (Google). Both Qwen APIs share the Model Studio key. Switching remembers each API's model and each vendor's custom URL |
-| API Key | One per vendor, kept in the OS credential store — see below. Get one from the [Model Studio console](https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key) (the link follows the region), [OpenAI](https://platform.openai.com/api-keys) or [Google AI Studio](https://aistudio.google.com/apikey); the settings page links to each |
-| Model | Pick a preset or "Custom…" for any model ID. Presets: Qwen3.5 (60 languages, default), Qwen3 (18), Qwen3.8 (60), `gpt-realtime-translate` (13 output languages), `gemini-3.5-live-translate-preview` (54). The language pickers list only what the current model supports, and a language it cannot handle falls back automatically |
+| API | Which message format to speak: **Qwen3.5 / 3**, **Qwen3.8** (Alibaba Cloud Model Studio), **OpenAI**, **Gemini Live Translate** (Google), **Doubao Simultaneous Interpretation** (Volcengine). Both Qwen APIs share the Model Studio key. Switching remembers each API's model and each vendor's custom URL |
+| API Key | One per vendor, kept in the OS credential store — see below. Get one from the [Model Studio console](https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key) (the link follows the region), [OpenAI](https://platform.openai.com/api-keys), [Google AI Studio](https://aistudio.google.com/apikey) or the [Doubao Speech console](https://console.volcengine.com/speech/new/setting/apikeys); the settings page links to each. A Doubao key only works once simultaneous interpretation is switched on under [Activation](https://console.volcengine.com/speech/new/setting/activate) |
+| Model | Pick a preset or "Custom…" for any model ID. Presets: Qwen3.8 (60 languages, default), Qwen3.5 (60), Qwen3 (18), `gpt-realtime-translate` (13 output languages), `gemini-3.5-live-translate-preview` (54), Doubao Simultaneous Interpretation 2.0 (20; the endpoint takes no model name, so this is display only). The language pickers list only what the current model supports, and a language it cannot handle falls back automatically |
 | Region | Qwen only. China (Beijing) / Singapore — the only regions serving the LiveTranslate models today |
 | Workspace ID | Qwen only, **optional.** Leave blank for the shared endpoint `dashscope[-intl].aliyuncs.com`; filling it in uses your workspace's dedicated domain `{id}.{region}.maas.aliyuncs.com`. Beijing IDs look like `llm-…`, Singapore ones like `ws-…` |
 | Hotwords | Qwen only, **optional.** One `source=translation` per line, so proper nouns come out the way you want them (`人工智能=Artificial Intelligence`). Up to 1000; sent with the session, so edits apply the next time you start |
-| Custom URL | Under Advanced, **optional.** Blank uses the API's default endpoint; otherwise it is dialled as typed — Qwen / OpenAI get `model=` added if missing, Gemini's is used as-is (its model goes in the session setup) |
+| Custom URL | Under Advanced, **optional.** Blank uses the API's default endpoint; otherwise it is dialled as typed — Qwen / OpenAI get `model=` added if missing, Gemini's and Doubao's are used as-is (the model goes in the session setup / is not needed) |
 
 Advanced also shows the exact WebSocket endpoint it will dial, live (never with a Gemini key in it).
 
@@ -308,7 +313,13 @@ audio file ──┘   (cpal / symphonia)                                       
 - **Per-API differences** live in `src-tauri/src/config.rs`: uplink sample rate (OpenAI 24 kHz, the
   rest 16 kHz), the audio and end-of-input frames, the session setup, and what counts as done.
   Gemini takes its key as a URL parameter, added only at connect time and never shown in Settings.
-- **Pairing subtitles**: Qwen pairs source and translation by the server's turn ids; OpenAI and
+- **Doubao speaks protobuf**: Volcengine's interpretation endpoint uses binary frames. The messages
+  are hand-written in `src-tauri/src/volc.rs` from the official `.proto` with `prost` derives (no
+  `protoc` needed) and turned into JSON on arrival, so they take the same path as every other API.
+  It authenticates with `X-Api-Key` plus a fixed `X-Api-Resource-Id`, and its 24 kHz PCM output is
+  32-bit float, converted to 16-bit as it is decoded.
+- **Pairing subtitles**: Qwen pairs source and translation by the server's turn ids; Doubao sends
+  each sentence's transcript then its translation, paired in order; OpenAI and
   Gemini send only two append-only text streams, cut into turns at sentence ends, with the source
   split at its own last sentence end and the remainder carried into the next row.
 - **Finishing a Gemini session**: it never says it is done and keeps streaming silent audio after
@@ -329,10 +340,14 @@ audio file ──┘   (cpal / symphonia)                                       
 |---|---|
 | Reading aloud while capturing system audio on Linux | A monitor source records the whole output mix, with no "everything but this app" option, so the speech would be recorded back. The way forward is capturing only the chosen app's sink-input (`parec --monitor-stream`) |
 | Video files (extracting the audio track from mp4/mkv) | Needs an ffmpeg sidecar, +40–80 MB to the installer |
-| Two-way translation (speak Chinese → English, speak English → Chinese) | See below |
+| Two-way translation on Qwen / OpenAI / Gemini | Doubao already does Chinese ⇄ English; for the others see below |
 | Automatic reconnection | You restart manually after an error — a dropped simultaneous-interpreting session is something the user should know about |
 
-## Why two-way translation is not implemented
+## Why the other APIs do not translate both ways
+
+Doubao Simultaneous Interpretation does Chinese ⇄ English natively (`zhen` as both source and
+target): one session, one audio stream. The other APIs cannot, and would need the two-lane design
+below, so for now two-way is offered on Doubao only.
 
 
 <details>
@@ -357,7 +372,7 @@ session.
 The workable design is **two lanes**: fan the same audio out to two parallel sessions (A→B and
 B→A) and take whichever one is not translating into the language being spoken. The cost is
 double the input audio tokens (7 → 14 per second) and double the output. It will be built when
-conversational two-way interpreting is actually needed.
+two-way interpreting is actually needed on these APIs.
 
 </details>
 

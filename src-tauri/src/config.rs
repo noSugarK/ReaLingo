@@ -11,6 +11,8 @@ pub const MODEL_OPENAI: &str = "gpt-realtime-translate";
 /// Without a transcription model the OpenAI session sends no source transcript at all.
 pub const OPENAI_ASR_MODEL: &str = "gpt-realtime-whisper";
 pub const MODEL_GEMINI: &str = "gemini-3.5-live-translate-preview";
+/// Display only: the AST endpoint takes no model name.
+pub const MODEL_VOLC: &str = "doubao-ast-2.0";
 const GEMINI_URL: &str =
     "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 /// The service's own default; any name from the Model Studio voice list works.
@@ -59,6 +61,8 @@ pub enum Protocol {
     Openai,
     /// Google's Gemini Live API (`BidiGenerateContent`) with a `translationConfig`.
     Gemini,
+    /// Volcengine Doubao simultaneous interpretation: protobuf frames, see `volc.rs`.
+    Volc,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -73,6 +77,8 @@ pub struct Settings {
     pub openai_key: String,
     #[serde(default)]
     pub gemini_key: String,
+    #[serde(default)]
+    pub volc_key: String,
     /// Optional. Empty => the protocol's own endpoint; set => dialled as-is, plus `model=`
     /// unless the URL already carries one (Qwen, OpenAI — Gemini names its model in `setup`).
     #[serde(default)]
@@ -102,6 +108,9 @@ pub struct Settings {
     pub speak: bool,
     #[serde(default = "default_voice")]
     pub voice: String,
+    /// Translate both ways between the two languages. Only Volc (Chinese–English) does.
+    #[serde(default)]
+    pub two_way: bool,
 }
 
 fn auto() -> String {
@@ -138,6 +147,7 @@ impl Settings {
             Protocol::Qwen35 | Protocol::Qwen38 => &self.api_key,
             Protocol::Openai => &self.openai_key,
             Protocol::Gemini => &self.gemini_key,
+            Protocol::Volc => &self.volc_key,
         }
     }
 
@@ -146,6 +156,7 @@ impl Settings {
             Protocol::Qwen35 | Protocol::Qwen38 => &mut self.api_key,
             Protocol::Openai => &mut self.openai_key,
             Protocol::Gemini => &mut self.gemini_key,
+            Protocol::Volc => &mut self.volc_key,
         }
     }
 
@@ -155,6 +166,7 @@ impl Settings {
             ("", Protocol::Qwen38) => MODEL_QWEN3_8,
             ("", Protocol::Openai) => MODEL_OPENAI,
             ("", Protocol::Gemini) => MODEL_GEMINI,
+            ("", Protocol::Volc) => MODEL_VOLC,
             (m, _) => m,
         }
     }
@@ -163,7 +175,7 @@ impl Settings {
     pub fn sample_rate(&self) -> u32 {
         match self.protocol {
             Protocol::Openai => 24_000,
-            Protocol::Qwen35 | Protocol::Qwen38 | Protocol::Gemini => 16_000,
+            Protocol::Qwen35 | Protocol::Qwen38 | Protocol::Gemini | Protocol::Volc => 16_000,
         }
     }
 
@@ -175,6 +187,8 @@ impl Settings {
             Protocol::Gemini => serde_json::json!({
                 "realtimeInput": { "audio": { "data": b64, "mimeType": format!("audio/pcm;rate={}", self.sample_rate()) } }
             }),
+            // Protobuf, not JSON: see `realtime::audio_message`.
+            Protocol::Volc => serde_json::Value::Null,
         }
     }
 
@@ -184,6 +198,7 @@ impl Settings {
             Protocol::Qwen35 | Protocol::Qwen38 => serde_json::json!({ "type": "session.finish" }),
             Protocol::Openai => serde_json::json!({ "type": "session.close" }),
             Protocol::Gemini => serde_json::json!({ "realtimeInput": { "audioStreamEnd": true } }),
+            Protocol::Volc => serde_json::Value::Null,
         }
     }
 
@@ -194,6 +209,7 @@ impl Settings {
             Protocol::Qwen35 | Protocol::Qwen38 => ty == Some("session.finished"),
             Protocol::Openai => ty == Some("session.closed"),
             Protocol::Gemini => false,
+            Protocol::Volc => v.get("volc").and_then(serde_json::Value::as_str) == Some("SessionFinished"),
         }
     }
 
@@ -216,7 +232,12 @@ impl Settings {
 
     /// Gemini wants its `setup` acknowledged before any audio; the others take it at once.
     pub fn waits_for_setup(&self) -> bool {
-        self.protocol == Protocol::Gemini
+        matches!(self.protocol, Protocol::Gemini | Protocol::Volc)
+    }
+
+    /// The frame that releases audio for a protocol that `waits_for_setup`.
+    pub fn is_ready(&self, v: &serde_json::Value) -> bool {
+        v.get("setupComplete").is_some() || v.get("volc").and_then(serde_json::Value::as_str) == Some("SessionStarted")
     }
 
     /// Target language as the service spells it: Gemini wants a script or regional variant
@@ -234,7 +255,7 @@ impl Settings {
         let custom = self.url.trim();
         if !custom.is_empty() {
             return match self.protocol {
-                Protocol::Gemini => custom.to_string(),
+                Protocol::Gemini | Protocol::Volc => custom.to_string(),
                 _ => with_param(custom, "model", model),
             };
         }
@@ -242,6 +263,7 @@ impl Settings {
             Protocol::Openai => return format!("wss://api.openai.com/v1/realtime/translations?model={model}"),
             // Without the key: it goes on at connect time, because Settings displays this.
             Protocol::Gemini => return GEMINI_URL.into(),
+            Protocol::Volc => return crate::volc::URL.into(),
             Protocol::Qwen35 | Protocol::Qwen38 => {}
         }
         let ws = self.workspace_id.trim();
@@ -362,6 +384,7 @@ mod tests {
             api_key: "k".into(),
             openai_key: "o".into(),
             gemini_key: "g".into(),
+            volc_key: "v".into(),
             url: String::new(),
             workspace_id: workspace_id.into(),
             region,
@@ -371,6 +394,7 @@ mod tests {
             hotwords: BTreeMap::new(),
             speak: false,
             voice: VOICE.into(),
+            two_way: false,
         }
     }
 

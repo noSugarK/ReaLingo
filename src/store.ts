@@ -54,19 +54,20 @@ export interface SubtitleStyle {
  * The message format, which follows the protocol rather than the vendor: Qwen3.8 speaks a
  * different schema from Qwen3/3.5. Model and URL are free-form on top of it.
  */
-export type Protocol = "qwen35" | "qwen38" | "openai" | "gemini";
+export type Protocol = "qwen35" | "qwen38" | "openai" | "gemini" | "volc";
 
 /** Where each vendor's key lives. A key belongs to the account, not the protocol. */
-const KEY_FIELD = { qwen: "apiKey", openai: "openaiKey", gemini: "geminiKey" } as const;
+const KEY_FIELD = { qwen: "apiKey", openai: "openaiKey", gemini: "geminiKey", volc: "volcKey" } as const;
 const keyField = (p: Protocol) => KEY_FIELD[PROTOCOLS[p].vendor];
 /** One protocol per credential-store slot, for the loops that visit every key once. */
-const KEY_SLOTS = ["qwen35", "openai", "gemini"] as const;
+const KEY_SLOTS = ["qwen35", "openai", "gemini", "volc"] as const;
 
 export interface Settings {
   protocol: Protocol;
   apiKey: string;
   openaiKey: string;
   geminiKey: string;
+  volcKey: string;
   /** Empty: the protocol's default endpoint. */
   url: string;
   /** What each protocol / vendor was last set to, restored when switching back to it. */
@@ -84,6 +85,8 @@ export interface Settings {
   /** Read the translation aloud. Only takes effect where `canSpeak` allows it. */
   speak: boolean;
   voice: string;
+  /** Chinese<->English both ways in one session, where the protocol can (`twoWay`). */
+  twoWay: boolean;
   theme: Theme;
   sub: SubtitleStyle;
   stream: StreamStyle;
@@ -94,6 +97,7 @@ export const settings = reactive<Settings>({
   apiKey: "",
   openaiKey: "",
   geminiKey: "",
+  volcKey: "",
   url: "",
   savedModels: {},
   savedUrls: {},
@@ -106,6 +110,7 @@ export const settings = reactive<Settings>({
   hotwords: {},
   speak: false,
   voice: "Tina",
+  twoWay: false,
   theme: "system",
   sub: {
     show: false,

@@ -7,12 +7,12 @@
 //!   set DASHSCOPE_WORKSPACE_ID=llm-...   (optional dedicated endpoint)
 //!   set OPENAI_API_KEY=sk-...            (instead: probe OpenAI gpt-realtime-translate)
 //!   set GEMINI_API_KEY=AIza...           (instead: probe Gemini Live Translate)
-//!   set PROBE_PROTOCOL=qwen38            (qwen35 | qwen38 | openai | gemini; default follows the key)
+//!   set VOLC_API_KEY=...                 (instead: probe Volcengine AST; PROBE_SOURCE=zh, PROBE_TWO_WAY=1)
+//!   set PROBE_PROTOCOL=qwen38            (qwen35 | qwen38 | openai | gemini | volc; default follows the key)
 
 use realingo_lib::config::{Protocol, Settings};
 use realingo_lib::{decode, realtime};
 
-use base64::prelude::{Engine, BASE64_STANDARD};
 use futures_util::{SinkExt, StreamExt};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -28,9 +28,11 @@ async fn main() -> anyhow::Result<()> {
     settings.api_key = env("DASHSCOPE_API_KEY");
     settings.openai_key = env("OPENAI_API_KEY");
     settings.gemini_key = env("GEMINI_API_KEY");
+    settings.volc_key = env("VOLC_API_KEY");
     settings.protocol = match env("PROBE_PROTOCOL") {
         // The same names the app stores, parsed by the same serde derive.
         name if !name.is_empty() => serde_json::from_value(serde_json::json!(name))?,
+        _ if !settings.volc_key.is_empty() => Protocol::Volc,
         _ if !settings.gemini_key.is_empty() => Protocol::Gemini,
         _ if !settings.openai_key.is_empty() => Protocol::Openai,
         _ => Protocol::Qwen35,
@@ -39,6 +41,10 @@ async fn main() -> anyhow::Result<()> {
     settings.url = env("PROBE_URL");
     settings.workspace_id = env("DASHSCOPE_WORKSPACE_ID");
     settings.target_lang = std::env::args().nth(2).unwrap_or_else(|| "zh".into());
+    if let Ok(source) = std::env::var("PROBE_SOURCE") {
+        settings.source_lang = source;
+    }
+    settings.two_way = std::env::var_os("PROBE_TWO_WAY").is_some();
     // Empty falls back to the protocol's default model.
     settings.model = std::env::args().nth(3).unwrap_or_default();
     // set PROBE_SPEAK=1 to see the audio-modality frames too.
@@ -53,14 +59,23 @@ async fn main() -> anyhow::Result<()> {
     println!("← handshake {}", response.status());
 
     let (mut write, mut read) = ws.split();
-    let update = settings.session_update();
-    println!("→ {update}");
-    write.send(Message::Text(update.to_string().into())).await?;
+    let session = "probe-session".to_string();
+    let setup = realtime::setup_message(&settings, &session);
+    println!("→ {setup:?}");
+    write.send(setup).await?;
 
     let idle = std::time::Duration::from_secs(20);
-    // Gemini text arrives in binary frames; print both kinds the same way.
-    let text = |msg: &Message| match msg {
+    // Gemini text arrives in binary frames; print both kinds the same way. Volc's are
+    // protobuf, decoded to the JSON the app reads, with TTS audio cut down to its size.
+    let volc = settings.protocol == Protocol::Volc;
+    let text = move |msg: &Message| match msg {
         Message::Text(t) => Some(t.to_string()),
+        Message::Binary(b) if volc => realingo_lib::volc::decode(b).map(|mut v| {
+            if let Some(n) = v.get("data").and_then(|d| d.as_str()).map(str::len) {
+                v["data"] = format!("<{n} b64 chars>").into();
+            }
+            v.to_string()
+        }),
         Message::Binary(b) => String::from_utf8(b.to_vec()).ok(),
         _ => None,
     };
@@ -72,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
             }
             let Some(t) = text(&msg) else { continue };
             println!("← {t}");
-            if t.contains("setupComplete") {
+            if t.contains("setupComplete") || t.contains("SessionStarted") {
                 break;
             }
         }
@@ -88,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let wire = settings.clone();
+    let (wire, sid) = (settings.clone(), session.clone());
     let uplink = tokio::spawn(async move {
         let mut chunks = 0u32;
         while let Some(chunk) = rx.recv().await {
@@ -96,14 +111,13 @@ async fn main() -> anyhow::Result<()> {
             for s in &chunk {
                 bytes.extend_from_slice(&s.to_le_bytes());
             }
-            let frame = wire.audio_frame(BASE64_STANDARD.encode(&bytes));
-            if write.send(Message::Text(frame.to_string().into())).await.is_err() {
+            if write.send(realtime::audio_message(&wire, &sid, bytes)).await.is_err() {
                 return;
             }
             chunks += 1;
         }
         eprintln!("[uplink] sent {chunks} chunks ({}s of audio)", chunks / 10);
-        let _ = write.send(Message::Text(wire.finish_frame().to_string().into())).await;
+        let _ = write.send(realtime::finish_message(&wire, &sid)).await;
     });
 
     while let Ok(Some(Ok(msg))) = tokio::time::timeout(idle, read.next()).await {

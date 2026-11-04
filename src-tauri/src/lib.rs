@@ -6,6 +6,7 @@ mod player;
 pub mod realtime;
 pub mod pulse;
 pub mod resample;
+pub mod volc;
 mod secret;
 #[cfg(target_os = "macos")]
 mod tap;

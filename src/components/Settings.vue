@@ -89,6 +89,7 @@ const protocolOptions = computed(() => [
   { value: "qwen38", label: t("protocolQwen38"), note: t("vendorQwen") },
   { value: "openai", label: t("protocolOpenai") },
   { value: "gemini", label: t("protocolGemini"), note: "Google" },
+  { value: "volc", label: t("protocolVolc"), note: t("vendorVolc") },
 ]);
 const protocolPick = computed({
   get: () => settings.protocol as string,
@@ -103,9 +104,12 @@ const keyConsole = computed(
       qwen: consoleUrl("model/settings/api-key"),
       openai: "https://platform.openai.com/api-keys",
       gemini: "https://aistudio.google.com/apikey",
+      volc: "https://console.volcengine.com/speech/new/setting/apikeys",
     })[vendor.value]
 );
-const KEY_LABEL = { qwen: "apiKeyGet", openai: "apiKeyGetOpenai", gemini: "apiKeyGetGemini" } as const;
+const KEY_LABEL = { qwen: "apiKeyGet", openai: "apiKeyGetOpenai", gemini: "apiKeyGetGemini", volc: "apiKeyGetVolc" } as const;
+/** A Volcengine key works only once the service is switched on, on a page of its own. */
+const VOLC_ACTIVATE = "https://console.volcengine.com/speech/new/setting/activate";
 const keyConsoleLabel = computed(() => t(KEY_LABEL[vendor.value]));
 // The opener plugin, not an <a href>: a plain link navigates the app's own webview away.
 const openUrl = (url: string) => invoke("plugin:opener|open_url", { url });
@@ -142,6 +146,9 @@ const advancedOpen = !!settings.url;
           {{ keyringOk ? t("apiKeyHint") : t("apiKeyPlain") }}
           <button class="link" @click.prevent="openUrl(keyConsole)">
             {{ keyConsoleLabel }} ↗
+          </button>
+          <button v-if="vendor === 'volc'" class="link" @click.prevent="openUrl(VOLC_ACTIVATE)">
+            {{ t("volcActivate") }} ↗
           </button>
         </small>
       </label>

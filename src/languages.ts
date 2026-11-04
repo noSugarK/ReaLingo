@@ -86,9 +86,11 @@ export const MODEL_QWEN3_8 = "qwen3.8-livetranslate-flash-realtime";
 export const MODEL_QWEN3 = "qwen3-livetranslate-flash-realtime";
 export const MODEL_OPENAI = "gpt-realtime-translate";
 export const MODEL_GEMINI = "gemini-3.5-live-translate-preview";
+/** Display only: the Volcengine AST endpoint takes no model name. */
+export const MODEL_VOLC = "doubao-ast-2.0";
 
 /** Who issues the key and runs the endpoint. Protocols of one vendor share both. */
-export type Vendor = "qwen" | "openai" | "gemini";
+export type Vendor = "qwen" | "openai" | "gemini" | "volc";
 
 /**
  * Everything the UI decides per protocol, in one place: each of these used to be its own
@@ -104,13 +106,18 @@ export interface ProtocolInfo {
   speaksAll: boolean;
   /** A custom URL is dialled exactly as typed: the model goes in the setup message, not the URL. */
   urlAsIs: boolean;
+  /** The source must be named: the picker has no "auto". */
+  namedSource: boolean;
+  /** Can translate both ways between Chinese and English in one session. */
+  twoWay: boolean;
 }
 
 export const PROTOCOLS: Record<Protocol, ProtocolInfo> = {
-  qwen35: { vendor: "qwen", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: false },
-  qwen38: { vendor: "qwen", serverVoice: false, autoSource: true, speaksAll: false, urlAsIs: false },
-  openai: { vendor: "openai", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: false },
-  gemini: { vendor: "gemini", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: true },
+  qwen35: { vendor: "qwen", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false },
+  qwen38: { vendor: "qwen", serverVoice: false, autoSource: true, speaksAll: false, urlAsIs: false, namedSource: false, twoWay: false },
+  openai: { vendor: "openai", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: false, namedSource: false, twoWay: false },
+  gemini: { vendor: "gemini", serverVoice: true, autoSource: true, speaksAll: true, urlAsIs: true, namedSource: false, twoWay: false },
+  volc: { vendor: "volc", serverVoice: false, autoSource: false, speaksAll: false, urlAsIs: true, namedSource: true, twoWay: true },
 };
 
 export interface Preset {
@@ -128,6 +135,7 @@ export const PRESETS: Record<Protocol, Preset[]> = {
   qwen38: [{ id: MODEL_QWEN3_8, name: "Qwen3.8", langs: 60 }],
   openai: [{ id: MODEL_OPENAI, name: "GPT-Realtime-Translate", langs: 13 }],
   gemini: [{ id: MODEL_GEMINI, name: "Gemini 3.5 Live Translate", langs: 54 }],
+  volc: [{ id: MODEL_VOLC, name: "豆包同声传译 2.0", langs: 20 }],
 };
 
 /** Short display name: the preset's own, or the raw id for a custom model. */
@@ -145,15 +153,22 @@ const OPENAI_CODES = new Set("es pt fr ja ru zh de ko hi id vi it en".split(" ")
 /** Of this table, the ones Gemini Live Translate's 70+ language list does not include. */
 const GEMINI_MISSING = new Set("yue ast bs ceb ky tg".split(" "));
 
+/** Volcengine AST: its 20 languages, one side of every pair Chinese or English. */
+const VOLC_CODES = new Set("zh en de fr es id ja pt ko tr ms nl ro pl cs ar th vi ru it".split(" "));
+/** The ones it can also speak, cloning the speaker's voice (the presets speak zh/en). */
+const VOLC_SPEAKS = new Set("zh en de fr es id ja pt".split(" "));
+
 /** Codes the given model can actually translate into. */
 export function languageCodes(protocol: Protocol, model: string): string[] {
   const all = LANGUAGES.map((l) => l.code);
   if (protocol === "openai") return all.filter((c) => OPENAI_CODES.has(c));
   if (protocol === "gemini") return all.filter((c) => !GEMINI_MISSING.has(c));
+  if (protocol === "volc") return all.filter((c) => VOLC_CODES.has(c));
   return model === MODEL_QWEN3 ? all.filter((c) => QWEN3_CODES.has(c)) : all;
 }
 
 export function canSpeak(protocol: Protocol, code: string): boolean {
+  if (protocol === "volc") return VOLC_SPEAKS.has(code);
   return PROTOCOLS[protocol].speaksAll || (BY_CODE.get(code)?.tts ?? false);
 }
 
@@ -223,6 +238,13 @@ export const VOICES: Voice[] = VOICE_TABLE.trim()
     const [id, zh, descZh, descEn] = line.split("|");
     return { id, zh, descZh, descEn };
   });
+
+/** Volcengine's two preset voices (Chinese and English only); any other id clones the speaker. */
+export const VOLC_VOICES: Voice[] = [
+  { id: "clone", zh: "复刻说话人", descZh: "用说话人自己的音色朗读", descEn: "Clone the speaker's own voice" },
+  { id: "zh_female_vv_uranus_bigtts", zh: "vv", descZh: "女声，仅中英", descEn: "Female, Chinese and English only" },
+  { id: "zh_male_jingqiangkanye_emo_mars_bigtts", zh: "京腔侃爷", descZh: "男声，仅中英", descEn: "Male, Chinese and English only" },
+];
 
 export function langName(code: string, locale: "zh" | "en"): string {
   if (code === "auto") return locale === "zh" ? "自动检测" : "Auto detect";

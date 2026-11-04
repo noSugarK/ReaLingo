@@ -2,7 +2,7 @@
   <img src="brand/banner.png" width="380" alt="ReaLingo" />
 </p>
 
-<p align="center"><b>实时语音翻译</b> — 支持阿里云百炼 Qwen、OpenAI、Google Gemini 的桌面同声传译工具</p>
+<p align="center"><b>实时语音翻译</b> — 支持阿里云百炼 Qwen、OpenAI、Google Gemini、火山引擎豆包的桌面同声传译工具</p>
 
 <p align="center">
   <a href="https://github.com/noSugarK/ReaLingo/actions/workflows/build.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/noSugarK/ReaLingo/build.yml?style=flat-square&label=build" /></a>
@@ -36,12 +36,16 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
 ## 功能
 
 - **三种音频来源**：麦克风 / 系统声音 / 本地音频文件（Windows、macOS、Ubuntu 三平台都能直接采系统声音）
-- **四种接口可选**：阿里云百炼 Qwen3.5 / Qwen3（60 / 18 语种）、Qwen3.8（60 语种）、
-  OpenAI `gpt-realtime-translate`（输出 13 种语言）、Google Gemini Live Translate（54 种语言）。
+- **五种接口可选**：阿里云百炼 Qwen3.8（60 语种，默认）、Qwen3.5 / Qwen3（60 / 18 语种）、
+  OpenAI `gpt-realtime-translate`（输出 13 种语言）、Google Gemini Live Translate（54 种语言）、
+  火山引擎豆包同声传译 2.0（20 种语言，每一对里必须有中文或英文）。
   模型和接入地址都能自己改，兼容同一接口的服务（代理、私有部署）也能接；各家的 API Key 分开保存
-- **源语言可自动检测**（Qwen3.5 也可以手动指定）
+- **源语言可自动检测**（Qwen3.5 也可以手动指定；豆包必须手动指定）
+- **中英互译**：豆包接口下语言卡片里切到「中英互译」，说中文出英文、说英文出中文，同一场会话里自动切换，
+  当前说的是哪一边会亮一个点
 - **朗读译文**：语言卡片里打开，由模型直接合成，不另接 TTS。Qwen 有 47 种音色可选，29 种目标语言有语音输出，
-  其余只能出文字，开关会变灰；OpenAI 和 Gemini 所有目标语言都能朗读，音色由服务端决定。
+  其余只能出文字，开关会变灰；OpenAI 和 Gemini 所有目标语言都能朗读，音色由服务端决定；
+  豆包能朗读 8 种目标语言，默认复刻说话人自己的音色，目标是中英时也可选 2 个预置音色。
   录系统声音时，Windows 和 macOS 会把 ReaLingo 自己的朗读排除在采集之外，
   不会被录回去再翻一遍（见「平台支持」）；用麦克风时扬声器的声音会被收回去，请戴耳机
 - **独立字幕窗**：默认置顶，双语 / 仅译文 / 仅原文，背景不透明度、字号、字体颜色、描边、
@@ -69,13 +73,13 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
 
 | 项 | 说明 |
 |---|---|
-| 接口 | 决定按哪种消息格式通信：**Qwen3.5 / 3**、**Qwen3.8**（阿里云百炼）、**OpenAI**、**Gemini Live Translate**（Google）。两个 Qwen 接口共用百炼的 Key。切换时每个接口记住自己的模型、每家记住自己的自定义地址 |
-| API Key | 每家一个，存在系统凭据库里（见下）。获取：[百炼控制台](https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key)（链接随地域切换）、[OpenAI](https://platform.openai.com/api-keys)、[Google AI Studio](https://aistudio.google.com/apikey)，设置页里都有直达链接 |
-| 翻译模型 | 下拉选预设，或选「自定义…」填任意模型 ID。预设：Qwen3.5（60 语种，默认）、Qwen3（18 语种）、Qwen3.8（60 语种）、`gpt-realtime-translate`（输出 13 种语言）、`gemini-3.5-live-translate-preview`（54 种语言）。语言选择器只列当前模型支持的语言，当前选择不在其中会自动回退 |
+| 接口 | 决定按哪种消息格式通信：**Qwen3.5 / 3**、**Qwen3.8**（阿里云百炼）、**OpenAI**、**Gemini Live Translate**（Google）、**豆包同声传译**（火山引擎）。两个 Qwen 接口共用百炼的 Key。切换时每个接口记住自己的模型、每家记住自己的自定义地址 |
+| API Key | 每家一个，存在系统凭据库里（见下）。获取：[百炼控制台](https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key)（链接随地域切换）、[OpenAI](https://platform.openai.com/api-keys)、[Google AI Studio](https://aistudio.google.com/apikey)、[豆包语音控制台](https://console.volcengine.com/speech/new/setting/apikeys)，设置页里都有直达链接。豆包的 Key 要先在[开通管理](https://console.volcengine.com/speech/new/setting/activate)里开通「同声传译」才能用 |
+| 翻译模型 | 下拉选预设，或选「自定义…」填任意模型 ID。预设：Qwen3.8（60 语种，默认）、Qwen3.5（60 语种）、Qwen3（18 语种）、`gpt-realtime-translate`（输出 13 种语言）、`gemini-3.5-live-translate-preview`（54 种语言）、豆包同声传译 2.0（20 种语言；接口不收模型名，这一项只用于显示）。语言选择器只列当前模型支持的语言，当前选择不在其中会自动回退 |
 | 地域 | 仅 Qwen。华北2（北京）/ 新加坡 —— 目前只有这两个地域提供 LiveTranslate 模型 |
 | 业务空间 ID | 仅 Qwen，**选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.{地域}.maas.aliyuncs.com`。北京的 ID 形如 `llm-…`，新加坡形如 `ws-…` |
 | 热词 | 仅 Qwen，**选填**。每行一条「源词=译文」，让模型按你的说法翻专有名词（`人工智能=Artificial Intelligence`）。最多 1000 条，随会话下发，翻译进行中改动要重新开始才生效 |
-| 自定义地址 | 「高级」里，**选填**。留空用该接口的默认地址；填写后按原样连接，Qwen / OpenAI 没带 `model` 参数时自动补上，Gemini 原样使用（模型写在会话配置里） |
+| 自定义地址 | 「高级」里，**选填**。留空用该接口的默认地址；填写后按原样连接，Qwen / OpenAI 没带 `model` 参数时自动补上，Gemini 和豆包原样使用（模型写在会话配置里 / 不需要模型名） |
 
 「高级」里同时实时显示最终会连接的 WebSocket 地址（Gemini 的 Key 不会出现在这里）。
 
@@ -293,7 +297,11 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 - **各接口的差异**集中在 `src-tauri/src/config.rs`：上行采样率（OpenAI 24kHz，其余 16kHz）、
   音频帧与结束帧的格式、会话配置、怎样算结束。Gemini 的 Key 走 URL 参数而不是请求头，
   且只在连接时拼上，不出现在设置页的地址预览里。
-- **字幕配对**：Qwen 按服务端的轮次 id 配对原文和译文；OpenAI 和 Gemini 只给两条增量文字流，
+- **豆包是 Protobuf**：火山的同传接口走二进制帧，消息结构按官方 `.proto` 在 `src-tauri/src/volc.rs`
+  里用 `prost` 派生手写（不需要装 `protoc`），收到后转成 JSON 再走和其他接口相同的处理路径。
+  鉴权是 `X-Api-Key` + 固定的 `X-Api-Resource-Id`；它的 24kHz PCM 输出是 32 位浮点，解码时转成 16 位。
+- **字幕配对**：Qwen 按服务端的轮次 id 配对原文和译文；豆包每句先发原文再发译文，按顺序一一对应；
+  OpenAI 和 Gemini 只给两条增量文字流，
   按句末标点切出轮次，原文在自己最后一个句末处切开，余下的带进下一行。
 - **Gemini 的收尾**：它不发结束信号，停止后还会一直推静音帧，所以停止时先补约 3 秒静音
   （不然最后半句出不来），之后连续 4 秒没有新文字、也没有非静音音频就结束会话。
@@ -311,10 +319,13 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 |---|---|
 | Linux 上录系统声音时朗读 | monitor 源录的是整个输出的混音，没有「除了某个程序」的选项，朗读会被录回去。可行方案是只录选定程序的 sink-input（`parec --monitor-stream`） |
 | 视频文件（mp4/mkv 抽音轨） | 需打包 ffmpeg sidecar，安装包 +40~80MB |
-| 双语互译（说中出英 / 说英出中） | 见下方「双语互译为什么还没做」 |
+| Qwen / OpenAI / Gemini 的双语互译 | 豆包接口已支持中英互译；其余接口见下方「其他接口为什么不做互译」 |
 | 断线自动重连 | 目前报错后需手动重新开始 —— 实时同传断线本就需要用户知情 |
 
-## 双语互译为什么还没做
+## 其他接口为什么不做互译
+
+豆包同声传译原生支持中英互译（源语言和目标语言都传 `zhen`），一条会话、一份音频就够了。
+其他接口都没有这个能力，要做只能走下面的双通道方案，所以暂时只在豆包下提供。
 
 
 <details>
@@ -336,7 +347,7 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 
 可行方案是**双通道**：同一份音频扇出喂两条并行会话（A→B 和 B→A），按 ASR 报的语种采纳
 其中一条的输出。代价是输入音频 token 翻倍（7 → 14 token/秒），输出也是双份。
-设计细节记在项目计划里，等确有对话式互译需求时再做。
+设计细节记在项目计划里，等这些接口确有互译需求时再做。
 
 </details>
 

@@ -1,4 +1,4 @@
-//! WebSocket client for the realtime translation endpoints (Model Studio, OpenAI, Gemini).
+//! WebSocket client for the realtime translation endpoints (Model Studio, OpenAI, Gemini, Volcengine).
 //!
 //! This lives in Rust rather than the webview for one hard reason: the endpoint authenticates
 //! with an `Authorization` request header, and the browser `WebSocket` constructor cannot set
@@ -108,7 +108,9 @@ async fn connect_and_pump(
 
     let (mut write, mut read) = ws.split();
     let mut text_stream = TextStream::default();
-    write.send(Message::Text(settings.session_update().to_string().into())).await?;
+    // Volc names every frame with a session id of our choosing.
+    let session = format!("realingo-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos());
+    write.send(setup_message(settings, &session)).await?;
     note(app, "status", "connected");
 
     // Released at once, except for Gemini, which drops audio sent before `setupComplete`.
@@ -121,7 +123,7 @@ async fn connect_and_pump(
     // the source runs out (a file at EOF drops its sender).
     // Samples sent so far: the audio clock behind `Event::at_ms`.
     let sent = Arc::new(AtomicU64::new(0));
-    let (stop_up, ready_up, wire, sent_up) = (stop.clone(), ready.clone(), settings.clone(), sent.clone());
+    let (stop_up, ready_up, wire, sent_up, sid) = (stop.clone(), ready.clone(), settings.clone(), sent.clone(), session.clone());
     let uplink = tokio::spawn(async move {
         ready_up.notified().await;
         while let Some(chunk) = audio_rx.recv().await {
@@ -133,8 +135,7 @@ async fn connect_and_pump(
             for s in &chunk {
                 bytes.extend_from_slice(&s.to_le_bytes());
             }
-            let frame = wire.audio_frame(BASE64_STANDARD.encode(&bytes));
-            if write.send(Message::Text(frame.to_string().into())).await.is_err() {
+            if write.send(audio_message(&wire, &sid, bytes)).await.is_err() {
                 return None;
             }
         }
@@ -143,14 +144,13 @@ async fn connect_and_pump(
         // A pause for the protocols that need one to let go of the last words, paced like
         // the file decoder rather than dumped at once.
         let chunk = chunk_samples(wire.sample_rate());
-        let silence = wire.audio_frame(BASE64_STANDARD.encode(vec![0u8; chunk * 2])).to_string();
         for _ in 0..wire.flush_silence() / chunk {
-            if write.send(Message::Text(silence.clone().into())).await.is_err() {
+            if write.send(audio_message(&wire, &sid, vec![0u8; chunk * 2])).await.is_err() {
                 return None;
             }
             tokio::time::sleep(Duration::from_millis(80)).await;
         }
-        let _ = write.send(Message::Text(wire.finish_frame().to_string().into())).await;
+        let _ = write.send(finish_message(&wire, &sid)).await;
         // Not closed here: a close frame makes the server hang up before the last sentence
         // is out. The reader closes it once `is_finished` says everything has arrived.
         Some(write)
@@ -177,6 +177,11 @@ async fn connect_and_pump(
         };
         let payload = match msg {
             Ok(Message::Text(text)) => text.as_str().to_owned(),
+            // Volc speaks protobuf; decoded straight to JSON so it shares the path below.
+            Ok(Message::Binary(bytes)) if settings.protocol == Protocol::Volc => match crate::volc::decode(&bytes) {
+                Some(v) => v.to_string(),
+                None => continue,
+            },
             // Gemini sends its JSON in binary frames.
             Ok(Message::Binary(bytes)) => match String::from_utf8(bytes.to_vec()) {
                 Ok(text) => text,
@@ -191,7 +196,7 @@ async fn connect_and_pump(
             Err(e) => return Err(anyhow!("socket error: {e}")),
         };
         let Ok(mut value) = serde_json::from_str::<Value>(&payload) else { continue };
-        if value.get("setupComplete").is_some() {
+        if settings.is_ready(&value) {
             ready.notify_one();
         }
         if let Some(audio) = take_audio(&mut value) {
@@ -230,10 +235,41 @@ async fn connect_and_pump(
     Ok(())
 }
 
+/// The session's configuration, first frame on the socket.
+pub fn setup_message(settings: &Settings, session: &str) -> Message {
+    match settings.protocol {
+        Protocol::Volc => Message::Binary(crate::volc::start(settings, session).into()),
+        _ => Message::Text(settings.session_update().to_string().into()),
+    }
+}
+
+/// One chunk of PCM16 little-endian, framed for the protocol.
+pub fn audio_message(settings: &Settings, session: &str, pcm: Vec<u8>) -> Message {
+    match settings.protocol {
+        Protocol::Volc => Message::Binary(crate::volc::audio(session, pcm).into()),
+        _ => Message::Text(settings.audio_frame(BASE64_STANDARD.encode(&pcm)).to_string().into()),
+    }
+}
+
+pub fn finish_message(settings: &Settings, session: &str) -> Message {
+    match settings.protocol {
+        Protocol::Volc => Message::Binary(crate::volc::finish(session).into()),
+        _ => Message::Text(settings.finish_frame().to_string().into()),
+    }
+}
+
 /// The handshake request, with the key where the protocol expects it. Public so the probe
 /// example dials exactly what the app does.
 pub fn client_request(settings: &Settings) -> Result<Request> {
     let key = settings.key().trim();
+    if settings.protocol == Protocol::Volc {
+        // The new console's API key; the resource id names the AST service.
+        let mut request = settings.ws_url().into_client_request()?;
+        let headers = request.headers_mut();
+        headers.insert("X-Api-Key", HeaderValue::from_str(key)?);
+        headers.insert("X-Api-Resource-Id", HeaderValue::from_static(crate::volc::RESOURCE_ID));
+        return Ok(request);
+    }
     if settings.protocol == Protocol::Gemini {
         // The Live API takes the key as a query parameter. Added here, never in `ws_url`,
         // which the Settings sheet displays; a custom URL that already carries one keeps it.
@@ -248,7 +284,13 @@ pub fn client_request(settings: &Settings) -> Result<Request> {
 /// `{"code", "message"}` frame — no `type` — and then never sends anything else. Without
 /// this the session sat silent until the idle timeout, with nothing on screen to say why.
 fn rejection(v: &Value) -> Option<String> {
-    if v.get("type").is_some() {
+    // Volc: a failed or cancelled session is over; its meta carries the reason.
+    if let Some("SessionFailed" | "SessionCanceled") = v.get("volc").and_then(Value::as_str) {
+        let code = v.get("status_code").and_then(Value::as_i64).unwrap_or_default();
+        let message = v.get("message").and_then(Value::as_str).unwrap_or_default();
+        return Some(format!("{code}: {message}"));
+    }
+    if v.get("type").is_some() || v.get("volc").is_some() {
         return None;
     }
     let code = v.get("code")?.as_str()?;
@@ -264,7 +306,11 @@ fn take_audio(v: &mut Value) -> Option<Vec<u8>> {
         Some("response.audio.delta" | "session.output_audio.delta")
     );
     // Qwen and OpenAI carry one `delta`; Gemini a list of parts, each with inline data.
-    let slots: Vec<&mut Value> = if is_delta {
+    // Volc: TTSResponse audio, base64-encoded by `volc::decode` under `data`.
+    let is_volc = v.get("volc").and_then(Value::as_str) == Some("TTSResponse");
+    let slots: Vec<&mut Value> = if is_volc {
+        v.get_mut("data").into_iter().collect()
+    } else if is_delta {
         v.get_mut("delta").into_iter().collect()
     } else if let Some(parts) = v.pointer_mut("/serverContent/modelTurn/parts").and_then(Value::as_array_mut) {
         parts.iter_mut().filter_map(|p| p.pointer_mut("/inlineData/data")).collect()
@@ -290,6 +336,10 @@ struct TextStream {
     target: String,
     /// OpenAI: the open turn's first and last `elapsed_ms` on the input transcript.
     span: (Option<u64>, Option<u64>),
+    /// Volc: sentences opened so far on each side. The n-th translation answers the n-th
+    /// transcript, so counting each side on its own pairs them even if they interleave.
+    volc_sources: u64,
+    volc_targets: u64,
 }
 
 /// Past this many characters a translation with no sentence end is cut anyway, so a speaker
@@ -297,7 +347,63 @@ struct TextStream {
 const MAX_TURN_CHARS: usize = 150;
 
 impl TextStream {
+    /// Volc, as seen live: per sentence, `*SubtitleStart` (with the audio span), word deltas in
+    /// `*SubtitleResponse`, then `*SubtitleEnd` with the whole sentence — transcript first,
+    /// then its translation.
+    fn volc(&mut self, v: &Value) -> Vec<Event> {
+        let name = v.get("volc").and_then(Value::as_str).unwrap_or_default();
+        let (kind, stage) = match name {
+            "SourceSubtitleStart" => ("source", 0),
+            "SourceSubtitleResponse" => ("source", 1),
+            "SourceSubtitleEnd" => ("source", 2),
+            "TranslationSubtitleStart" => ("target", 0),
+            "TranslationSubtitleResponse" => ("target", 1),
+            "TranslationSubtitleEnd" => ("target", 2),
+            _ => return Vec::new(),
+        };
+        let count = if kind == "source" { &mut self.volc_sources } else { &mut self.volc_targets };
+        if stage == 0 {
+            *count += 1;
+        }
+        let id = format!("v{count}");
+        let text = v.get("text").and_then(Value::as_str).unwrap_or_default();
+        let ms = |k: &str| v.get(k).and_then(Value::as_u64);
+        let mut out = Vec::new();
+        match stage {
+            0 => {
+                self.partial.insert((kind, id.clone()), String::new());
+                if kind == "source" {
+                    // Transcript and translation share the id, so the link maps it to itself.
+                    out.push(Event { kind: "link", id: id.clone(), text: id.clone(), ..Default::default() });
+                }
+                out.push(Event { kind, id, start_ms: ms("start_time"), end_ms: ms("end_time"), ..Default::default() });
+            }
+            1 => {
+                let acc = self.partial.entry((kind, id.clone())).or_default();
+                acc.push_str(text);
+                out.push(Event { kind, id, text: acc.trim_start().to_string(), ..Default::default() });
+            }
+            _ => {
+                self.partial.remove(&(kind, id.clone()));
+                out.push(Event {
+                    kind,
+                    id,
+                    text: text.trim().to_string(),
+                    lang: v.get("detected_language").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    done: true,
+                    start_ms: ms("start_time"),
+                    end_ms: ms("end_time"),
+                    ..Default::default()
+                });
+            }
+        }
+        out
+    }
+
     fn next(&mut self, v: &Value) -> Vec<Event> {
+        if v.get("volc").is_some() {
+            return self.volc(v);
+        }
         // Gemini: the same two append-only streams as OpenAI, untyped, and one frame may carry
         // either or both alongside the audio.
         if let Some(content) = v.get("serverContent") {
@@ -752,6 +858,34 @@ mod tests {
         let next = at(&mut st, "input", " to", 1600);
         let src = next.iter().find(|e| e.kind == "source").unwrap();
         assert_eq!((src.start_ms, src.end_ms), (Some(1200), Some(1600)));
+    }
+
+    /// The frame order captured live from the AST endpoint (zh → en, s2t).
+    #[test]
+    fn volc_sentences_pair_by_order_and_carry_their_audio_span() {
+        let mut st = TextStream::default();
+        let f = |name: &str, text: &str, start: u64, end: u64| {
+            json!({ "volc": name, "text": text, "start_time": start, "end_time": end })
+        };
+        let open = st.next(&f("SourceSubtitleStart", "", 20, 1140));
+        assert_eq!((open[0].kind, open[0].id.as_str(), open[0].text.as_str()), ("link", "v1", "v1"));
+        assert_eq!((open[1].start_ms, open[1].end_ms), (Some(20), Some(1140)));
+        st.next(&f("SourceSubtitleResponse", "看", 0, 0));
+        let mid = st.next(&f("SourceSubtitleResponse", "外语", 0, 0));
+        assert_eq!((mid[0].text.as_str(), mid[0].done), ("看外语", false));
+        let end = st.next(&f("SourceSubtitleEnd", "看外语视频，", 20, 1140));
+        assert_eq!((end[0].text.as_str(), end[0].done, end[0].start_ms), ("看外语视频，", true, Some(20)));
+
+        st.next(&f("TranslationSubtitleStart", "", 20, 1140));
+        let word = st.next(&f("TranslationSubtitleResponse", "When", 0, 0));
+        assert_eq!((word[0].kind, word[0].id.as_str()), ("target", "v1"));
+        let done = st.next(&f("TranslationSubtitleEnd", "When watching foreign language videos, ", 20, 1140));
+        assert_eq!(done[0].text, "When watching foreign language videos,");
+        assert!(done[0].done);
+
+        // The next sentence opens a new turn.
+        assert_eq!(st.next(&f("SourceSubtitleStart", "", 1300, 2580))[0].id, "v2");
+        assert!(st.next(&json!({ "volc": "UsageResponse" })).is_empty());
     }
 
     #[test]

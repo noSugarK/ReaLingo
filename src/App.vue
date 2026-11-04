@@ -14,7 +14,7 @@ import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
 import History from "./components/History.vue";
 import { locale, setLocale, t } from "./i18n";
-import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICES } from "./languages";
+import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICES, VOLC_VOICES } from "./languages";
 import { check, checkUpdateAtStartup, openHome } from "./update";
 import { activeKey, settings, initSettings, resolvedTheme, SUB_SIZE, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
 import {
@@ -116,14 +116,20 @@ async function chooseFile() {
 /* ---------- read aloud ---------- */
 // The note says what the voice sounds like; search matches names and descriptions in both
 // UI languages, so typing "温柔" or "British" narrows the list.
+const isVolc = computed(() => settings.protocol === "volc");
 const voiceOptions = computed(() =>
-  VOICES.map((v) => ({
+  (isVolc.value ? VOLC_VOICES : VOICES).map((v) => ({
     value: v.id,
-    label: locale.value === "zh" ? `${v.id} · ${v.zh}` : v.id,
+    label: isVolc.value ? (locale.value === "zh" ? v.zh : v.descEn) : locale.value === "zh" ? `${v.id} · ${v.zh}` : v.id,
     note: locale.value === "zh" ? v.descZh : v.descEn,
     keywords: `${v.zh} ${v.descZh} ${v.descEn}`,
   }))
 );
+// One `voice` setting serves both lists; a name from the other list means nothing here.
+watch(isVolc, (volc) => {
+  const list = volc ? VOLC_VOICES : VOICES;
+  if (!list.some((v) => v.id === settings.voice)) settings.voice = list[0].id;
+}, { immediate: true });
 // Some protocols always detect the source language themselves (see PROTOCOLS).
 const autoSourceOnly = computed(() => PROTOCOLS[settings.protocol].autoSource);
 watch(autoSourceOnly, (only) => {
@@ -132,7 +138,8 @@ watch(autoSourceOnly, (only) => {
 // Why speaking cannot happen with the current choices, if it cannot. Linux has no way to
 // leave our own playback out of a monitor source, so system audio would hear itself.
 const speakBlocked = computed(() => {
-  if (!canSpeak(settings.protocol, settings.targetLang)) return "speakNoLang" as const;
+  // Two-way speaks Chinese and English, both always speakable where two-way exists.
+  if (!twoWay.value && !canSpeak(settings.protocol, settings.targetLang)) return "speakNoLang" as const;
   if (caps.value.os === "linux" && sourceKind.value === "system") return "speakLinuxSystem" as const;
   return null;
 });
@@ -209,18 +216,26 @@ const langOptions = computed(() =>
     keywords: `${langName(c, "zh")} ${langName(c, "en")}`,
   }))
 );
+/** Volcengine will not detect the source: it has to be named, so "auto" is not offered. */
+const namedSource = computed(() => PROTOCOLS[settings.protocol].namedSource);
 const sourceLangOptions = computed(() => [
-  { value: "auto", label: langName("auto", locale.value) },
+  ...(namedSource.value ? [] : [{ value: "auto", label: langName("auto", locale.value) }]),
   ...(autoSourceOnly.value ? [] : langOptions.value),
 ]);
 
 // Switching to the smaller model can strand a language it cannot translate into; the
 // session would then be refused server-side, so repair the selection here instead.
-watch(langCodes, (codes) => {
+watch([langCodes, namedSource], ([codes, named]) => {
   const ok = new Set(codes);
   if (settings.sourceLang !== "auto" && !ok.has(settings.sourceLang)) settings.sourceLang = "auto";
   if (!ok.has(settings.targetLang)) settings.targetLang = ok.has("en") ? "en" : codes[0];
-});
+  // One side of a Volcengine pair must be Chinese or English; this keeps that true.
+  if (named && settings.sourceLang === "auto") settings.sourceLang = settings.targetLang === "zh" ? "en" : "zh";
+}, { immediate: true });
+
+/** Chinese ⇄ English in one session; only where the protocol can, and then pickers step aside. */
+const canTwoWay = computed(() => PROTOCOLS[settings.protocol].twoWay);
+const twoWay = computed(() => canTwoWay.value && settings.twoWay);
 
 /** Stored 0–1, edited as whole percent — "0.53" in a number field reads badly. */
 const subOpacityPct = computed({
@@ -439,7 +454,36 @@ watch([lines, current], async () => {
 
           <!-- languages -->
           <Card :title="t('langTitle')">
-            <div class="langs">
+            <!-- Only where the protocol can do it; elsewhere there is nothing to choose. -->
+            <div v-if="canTwoWay" class="seg">
+              <button :class="{ on: !settings.twoWay }" :disabled="isRunning()" @click="settings.twoWay = false">
+                {{ t("oneWay") }}
+              </button>
+              <button :class="{ on: settings.twoWay }" :disabled="isRunning()" @click="settings.twoWay = true">
+                {{ t("twoWay") }}
+              </button>
+            </div>
+
+            <!-- Two-way is Chinese–English and nothing else: shown, not chosen. The dot marks
+                 the side being spoken, from the language the server detects per sentence. -->
+            <template v-if="twoWay">
+              <div class="langs">
+                <div v-for="code in ['zh', 'en']" :key="code" class="col grow">
+                  <span class="mini">
+                    {{ langName(code, locale) }}
+                    <em v-if="detectedLang === code" class="detected">●</em>
+                  </span>
+                  <Picker
+                    :model-value="code"
+                    :options="[{ value: code, label: langName(code, locale) }]"
+                    disabled
+                  />
+                </div>
+              </div>
+              <p class="hint">{{ t("twoWayHint") }}</p>
+            </template>
+
+            <div v-else class="langs">
               <div class="col grow">
                 <span class="mini">
                   {{ t("from") }}
