@@ -353,8 +353,13 @@ watch([lines, current], async () => {
 
       <div class="spacer" data-tauri-drag-region />
 
-      <button class="btn-icon locale" @click="setLocale(locale === 'zh' ? 'en' : 'zh')">
-        {{ locale === "zh" ? "中" : "EN" }}
+      <!-- Names the language a click switches to, like any language switcher. -->
+      <button
+        class="btn-icon locale"
+        :aria-label="locale === 'zh' ? 'Switch to English' : '切换到中文'"
+        @click="setLocale(locale === 'zh' ? 'en' : 'zh')"
+      >
+        {{ locale === "zh" ? "EN" : "中" }}
       </button>
       <button class="btn-icon" :aria-label="t('theme')" @click="cycleTheme">
         <svg v-if="isDark" width="16" height="16" viewBox="0 0 16 16" fill="none">
