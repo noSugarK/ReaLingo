@@ -169,8 +169,9 @@ export async function initSettings(persist = true) {
       sub: { ...settings.sub, ...(saved.sub ?? {}) },
       stream: { ...settings.stream, ...(saved.stream ?? {}) },
     });
-    // Saved before the protocol was a setting: the model was what picked the 3.8 schema.
-    if (!saved.protocol) settings.protocol = saved.model === MODEL_QWEN3_8 ? "qwen38" : "qwen35";
+    // Saved before the protocol was a setting: the model was what picked the 3.8 schema. With
+    // no model saved either there was no choice to keep, and the new defaults stand as a pair.
+    if (!saved.protocol && saved.model) settings.protocol = saved.model === MODEL_QWEN3_8 ? "qwen38" : "qwen35";
     // Before the two rows were sized separately, the bar had one `fontSize` and the source
     // line was 0.62em of it. Carry that pair over so an existing install looks unchanged.
     const oldSub = saved.sub as (Partial<SubtitleStyle> & { fontSize?: number }) | undefined;
