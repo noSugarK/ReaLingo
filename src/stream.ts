@@ -358,13 +358,16 @@ export function exportSrt(rows: Line[] = lines.value): string {
   const timed = rows.length > 0 && rows.every((l) => l.start != null);
   const t0 = rows[0]?.at ?? Date.now();
   const startOf = (l: Line) => (timed ? l.start! : l.at - t0);
-  return rows
+  // Rows sit in the order their turns opened, which is not always audio order (a row on the
+  // fallback clock beside one the server timed), and cues must run in time order.
+  const cues = timed ? [...rows].sort((a, b) => a.start! - b.start!) : rows;
+  return cues
     .map((l, i) => {
       const start = startOf(l);
-      const next = rows[i + 1] ? startOf(rows[i + 1]) : undefined;
-      // Never past the next line's start, never shorter than a glance.
-      const wanted = timed && l.end != null ? l.end : (next ?? start + 3000);
-      const end = Math.max(start + 1000, next != null ? Math.min(wanted, next) : wanted);
+      const next = cues[i + 1] ? startOf(cues[i + 1]) : undefined;
+      // At least a glance on screen, but never past the next line's start: that wins.
+      const wanted = Math.max(start + 1000, timed && l.end != null ? l.end : (next ?? start + 3000));
+      const end = next != null ? Math.max(start + 1, Math.min(wanted, next)) : wanted;
       const body = l.source ? `${l.source}\n${l.target}` : l.target;
       return `${i + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${body}\n`;
     })
