@@ -52,15 +52,36 @@ pub struct Event {
     /// the normal order — gets attached to whatever turn happens to be open.
     pub id: String,
     pub done: bool,
-    /// Where this speech sits in the input audio, ms from its start, when the server says.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_ms: Option<u64>,
+    /// Where this speech sits in the input audio, when the server says.
+    #[serde(flatten)]
+    pub span: Span,
     /// How much audio had been sent when this arrived — the fallback timeline for servers
     /// that give no timing. Late by the model's latency, but on the audio's clock.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub at_ms: Option<u64>,
+}
+
+/// A stretch of the input audio, ms from its start. Either end may be unknown. Flattened
+/// into `Event`, so the frontend sees `startMs` / `endMs`.
+#[derive(Serialize, Clone, Copy, Default, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Span {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_ms: Option<u64>,
+}
+
+impl Span {
+    fn new(start_ms: Option<u64>, end_ms: Option<u64>) -> Self {
+        Span { start_ms, end_ms }
+    }
+
+    /// Stretched to take in `ms`: the first mark is the start, the latest the end.
+    fn reach(&mut self, ms: u64) {
+        self.start_ms = self.start_ms.or(Some(ms));
+        self.end_ms = Some(ms);
+    }
 }
 
 pub fn emit(app: &AppHandle, ev: Event) {
@@ -334,13 +355,13 @@ struct Continuous {
     source: String,
     target: String,
     /// OpenAI: the open turn's first and last `elapsed_ms` on the input transcript.
-    span: (Option<u64>, Option<u64>),
+    span: Span,
 }
 
 impl Continuous {
     fn push(&mut self, is_target: bool, delta: &str, elapsed: Option<u64>) -> Vec<Event> {
         if let Some(ms) = elapsed {
-            self.span = (self.span.0.or(Some(ms)), Some(ms));
+            self.span.reach(ms);
         }
         let mut out = Vec::new();
         if is_target { &mut self.target } else { &mut self.source }.push_str(delta);
@@ -353,7 +374,7 @@ impl Continuous {
                 let source_rest = self.source.split_off(source_cut);
                 self.emit_turn(&mut out, true);
                 // What is carried over started no later than where this turn stopped.
-                self.span = (if source_rest.trim().is_empty() { None } else { self.span.1 }, None);
+                self.span = Span::new(if source_rest.trim().is_empty() { None } else { self.span.end_ms }, None);
                 self.target = target_rest.trim_start().to_string();
                 self.source = source_rest.trim_start().to_string();
                 self.turn += 1;
@@ -377,8 +398,8 @@ impl Continuous {
         }
         // Deltas carry their own leading space (" Welcome"), which is noise at a row's start.
         for (kind, text) in [("target", &self.target), ("source", &self.source)] {
-            let (start_ms, end_ms) = if kind == "source" { self.span } else { (None, None) };
-            out.push(Event { kind, id: id.clone(), text: text.trim_start().to_string(), done, start_ms, end_ms, ..Default::default() });
+            let span = if kind == "source" { self.span } else { Span::default() };
+            out.push(Event { kind, id: id.clone(), text: text.trim_start().to_string(), done, span, ..Default::default() });
         }
     }
 }
@@ -407,6 +428,7 @@ impl VolcSentences {
             _ => return Vec::new(),
         };
         let ms = |k: &str| v.get(k).and_then(Value::as_u64);
+        let span = Span::new(ms("start_time"), ms("end_time"));
         let (id, words) = &mut self.open[usize::from(kind == "target")];
         if stage != 1 {
             *id = format!("v{}", ms("start_time").unwrap_or_default());
@@ -421,7 +443,7 @@ impl VolcSentences {
                     // Transcript and translation share the id, so the link maps it to itself.
                     out.push(Event { kind: "link", id: id.clone(), text: id.clone(), ..Default::default() });
                 }
-                out.push(Event { kind, id, start_ms: ms("start_time"), end_ms: ms("end_time"), ..Default::default() });
+                out.push(Event { kind, id, span, ..Default::default() });
                 out
             }
             1 => {
@@ -434,8 +456,7 @@ impl VolcSentences {
                 text: text.trim().to_string(),
                 lang: v.get("detected_language").and_then(Value::as_str).unwrap_or_default().to_string(),
                 done: true,
-                start_ms: ms("start_time"),
-                end_ms: ms("end_time"),
+                span,
                 ..Default::default()
             }],
         }
@@ -519,14 +540,14 @@ fn classify(v: &Value) -> Option<Event> {
             kind: "speech",
             text: "start".into(),
             id: field("item_id"),
-            start_ms: v.get("audio_start_ms").and_then(Value::as_u64),
+            span: Span::new(v.get("audio_start_ms").and_then(Value::as_u64), None),
             ..Default::default()
         },
         "input_audio_buffer.speech_stopped" => Event {
             kind: "speech",
             text: "stop".into(),
             id: field("item_id"),
-            end_ms: v.get("audio_end_ms").and_then(Value::as_u64),
+            span: Span::new(None, v.get("audio_end_ms").and_then(Value::as_u64)),
             ..Default::default()
         },
         "session.created" | "session.updated" => Event { kind: "status", text: "connected".into(), ..Default::default() },
@@ -762,11 +783,19 @@ mod tests {
 
 
     #[test]
+    fn a_span_reaches_the_frontend_as_flat_start_and_end() {
+        let ev = Event { kind: "source", span: Span::new(Some(20), None), at_ms: Some(900), ..Default::default() };
+        let v = serde_json::to_value(ev).unwrap();
+        assert_eq!((v["startMs"].as_u64(), v["atMs"].as_u64()), (Some(20), Some(900)));
+        assert!(v.get("endMs").is_none() && v.get("span").is_none());
+    }
+
+    #[test]
     fn speech_events_carry_their_item_and_audio_offset() {
         let start = classify(&json!({ "type": "input_audio_buffer.speech_started", "item_id": "in1", "audio_start_ms": 1200 })).unwrap();
-        assert_eq!((start.id.as_str(), start.start_ms, start.end_ms), ("in1", Some(1200), None));
+        assert_eq!((start.id.as_str(), start.span), ("in1", Span::new(Some(1200), None)));
         let stop = classify(&json!({ "type": "input_audio_buffer.speech_stopped", "item_id": "in1", "audio_end_ms": 3400 })).unwrap();
-        assert_eq!((stop.text.as_str(), stop.end_ms), ("stop", Some(3400)));
+        assert_eq!((stop.text.as_str(), stop.span.end_ms), ("stop", Some(3400)));
     }
 
     #[test]
@@ -779,11 +808,11 @@ mod tests {
         at(&mut st, "input", " Welcome", 1200);
         let evs = at(&mut st, "output", "早上好。", 1400);
         let src = evs.iter().find(|e| e.kind == "source" && e.done).unwrap();
-        assert_eq!((src.start_ms, src.end_ms), (Some(400), Some(1200)));
+        assert_eq!(src.span, Span::new(Some(400), Some(1200)));
         // The carried-over "Welcome" opens the next turn where this one stopped.
         let next = at(&mut st, "input", " to", 1600);
         let src = next.iter().find(|e| e.kind == "source").unwrap();
-        assert_eq!((src.start_ms, src.end_ms), (Some(1200), Some(1600)));
+        assert_eq!(src.span, Span::new(Some(1200), Some(1600)));
     }
 
     /// The frame order captured live from the AST endpoint (zh → en, s2t).
@@ -795,12 +824,12 @@ mod tests {
         };
         let open = st.next(&f("SourceSubtitleStart", "", 20, 1140));
         assert_eq!((open[0].kind, open[0].id.as_str(), open[0].text.as_str()), ("link", "v20", "v20"));
-        assert_eq!((open[1].start_ms, open[1].end_ms), (Some(20), Some(1140)));
+        assert_eq!(open[1].span, Span::new(Some(20), Some(1140)));
         st.next(&f("SourceSubtitleResponse", "看", 0, 0));
         let mid = st.next(&f("SourceSubtitleResponse", "外语", 0, 0));
         assert_eq!((mid[0].text.as_str(), mid[0].done), ("看外语", false));
         let end = st.next(&f("SourceSubtitleEnd", "看外语视频，", 20, 1140));
-        assert_eq!((end[0].text.as_str(), end[0].done, end[0].start_ms), ("看外语视频，", true, Some(20)));
+        assert_eq!((end[0].text.as_str(), end[0].done, end[0].span.start_ms), ("看外语视频，", true, Some(20)));
 
         st.next(&f("TranslationSubtitleStart", "", 20, 1140));
         let word = st.next(&f("TranslationSubtitleResponse", "When", 0, 0));

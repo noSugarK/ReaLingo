@@ -6,14 +6,19 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { t as msg } from "./i18n";
 import { settings } from "./store";
 
-export interface Line {
+/** A stretch of the input audio, ms from its start. Either end may be unknown. */
+export interface Span {
+  start?: number;
+  end?: number;
+}
+
+/** A row of the stream. Its span is absent on history written before spans were recorded. */
+export interface Line extends Span {
   id: number;
   source: string;
   target: string;
+  /** Wall-clock arrival, ms since the epoch. */
   at: number;
-  /** Place in the input audio, ms; absent on history written before it was recorded. */
-  start?: number;
-  end?: number;
 }
 
 /** `stopping`: input has ended, the last sentence is still on its way. */
@@ -82,12 +87,10 @@ interface Turn {
   sourceDone: boolean;
   targetDone: boolean;
   at: number;
-  /** Audio-time span the server reported, when it does. */
-  startMs?: number;
-  endMs?: number;
+  /** Where the server says this turn sits in the audio, when it says. */
+  server: Span;
   /** Fallback: the audio clock when this turn's text first and last arrived. */
-  firstAt?: number;
-  lastAt?: number;
+  heard: Span;
   /** Set once the turn has a row in `lines`; the row is patched in place afterwards. */
   lineId?: number;
 }
@@ -95,19 +98,29 @@ interface Turn {
 const turns = new Map<string, Turn>();
 /** Input item id -> turn key, from the server's `link` event. */
 const byInput = new Map<string, string>();
-/** Input item id -> its speech_started / speech_stopped offsets, until a turn claims them. */
-const speechAt = new Map<string, { start?: number; end?: number }>();
+/** Input item id -> where speech_started / speech_stopped put it, until a turn claims it. */
+const spokenAt = new Map<string, Span>();
 
-function timeTurn(t: Turn, e: { startMs?: number; endMs?: number; atMs?: number }) {
-  if (e.startMs != null) t.startMs = Math.min(t.startMs ?? e.startMs, e.startMs);
-  if (e.endMs != null) t.endMs = Math.max(t.endMs ?? e.endMs, e.endMs);
+/** Stretches `into` to cover `from`: the earliest start, the latest end. */
+function widen(into: Span, from: Span) {
+  if (from.start != null) into.start = Math.min(into.start ?? from.start, from.start);
+  if (from.end != null) into.end = Math.max(into.end ?? from.end, from.end);
+}
+
+/** The server's timing for this event, as a span. */
+const spanOf = (e: RtEvent): Span => ({ start: e.startMs, end: e.endMs });
+
+/** Times a turn from one of its events: the server's span, and the clock when it arrived. */
+function timeTurn(t: Turn, e: RtEvent) {
+  widen(t.server, spanOf(e));
   if (e.atMs != null) {
-    t.firstAt ??= e.atMs;
-    t.lastAt = e.atMs;
+    t.heard.start ??= e.atMs;
+    t.heard.end = e.atMs;
   }
 }
 
-const span = (t: Turn) => ({ start: t.startMs ?? t.firstAt, end: t.endMs ?? t.lastAt });
+/** What a turn's row shows: the server's timing where it gave one, else when it was heard. */
+const rowSpan = (t: Turn): Span => ({ start: t.server.start ?? t.heard.start, end: t.server.end ?? t.heard.end });
 
 const oldestTurn = () => turns.values().next().value as Turn | undefined;
 const newestTurn = () => [...turns.values()].pop();
@@ -125,6 +138,8 @@ function turnFor(key: string): Turn {
       sourceDone: false,
       targetDone: false,
       at: Date.now(),
+      server: {},
+      heard: {},
     };
     turns.set(key, t);
     // A turn whose transcript never arrives would sit here forever. Two or three are open
@@ -139,7 +154,7 @@ function publish(t: Turn) {
   if (!t.source && !t.target) return;
   if (t.lineId === undefined) {
     t.lineId = nextId++;
-    lines.value.push({ id: t.lineId, source: t.source, target: t.target, at: t.at, ...span(t) });
+    lines.value.push({ id: t.lineId, source: t.source, target: t.target, at: t.at, ...rowSpan(t) });
     if (lines.value.length > 500) lines.value.splice(0, lines.value.length - 500);
     return;
   }
@@ -147,7 +162,7 @@ function publish(t: Turn) {
   if (row) {
     row.source = t.source;
     row.target = t.target;
-    Object.assign(row, span(t));
+    Object.assign(row, rowSpan(t));
   }
 }
 
@@ -160,12 +175,12 @@ function settle(t: Turn) {
 function close(t: Turn) {
   publish(t);
   if (t.source || t.target) {
-    record("history_append", { entry: { at: t.at, source: t.source, target: t.target, ...span(t) } });
+    record("history_append", { entry: { at: t.at, source: t.source, target: t.target, ...rowSpan(t) } });
   }
   turns.delete(t.key);
   if (t.input) {
     byInput.delete(t.input);
-    speechAt.delete(t.input);
+    spokenAt.delete(t.input);
   }
   syncCurrent();
 }
@@ -191,7 +206,7 @@ function syncCurrent() {
 function resetTurns() {
   turns.clear();
   byInput.clear();
-  speechAt.clear();
+  spokenAt.clear();
   syncCurrent();
 }
 
@@ -224,8 +239,8 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
     case "link": {
       byInput.set(e.text, e.id);
       turnFor(e.id).input = e.text;
-      const at = speechAt.get(e.text);
-      if (at) timeTurn(turnFor(e.id), { startMs: at.start, endMs: at.end });
+      const spoken = spokenAt.get(e.text);
+      if (spoken) widen(turnFor(e.id).server, spoken);
       break;
     }
 
@@ -270,10 +285,11 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
       speaking.value = e.text === "start";
       if (!e.id) break;
       // Usually ahead of the link that names its turn; held until then.
-      const at = { ...speechAt.get(e.id), ...(e.startMs != null && { start: e.startMs }), ...(e.endMs != null && { end: e.endMs }) };
-      speechAt.set(e.id, at);
+      const spoken = spokenAt.get(e.id) ?? {};
+      widen(spoken, spanOf(e));
+      spokenAt.set(e.id, spoken);
       const key = byInput.get(e.id);
-      if (key) timeTurn(turnFor(key), { startMs: at.start, endMs: at.end });
+      if (key) widen(turnFor(key).server, spoken);
       break;
     }
     case "progress":
