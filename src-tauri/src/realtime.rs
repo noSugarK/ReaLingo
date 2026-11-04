@@ -336,10 +336,9 @@ struct TextStream {
     target: String,
     /// OpenAI: the open turn's first and last `elapsed_ms` on the input transcript.
     span: (Option<u64>, Option<u64>),
-    /// Volc: sentences opened so far on each side. The n-th translation answers the n-th
-    /// transcript, so counting each side on its own pairs them even if they interleave.
-    volc_sources: u64,
-    volc_targets: u64,
+    /// Volc: the id of the sentence open on each side, `[source, target]`. Word deltas carry no
+    /// timing of their own, so they go to whichever sentence is open.
+    volc_open: [String; 2],
 }
 
 /// Past this many characters a translation with no sentence end is cut anyway, so a speaker
@@ -349,7 +348,9 @@ const MAX_TURN_CHARS: usize = 150;
 impl TextStream {
     /// Volc, as seen live: per sentence, `*SubtitleStart` (with the audio span), word deltas in
     /// `*SubtitleResponse`, then `*SubtitleEnd` with the whole sentence — transcript first,
-    /// then its translation.
+    /// then its translation. A translation's Start and End carry the same `start_time` as its
+    /// transcript's, so that is the pairing key: a sentence that never gets translated leaves a
+    /// row without one, instead of shifting every later translation onto the wrong row.
     fn volc(&mut self, v: &Value) -> Vec<Event> {
         let name = v.get("volc").and_then(Value::as_str).unwrap_or_default();
         let (kind, stage) = match name {
@@ -361,13 +362,13 @@ impl TextStream {
             "TranslationSubtitleEnd" => ("target", 2),
             _ => return Vec::new(),
         };
-        let count = if kind == "source" { &mut self.volc_sources } else { &mut self.volc_targets };
-        if stage == 0 {
-            *count += 1;
-        }
-        let id = format!("v{count}");
-        let text = v.get("text").and_then(Value::as_str).unwrap_or_default();
         let ms = |k: &str| v.get(k).and_then(Value::as_u64);
+        let open = &mut self.volc_open[usize::from(kind == "target")];
+        if stage != 1 {
+            *open = format!("v{}", ms("start_time").unwrap_or_default());
+        }
+        let id = open.clone();
+        let text = v.get("text").and_then(Value::as_str).unwrap_or_default();
         let mut out = Vec::new();
         match stage {
             0 => {
@@ -862,13 +863,13 @@ mod tests {
 
     /// The frame order captured live from the AST endpoint (zh → en, s2t).
     #[test]
-    fn volc_sentences_pair_by_order_and_carry_their_audio_span() {
+    fn volc_sentences_pair_by_start_time_and_carry_their_audio_span() {
         let mut st = TextStream::default();
         let f = |name: &str, text: &str, start: u64, end: u64| {
             json!({ "volc": name, "text": text, "start_time": start, "end_time": end })
         };
         let open = st.next(&f("SourceSubtitleStart", "", 20, 1140));
-        assert_eq!((open[0].kind, open[0].id.as_str(), open[0].text.as_str()), ("link", "v1", "v1"));
+        assert_eq!((open[0].kind, open[0].id.as_str(), open[0].text.as_str()), ("link", "v20", "v20"));
         assert_eq!((open[1].start_ms, open[1].end_ms), (Some(20), Some(1140)));
         st.next(&f("SourceSubtitleResponse", "看", 0, 0));
         let mid = st.next(&f("SourceSubtitleResponse", "外语", 0, 0));
@@ -878,13 +879,20 @@ mod tests {
 
         st.next(&f("TranslationSubtitleStart", "", 20, 1140));
         let word = st.next(&f("TranslationSubtitleResponse", "When", 0, 0));
-        assert_eq!((word[0].kind, word[0].id.as_str()), ("target", "v1"));
+        assert_eq!((word[0].kind, word[0].id.as_str()), ("target", "v20"));
         let done = st.next(&f("TranslationSubtitleEnd", "When watching foreign language videos, ", 20, 1140));
         assert_eq!(done[0].text, "When watching foreign language videos,");
         assert!(done[0].done);
 
-        // The next sentence opens a new turn.
-        assert_eq!(st.next(&f("SourceSubtitleStart", "", 1300, 2580))[0].id, "v2");
+        // A sentence that is never translated (a cough, a filler) leaves its own row without a
+        // translation; the next translation still lands on its own transcript.
+        st.next(&f("SourceSubtitleStart", "", 1300, 1500));
+        st.next(&f("SourceSubtitleEnd", "嗯", 1300, 1500));
+        assert_eq!(st.next(&f("SourceSubtitleStart", "", 1600, 2580))[0].id, "v1600");
+        st.next(&f("SourceSubtitleEnd", "实时出中文字幕。", 1600, 2580));
+        st.next(&f("TranslationSubtitleStart", "", 1600, 2580));
+        let late = st.next(&f("TranslationSubtitleResponse", "Chinese", 0, 0));
+        assert_eq!(late[0].id, "v1600");
         assert!(st.next(&json!({ "volc": "UsageResponse" })).is_empty());
     }
 
