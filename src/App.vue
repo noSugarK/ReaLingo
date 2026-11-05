@@ -507,9 +507,12 @@ watch([lines, current], async () => {
                     {{ langName(detectedLang, locale) }}
                   </em>
                 </span>
-                <Picker v-model="settings.sourceLang" :options="sourceLangOptions" :disabled="isRunning()" />
+                <!-- Detect-only services take no source language: nothing to pick, so no picker. -->
+                <div v-if="sourceMode === 'detected'" class="fixed-lang">{{ langName("auto", locale) }}</div>
+                <Picker v-else v-model="settings.sourceLang" :options="sourceLangOptions" :disabled="isRunning()" />
               </div>
               <button
+                v-if="sourceMode !== 'detected'"
                 class="btn-icon swap"
                 :aria-label="t('swap')"
                 :disabled="settings.sourceLang === 'auto' || isRunning()"
@@ -784,6 +787,8 @@ watch([lines, current], async () => {
 
 .langs { display: flex; align-items: flex-end; gap: 8px; }
 .swap { margin-bottom: 2px; }
+/* Same height as a Picker so the row stays aligned, but no field chrome: it is not a control. */
+.fixed-lang { height: 38px; display: flex; align-items: center; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
 .swap:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .meter { height: 6px; border-radius: 3px; background: var(--shade); overflow: hidden; }
