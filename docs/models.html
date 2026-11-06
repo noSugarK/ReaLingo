@@ -28,10 +28,9 @@
 .cmp thead tr + tr th { padding-top: 12px; }
 .cmp tr.group td { background: var(--sunk); font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); text-align: left; padding: 8px 20px; }
 .cmp tr.group td:first-child { background: var(--sunk); }
-.cmp .y, .cmp .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; }
-.cmp .y { background: #30b158; }
-.cmp .y::after { content: ""; width: 12px; height: 12px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/contain no-repeat; }
-.cmp .n::after { content: "—"; color: var(--ink-3); font-weight: 700; }
+.cmp a.quota { color: inherit; text-decoration: underline dotted var(--ink-3); text-underline-offset: 4px; transition: color .2s; }
+.cmp a.quota::after { content: " ↗"; color: var(--ink-3); }
+.cmp a.quota:hover { color: var(--hero); text-decoration-color: currentColor; }
 .cmp td small { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-3); }
 
 </style>
@@ -118,6 +117,7 @@
     { key: "qwen38", vendor: ["阿里云百炼", "Alibaba Model Studio"], name: "Qwen3.8", id: "qwen3.8-livetranslate-flash-realtime",
       langs: 60, speak: 29, source: "auto", voices: ["47 种预置", "47 presets"], twoWay: false,
       price: QWEN_MIN, free: ["北京需手动开通；新加坡自动发放", "Beijing: activate it first; Singapore: granted automatically"],
+      freeUrl: "https://bailian.console.aliyun.com/cn-beijing/costing-balance/free-quota?model=livetranslate",
       priceUrl: QWEN_PRICE, tags: [["默认", "Default", "blue"]] },
     { key: "qwen35", vendor: ["阿里云百炼", "Alibaba Model Studio"], name: "Qwen3.5", id: "qwen3.5-livetranslate-flash-realtime",
       langs: 60, speak: 29, source: "either", voices: ["47 种预置", "47 presets"], twoWay: false,
@@ -129,10 +129,12 @@
     { key: "gemini", vendor: ["Google", "Google"], name: "Gemini 3.5 Live Translate", id: "gemini-3.5-live-translate-preview",
       langs: 54, speak: 54, source: "auto", voices: ["服务端决定", "Server's voice"], twoWay: false,
       price: [["约 $0.0053", "~$0.0053"], ["朗读另约 $0.0315", "Read aloud ~$0.0315 more"]], free: ["免费层可用，限额以 AI Studio 为准", "Free tier, limits as shown in AI Studio"],
+      freeUrl: "https://aistudio.google.com/rate-limit",
       priceUrl: "https://aistudio.google.com/docs/pricing", tags: [["预览版", "Preview", ""]] },
     { key: "volc", vendor: ["火山引擎", "Volcengine"], name: ["豆包同声传译 2.0", "Doubao SI 2.0"], id: "doubao-ast-2.0",
       langs: 20, speak: 8, source: "named", voices: ["复刻说话人 / 2 种预置", "Cloned speaker / 2 presets"], twoWay: true,
       price: [["约 ¥0.03", "~¥0.03"], ["朗读另约 ¥0.45", "Read aloud ~¥0.45 more"]], free: ["100 万 token（手动开通后）", "1M tokens (after activation)"],
+      freeUrl: "https://console.volcengine.com/speech/new/setting/activate",
       priceUrl: "https://docs.volcengine.com/docs/doubao-voice/billing-instructions?lang=zh", tags: [] }
   ];
   var nm = function (m) { return typeof m.name === "string" ? m.name : t(m.name[0], m.name[1]); };
@@ -146,7 +148,12 @@
     var yes = function (v) { return v ? '<span class="y" aria-label="yes"></span>' : '<span class="n" aria-label="no"></span>'; };
     var ROWS = [
       [t("每分钟（估算）", "Per minute (est.)"), price],
-      [t("免费额度", "Free quota"), function (m) { return t(m.free[0], m.free[1]) + (m.freeNote ? "<small>" + t(m.freeNote[0], m.freeNote[1]) + "</small>" : ""); }],
+      [t("免费额度", "Free quota"), function (m) {
+        var s = t(m.free[0], m.free[1]);
+        // The text itself links to the vendor's quota page, so the cell stays one line of meaning.
+        if (m.freeUrl) s = '<a class="quota" href="' + m.freeUrl + '" target="_blank" rel="noopener">' + s + "</a>";
+        return s + (m.freeNote ? "<small>" + t(m.freeNote[0], m.freeNote[1]) + "</small>" : "");
+      }],
       [t("目标语言", "Target languages"), function (m) { return "<b>" + m.langs + "</b>"; }],
       [t("可朗读语言", "Spoken aloud"), function (m) { return m.speak ? "<b>" + m.speak + "</b>" : yes(false); }],
       [t("源语言", "Source language"), function (m) { return t(SOURCE[m.source][0], SOURCE[m.source][1]); }],
