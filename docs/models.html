@@ -56,7 +56,7 @@
 <section>
   <div class="wrap">
     <div class="scroll-x cmp" style="margin-top:0"><table id="cmp"></table></div>
-    <p class="note"><span class="zh">价格为 <b id="checked"></b> 查询的官方价目（不含促销），以控制台为准。每分钟价按官方音频 token 单价估算（Qwen 输入每秒 7 个、输出 12.5 个；豆包输入 6.25 个、输出 25 个），OpenAI 和 Gemini 取官方每分钟价；译文文本另计，通常远小于音频部分。</span><span class="en">Official list prices checked <b id="checked-en"></b>, promotions excluded; the console has the final word. Per-minute figures convert the audio token rates (Qwen 7 tokens/s in, 12.5 out; Doubao 6.25 in, 25 out); OpenAI and Gemini publish per-minute prices. Translated text is billed on top and is usually far smaller than the audio.</span></p>
+    <p class="note"><span class="zh">价格为 <b id="checked"></b> 查询的官方价目（不含促销），以控制台为准。每分钟价按官方音频 token 单价估算（Qwen 输入每秒 7 个、输出 12.5 个；豆包输入 6.25 个、输出 25 个），OpenAI 和 Gemini 取官方每分钟价；译文文本另计，通常远小于音频部分。免费额度的数量、期限和开通方式常有变动，以各家控制台实际显示为准。</span><span class="en">Official list prices checked <b id="checked-en"></b>, promotions excluded; the console has the final word. Per-minute figures convert the audio token rates (Qwen 7 tokens/s in, 12.5 out; Doubao 6.25 in, 25 out); OpenAI and Gemini publish per-minute prices. Translated text is billed on top and is usually far smaller than the audio. Free quotas change often in amount, duration and how to activate them; what the vendor console shows is what applies.</span></p>
   </div>
 </section>
 
@@ -110,11 +110,11 @@
   var MODELS = [
     { key: "qwen38", vendor: ["阿里云百炼", "Alibaba Model Studio"], name: "Qwen3.8", id: "qwen3.8-livetranslate-flash-realtime",
       langs: 60, speak: 29, source: "auto", voices: ["47 种预置", "47 presets"], twoWay: false,
-      price: QWEN_MIN, free: ["100 万 token，90 天（新加坡）", "1M tokens, 90 days (Singapore)"],
+      price: QWEN_MIN, free: ["北京需手动开通；新加坡自动发放", "Beijing: activate it first; Singapore: granted automatically"],
       priceUrl: QWEN_PRICE, tags: [["默认", "Default", "blue"]] },
     { key: "qwen35", vendor: ["阿里云百炼", "Alibaba Model Studio"], name: "Qwen3.5", id: "qwen3.5-livetranslate-flash-realtime",
       langs: 60, speak: 29, source: "either", voices: ["47 种预置", "47 presets"], twoWay: false,
-      price: QWEN_MIN, free: NONE, priceUrl: QWEN_PRICE, tags: [] },
+      price: QWEN_MIN, free: ["已停发新用户额度", "No longer for new users"], freeNote: ["2026-10-29 起", "Since 2026-10-29"], priceUrl: QWEN_PRICE, tags: [] },
     { key: "qwen3", vendor: ["阿里云百炼", "Alibaba Model Studio"], name: "Qwen3", id: "qwen3-livetranslate-flash-realtime",
       langs: 18, speak: 16, source: "either", voices: ["47 种预置", "47 presets"], twoWay: false,
       price: [["—", "—"], ["已不在百炼价目表", "Off the current price list"]], free: ["—", "—"], priceUrl: QWEN_PRICE, tags: [] },
@@ -124,7 +124,7 @@
       priceUrl: "https://developers.openai.com/api/docs/pricing", tags: [] },
     { key: "gemini", vendor: ["Google", "Google"], name: "Gemini 3.5 Live Translate", id: "gemini-3.5-live-translate-preview",
       langs: 54, speak: 54, source: "auto", voices: ["服务端决定", "Server's voice"], twoWay: false,
-      price: [["约 $0.0053", "~$0.0053"], ["朗读另约 $0.0315", "Read aloud ~$0.0315 more"]], free: ["免费层可用", "Free tier"],
+      price: [["约 $0.0053", "~$0.0053"], ["朗读另约 $0.0315", "Read aloud ~$0.0315 more"]], free: ["免费层可用，限额以 AI Studio 为准", "Free tier, limits as shown in AI Studio"],
       priceUrl: "https://aistudio.google.com/docs/pricing", tags: [["预览版", "Preview", ""]] },
     { key: "volc", vendor: ["火山引擎", "Volcengine"], name: ["豆包同声传译 2.0", "Doubao SI 2.0"], id: "doubao-ast-2.0",
       langs: 20, speak: 8, source: "named", voices: ["复刻说话人 / 2 种预置", "Cloned speaker / 2 presets"], twoWay: true,
@@ -142,7 +142,7 @@
     var yes = function (v) { return v ? '<span class="y" aria-label="yes"></span>' : '<span class="n" aria-label="no"></span>'; };
     var ROWS = [
       [t("每分钟（估算）", "Per minute (est.)"), price],
-      [t("免费额度", "Free quota"), function (m) { return t(m.free[0], m.free[1]); }],
+      [t("免费额度", "Free quota"), function (m) { return t(m.free[0], m.free[1]) + (m.freeNote ? "<small>" + t(m.freeNote[0], m.freeNote[1]) + "</small>" : ""); }],
       [t("目标语言", "Target languages"), function (m) { return "<b>" + m.langs + "</b>"; }],
       [t("可朗读语言", "Spoken aloud"), function (m) { return m.speak ? "<b>" + m.speak + "</b>" : yes(false); }],
       [t("源语言", "Source language"), function (m) { return t(SOURCE[m.source][0], SOURCE[m.source][1]); }],

@@ -96,10 +96,10 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 
 | API | Official rate | Per minute (estimate) | Free quota |
 |---|---|---|---|
-| Qwen3.8 | Per 1M tokens: audio in $7.5, text out $20, audio out $30 (Singapore); $5.653 / $14.133 / $22.613 (Beijing) | ~$0.003 per minute heard (Singapore); reading aloud ~$0.023 per minute more | 1M tokens for 90 days, Singapore |
-| Qwen3.5 | Singapore as Qwen3.8; Beijing $5.501 / $13.752 / $22.003 | Same | None |
+| Qwen3.8 | Per 1M tokens: audio in $7.5, text out $20, audio out $30 (Singapore); $5.653 / $14.133 / $22.613 (Beijing) | ~$0.003 per minute heard (Singapore); reading aloud ~$0.023 per minute more | Beijing: switch it on at the [free quota page](https://bailian.console.aliyun.com/cn-beijing/costing-balance/free-quota?model=livetranslate); Singapore: granted automatically once Model Studio is activated |
+| Qwen3.5 | Singapore as Qwen3.8; Beijing $5.501 / $13.752 / $22.003 | Same | No longer for new users (since 2026-10-29) |
 | OpenAI | $0.034 / minute (by input audio length) | $0.034 | None |
-| Gemini | Per 1M tokens: audio in $3.50, audio out $21.00 (preview pricing) | $0.0053 heard + $0.0315 spoken, ~$0.0368 combined per Google | Free tier available |
+| Gemini | Per 1M tokens: audio in $3.50, audio out $21.00 (preview pricing) | $0.0053 heard + $0.0315 spoken, ~$0.0368 combined per Google | Free tier, limits as shown in [AI Studio](https://aistudio.google.com/rate-limit) |
 | Doubao SI | Per 1M tokens: input ¥80, text out ¥80, audio out ¥300 (pay as you go); prepaid packs work out to ¥40–56 per 1M | ~¥0.03 per minute heard; reading aloud ~¥0.45 per minute more | 1M tokens, granted once the interpretation model is switched on by hand under [Activation](https://console.volcengine.com/speech/new/setting/activate) |
 
 Per-minute figures convert the official audio token rates: Qwen counts 7 tokens per second in and
