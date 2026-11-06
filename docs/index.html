@@ -72,11 +72,10 @@
     <div class="head reveal">
       <div class="kicker"><span class="zh">宣传片</span><span class="en">Film</span></div>
       <h2 class="h2"><span class="zh">30 秒看懂 ReaLingo</span><span class="en">ReaLingo in 30 seconds</span></h2>
-      <p class="lead"><span class="zh">实时翻译、译文朗读、置顶字幕窗、四种接口，打开声音看一遍。</span><span class="en">Live translation, read-aloud, the floating overlay and four APIs. Chinese voiceover, with English subtitles.</span></p>
+      <p class="lead"><span class="zh">实时翻译、译文朗读、置顶字幕窗、四种接口，打开声音看一遍。</span><span class="en">Live translation, read-aloud and the floating overlay. Turn the sound on.</span></p>
     </div>
     <div class="player reveal" id="player">
-      <video id="video" poster="promo-poster.jpg" preload="none" playsinline width="1920" height="1080">
-        <source src="promo.mp4" type="video/mp4" />
+      <video id="video" src="promo.mp4" poster="promo-poster.jpg" preload="none" playsinline width="1920" height="1080">
         <track kind="subtitles" srclang="en" label="English" src="promo.en.vtt" />
       </video>
       <button class="playbtn" type="button" id="play" aria-label="Play"><span><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg></span><em class="len">0:30</em></button>
@@ -504,15 +503,22 @@
   addEventListener("hashchange", openGuide); openGuide();
 
   /* ---- video: nothing is fetched until the poster is clicked ---- */
-  // The film is voiced and captioned in Chinese; English readers get the subtitle track.
-  function syncSubs() {
-    var t = $("#video").textTracks[0];
-    if (t) t.mode = zh() ? "hidden" : "showing";
+  // One cut per page language: the Chinese film (its English subtitle track stays off, since
+  // English readers get the English cut instead) and the English-voiced film.
+  function syncFilm() {
+    var v = $("#video"), src = zh() ? "promo.mp4" : "promo-en.mp4";
+    v.poster = zh() ? "promo-poster.jpg" : "promo-poster-en.jpg";
+    var t = v.textTracks[0]; if (t) t.mode = "disabled";
+    if (v.getAttribute("src") === src) return;
+    var playing = !v.paused;
+    v.setAttribute("src", src);
+    if (playing) v.play(); else if ($("#player").classList.contains("playing")) v.load();
   }
-  $("#lang").addEventListener("click", syncSubs);
+  $("#lang").addEventListener("click", syncFilm);
+  syncFilm();
   $("#play").addEventListener("click", function () {
     $("#player").classList.add("playing");
-    var v = $("#video"); v.controls = true; syncSubs(); v.play();
+    var v = $("#video"); v.controls = true; v.play();
   });
 })();
 </script>
