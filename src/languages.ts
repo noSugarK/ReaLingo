@@ -152,10 +152,7 @@ export interface Preset {
 
 /** The models offered per protocol; the first is the protocol's default. */
 export const PRESETS: Record<Protocol, Preset[]> = {
-  qwen35: [
-    { id: MODEL_QWEN3_5, name: "Qwen3.5", langs: 60 },
-    { id: MODEL_QWEN3, name: "Qwen3", langs: 18 },
-  ],
+  qwen35: [{ id: MODEL_QWEN3_5, name: "Qwen3.5", langs: 60 }],
   qwen38: [{ id: MODEL_QWEN3_8, name: "Qwen3.8", langs: 60 }],
   openai: [{ id: MODEL_OPENAI, name: "GPT-Realtime-Translate", langs: 13 }],
   gemini: [{ id: MODEL_GEMINI, name: "Gemini 3.5 Live Translate", langs: 54 }],
@@ -168,7 +165,8 @@ export function modelName(protocol: Protocol, model: string): string {
 }
 
 /** Codes the given model can actually translate into. Qwen3 is a model of the Qwen3.5
- * protocol with a smaller list, so the model has the last word there. */
+ * protocol with a smaller list, so the model has the last word there. It is no longer a
+ * preset (Model Studio dropped it), but a config that still names it keeps its 18 languages. */
 export function languageCodes(protocol: Protocol, model: string): string[] {
   const all = LANGUAGES.map((l) => l.code);
   const only = model === MODEL_QWEN3 ? QWEN3_CODES : PROTOCOLS[protocol].langs;
