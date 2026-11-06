@@ -16,10 +16,16 @@
 /* comparison: feature rows x model columns, first column pinned */
 .cmp table { min-width: 900px; }
 .cmp th, .cmp td { text-align: center; vertical-align: middle; }
-.cmp th:first-child, .cmp td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; font-weight: 600; color: var(--ink-1); min-width: 150px; }
+.cmp thead tr:first-child th:first-child, .cmp td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; font-weight: 600; color: var(--ink-1); min-width: 150px; }
 .cmp thead th { font-size: 15px; color: var(--ink-1); letter-spacing: 0; }
 .cmp thead th small { display: block; font-size: 12px; color: var(--ink-3); font-weight: 600; }
-.cmp thead th .tag { margin-top: 6px; }
+.cmp thead th .tag { display: table; margin: 6px auto 0; }
+.cmp table { table-layout: fixed; }
+.cmp thead tr:first-child th:first-child { width: 150px; }
+/* vendor row: a label over a short rule spanning its models, gaps between vendors */
+.cmp thead th.vendor { font-size: 12px; font-weight: 700; color: var(--ink-3); border-bottom: 0; padding: 18px 10px 0; }
+.cmp thead th.vendor span { display: block; padding-bottom: 8px; border-bottom: 2px solid var(--hairline); }
+.cmp thead tr + tr th { padding-top: 12px; }
 .cmp tr.group td { background: var(--sunk); font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); text-align: left; padding: 8px 20px; }
 .cmp tr.group td:first-child { background: var(--sunk); }
 .cmp .y, .cmp .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; }
@@ -149,8 +155,15 @@
       [t("中英双向", "Zh ⇄ En in one session"), function (m) { return yes(m.twoWay); }],
       [t("音色", "Voices"), function (m) { return t(m.voices[0], m.voices[1]); }]
     ];
-    var head = "<thead><tr><th></th>" + MODELS.map(function (m) {
-      return "<th>" + nm(m) + "<small>" + t(m.vendor[0], m.vendor[1]) + "</small>" +
+    // Row 1: one cell per vendor spanning its adjacent models; row 2: the models.
+    var vendors = "";
+    MODELS.forEach(function (m, i) {
+      if (i && MODELS[i - 1].vendor[0] === m.vendor[0]) return;
+      for (var n = 1; MODELS[i + n] && MODELS[i + n].vendor[0] === m.vendor[0]; n++);
+      vendors += '<th class="vendor" colspan="' + n + '"><span>' + t(m.vendor[0], m.vendor[1]) + "</span></th>";
+    });
+    var head = '<thead><tr><th rowspan="2"></th>' + vendors + "</tr><tr>" + MODELS.map(function (m) {
+      return "<th>" + nm(m) +
         m.tags.map(function (g) { return '<span class="tag ' + g[2] + '">' + t(g[0], g[1]) + "</span>"; }).join("") + "</th>";
     }).join("") + "</tr></thead>";
     var body = ROWS.map(function (r) { return "<tr><td>" + r[0] + "</td>" + MODELS.map(function (m) { return "<td>" + r[1](m) + "</td>"; }).join("") + "</tr>"; }).join("");
