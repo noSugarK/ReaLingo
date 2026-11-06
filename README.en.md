@@ -39,8 +39,8 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 
 - **Three audio sources**: microphone / system audio / a local audio file
   (Windows, macOS and Ubuntu can all capture system audio directly)
-- **Five APIs to choose from**: Alibaba Cloud Model Studio Qwen3.8 (60 languages, default), Qwen3.5 /
-  Qwen3 (60 / 18), OpenAI `gpt-realtime-translate` (13 output languages), Google Gemini Live Translate
+- **Five APIs to choose from**: Alibaba Cloud Model Studio Qwen3.8 (60 languages, default), Qwen3.5
+  (60), OpenAI `gpt-realtime-translate` (13 output languages), Google Gemini Live Translate
   (54) and Volcengine Doubao Simultaneous Interpretation 2.0 (20; one side of every pair must be
   Chinese or English). Model and endpoint are both editable, so any service speaking the same API (a
   proxy, a private deployment) works too; each vendor's API key is stored separately
@@ -87,7 +87,7 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 | API | Default model | Languages | Read aloud | Chinese ⇄ English | Endpoint | Auth |
 |---|---|---|---|---|---|---|
 | Qwen3.8 (Model Studio) | `qwen3.8-livetranslate-flash-realtime` | 60, source detected | 29 target languages, 47 voices | — | `wss://dashscope.aliyuncs.com/api-ws/v1/realtime` (Beijing)<br>`wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime` (Singapore) | `Authorization: Bearer` |
-| Qwen3.5 / 3 (Model Studio) | `qwen3.5-livetranslate-flash-realtime` | 60 (Qwen3: 18), source can be named | Same | — | Same | Same |
+| Qwen3.5 (Model Studio) | `qwen3.5-livetranslate-flash-realtime` | 60, source can be named | Same | — | Same | Same |
 | OpenAI | `gpt-realtime-translate` | Hears 70+, outputs 13 | Every target language, server's voice | — | `wss://api.openai.com/v1/realtime/translations` | `Authorization: Bearer` |
 | Gemini (Google) | `gemini-3.5-live-translate-preview` | 54 | Every target language, server's voice | — | `wss://generativelanguage.googleapis.com/ws/…BidiGenerateContent` | `key=` URL parameter |
 | Doubao Simultaneous Interpretation (Volcengine) | Doubao SI 2.0 | 20, each pair with Chinese or English; source must be named | 8 target languages, the speaker's cloned voice or 2 presets | ✓ | `wss://openspeech.bytedance.com/api/v4/ast/v2/translate` | `X-Api-Key` + `X-Api-Resource-Id` |
@@ -104,8 +104,7 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 
 Per-minute figures convert the official audio token rates: Qwen counts 7 tokens per second in and
 12.5 out, Doubao 6.25 in and 25 out; Gemini and OpenAI publish per-minute prices themselves. The
-translated text is billed on top by length and is usually far smaller than the audio. Qwen3's
-LiveTranslate model no longer appears on Model Studio's current price list.
+translated text is billed on top by length and is usually far smaller than the audio.
 
 Sources: [Model Studio pricing](https://www.alibabacloud.com/help/en/model-studio/model-pricing),
 [OpenAI pricing](https://developers.openai.com/api/docs/pricing),
@@ -123,7 +122,7 @@ Settings come in three groups — Connection, Translation, Advanced:
 |---|---|
 | API | Which message format to speak: **Qwen3.5 / 3**, **Qwen3.8** (Alibaba Cloud Model Studio), **OpenAI**, **Gemini Live Translate** (Google), **Doubao Simultaneous Interpretation** (Volcengine). Both Qwen APIs share the Model Studio key. Switching remembers each API's model and each vendor's custom URL |
 | API Key | One per vendor, kept in the OS credential store — see below. Get one from the [Model Studio console](https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key) (the link follows the region), [OpenAI](https://platform.openai.com/api-keys), [Google AI Studio](https://aistudio.google.com/apikey) or the [Doubao Speech console](https://console.volcengine.com/speech/new/setting/apikeys); the settings page links to each. A Doubao key only works once simultaneous interpretation is switched on under [Activation](https://console.volcengine.com/speech/new/setting/activate) |
-| Model | Pick a preset or "Custom…" for any model ID. Presets: Qwen3.8 (60 languages, default), Qwen3.5 (60), Qwen3 (18), `gpt-realtime-translate` (13 output languages), `gemini-3.5-live-translate-preview` (54), Doubao Simultaneous Interpretation 2.0 (20; the endpoint takes no model name, so this is display only). The language pickers list only what the current model supports, and a language it cannot handle falls back automatically |
+| Model | Pick a preset or "Custom…" for any model ID. Presets: Qwen3.8 (60 languages, default), Qwen3.5 (60), `gpt-realtime-translate` (13 output languages), `gemini-3.5-live-translate-preview` (54), Doubao Simultaneous Interpretation 2.0 (20; the endpoint takes no model name, so this is display only). The language pickers list only what the current model supports, and a language it cannot handle falls back automatically |
 | Region | Qwen only. China (Beijing) / Singapore — the only regions serving the LiveTranslate models today |
 | Workspace ID | Qwen only, **optional.** Leave blank for the shared endpoint `dashscope[-intl].aliyuncs.com`; filling it in uses your workspace's dedicated domain `{id}.{region}.maas.aliyuncs.com`. Beijing IDs look like `llm-…`, Singapore ones like `ws-…` |
 | Hotwords | Qwen only, **optional.** One `source=translation` per line, so proper nouns come out the way you want them (`人工智能=Artificial Intelligence`). Up to 1000; sent with the session, so edits apply the next time you start |

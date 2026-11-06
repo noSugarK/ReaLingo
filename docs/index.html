@@ -391,7 +391,7 @@ footer a { text-decoration: none; }
       <h2 class="h2"><span class="zh">你要的语言，大概率都在</span><span class="en">Your language is probably here</span></h2>
       <p class="lead"><span class="zh">切换接口，看看各家能译出哪些语言，带喇叭图标的还能朗读。除了豆包要手动指定源语言，其余都能自动检测。</span><span class="en">Switch between the APIs to see what each translates into — the ones with a speaker can be read aloud. All but Doubao detect the source language for you.</span></p>
     </div>
-    <div class="seg apis reveal" id="apis"><button data-v="qwen" class="on">Qwen3.5 / 3.8</button><button data-v="gemini">Gemini</button><button data-v="openai">OpenAI</button><button data-v="qwen3">Qwen3</button><button data-v="volc">豆包 / Doubao</button></div>
+    <div class="seg apis reveal" id="apis"><button data-v="qwen" class="on">Qwen3.5 / 3.8</button><button data-v="gemini">Gemini</button><button data-v="openai">OpenAI</button><button data-v="volc">豆包 / Doubao</button></div>
     <div class="langbar reveal">
       <input id="q" type="search" placeholder="搜索语言 / Search…" autocomplete="off" />
       <span class="count" id="count"></span>
@@ -714,7 +714,6 @@ footer a { text-decoration: none; }
   // per API, mirrors languageCodes() / canSpeak() in src/languages.ts
   var APIS = {
     qwen: { has: function () { return true; }, speaksAll: false },
-    qwen3: { has: function (c) { return "en zh ru fr de pt es it id ko ja vi th ar yue hi el tr".split(" ").indexOf(c) >= 0; }, speaksAll: false },
     openai: { has: function (c) { return "es pt fr ja ru zh de ko hi id vi it en".split(" ").indexOf(c) >= 0; }, speaksAll: true },
     gemini: { has: function (c) { return "yue ast bs ceb ky tg".split(" ").indexOf(c) < 0; }, speaksAll: true },
     volc: { has: function (c) { return "zh en de fr es id ja pt ko tr ms nl ro pl cs ar th vi ru it".split(" ").indexOf(c) >= 0; }, speaks: function (c) { return "zh en de fr es id ja pt".split(" ").indexOf(c) >= 0; } }

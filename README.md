@@ -36,7 +36,7 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
 ## 功能
 
 - **三种音频来源**：麦克风 / 系统声音 / 本地音频文件（Windows、macOS、Ubuntu 三平台都能直接采系统声音）
-- **五种接口可选**：阿里云百炼 Qwen3.8（60 语种，默认）、Qwen3.5 / Qwen3（60 / 18 语种）、
+- **五种接口可选**：阿里云百炼 Qwen3.8（60 语种，默认）、Qwen3.5（60 语种）、
   OpenAI `gpt-realtime-translate`（输出 13 种语言）、Google Gemini Live Translate（54 种语言）、
   火山引擎豆包同声传译 2.0（20 种语言，每一对里必须有中文或英文）。
   模型和接入地址都能自己改，兼容同一接口的服务（代理、私有部署）也能接；各家的 API Key 分开保存
@@ -75,7 +75,7 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
 | 接口 | 默认模型 | 语言 | 朗读 | 中英互译 | 连接地址 | 鉴权 |
 |---|---|---|---|---|---|---|
 | Qwen3.8（百炼） | `qwen3.8-livetranslate-flash-realtime` | 60 种，源语言自动检测 | 29 种目标语言，47 种音色 | — | `wss://dashscope.aliyuncs.com/api-ws/v1/realtime`（北京）<br>`wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime`（新加坡） | `Authorization: Bearer` |
-| Qwen3.5 / 3（百炼） | `qwen3.5-livetranslate-flash-realtime` | 60 种（Qwen3 为 18 种），源语言可指定 | 同上 | — | 同上 | 同上 |
+| Qwen3.5（百炼） | `qwen3.5-livetranslate-flash-realtime` | 60 种，源语言可指定 | 同上 | — | 同上 | 同上 |
 | OpenAI | `gpt-realtime-translate` | 听 70+ 种，输出 13 种 | 全部目标语言，服务端定音色 | — | `wss://api.openai.com/v1/realtime/translations` | `Authorization: Bearer` |
 | Gemini（Google） | `gemini-3.5-live-translate-preview` | 54 种 | 全部目标语言，服务端定音色 | — | `wss://generativelanguage.googleapis.com/ws/…BidiGenerateContent` | URL 参数 `key=` |
 | 豆包同声传译（火山引擎） | 豆包同声传译 2.0 | 20 种，每对须含中文或英文；源语言必须指定 | 8 种目标语言，复刻说话人或 2 个预置音色 | ✓ | `wss://openspeech.bytedance.com/api/v4/ast/v2/translate` | `X-Api-Key` + `X-Api-Resource-Id` |
@@ -92,7 +92,6 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
 
 「折合每分钟」按官方给的音频 token 折算：Qwen 输入每秒 7 个、输出每秒 12.5 个；豆包输入每秒 6.25 个、输出每秒 25 个；
 Gemini 和 OpenAI 直接取官方的每分钟价。译文文本按字数另计，通常远小于音频部分。
-Qwen3 的 LiveTranslate 已不在百炼当前价目表里。
 
 价格来源：[百炼模型价格](https://www.alibabacloud.com/help/en/model-studio/model-pricing)、
 [OpenAI 价格](https://developers.openai.com/api/docs/pricing)、
@@ -109,7 +108,7 @@ Qwen3 的 LiveTranslate 已不在百炼当前价目表里。
 |---|---|
 | 接口 | 决定按哪种消息格式通信：**Qwen3.5 / 3**、**Qwen3.8**（阿里云百炼）、**OpenAI**、**Gemini Live Translate**（Google）、**豆包同声传译**（火山引擎）。两个 Qwen 接口共用百炼的 Key。切换时每个接口记住自己的模型、每家记住自己的自定义地址 |
 | API Key | 每家一个，存在系统凭据库里（见下）。获取：[百炼控制台](https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key)（链接随地域切换）、[OpenAI](https://platform.openai.com/api-keys)、[Google AI Studio](https://aistudio.google.com/apikey)、[豆包语音控制台](https://console.volcengine.com/speech/new/setting/apikeys)，设置页里都有直达链接。豆包的 Key 要先在[开通管理](https://console.volcengine.com/speech/new/setting/activate)里开通「同声传译」才能用 |
-| 翻译模型 | 下拉选预设，或选「自定义…」填任意模型 ID。预设：Qwen3.8（60 语种，默认）、Qwen3.5（60 语种）、Qwen3（18 语种）、`gpt-realtime-translate`（输出 13 种语言）、`gemini-3.5-live-translate-preview`（54 种语言）、豆包同声传译 2.0（20 种语言；接口不收模型名，这一项只用于显示）。语言选择器只列当前模型支持的语言，当前选择不在其中会自动回退 |
+| 翻译模型 | 下拉选预设，或选「自定义…」填任意模型 ID。预设：Qwen3.8（60 语种，默认）、Qwen3.5（60 语种）、`gpt-realtime-translate`（输出 13 种语言）、`gemini-3.5-live-translate-preview`（54 种语言）、豆包同声传译 2.0（20 种语言；接口不收模型名，这一项只用于显示）。语言选择器只列当前模型支持的语言，当前选择不在其中会自动回退 |
 | 地域 | 仅 Qwen。华北2（北京）/ 新加坡 —— 目前只有这两个地域提供 LiveTranslate 模型 |
 | 业务空间 ID | 仅 Qwen，**选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.{地域}.maas.aliyuncs.com`。北京的 ID 形如 `llm-…`，新加坡形如 `ws-…` |
 | 热词 | 仅 Qwen，**选填**。每行一条「源词=译文」，让模型按你的说法翻专有名词（`人工智能=Artificial Intelligence`）。最多 1000 条，随会话下发，翻译进行中改动要重新开始才生效 |

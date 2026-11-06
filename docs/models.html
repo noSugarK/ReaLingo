@@ -121,9 +121,6 @@
     { key: "qwen35", vendor: ["阿里云百炼", "Alibaba Model Studio"], name: "Qwen3.5", id: "qwen3.5-livetranslate-flash-realtime",
       langs: 60, speak: 29, source: "either", voices: ["47 种预置", "47 presets"], twoWay: false,
       price: QWEN_MIN, free: ["已停发新用户额度", "No longer for new users"], freeNote: ["2026-10-29 起", "Since 2026-10-29"], priceUrl: QWEN_PRICE, tags: [] },
-    { key: "qwen3", vendor: ["阿里云百炼", "Alibaba Model Studio"], name: "Qwen3", id: "qwen3-livetranslate-flash-realtime",
-      langs: 18, speak: 16, source: "either", voices: ["47 种预置", "47 presets"], twoWay: false,
-      price: [["—", "—"], ["已不在百炼价目表", "Off the current price list"]], free: ["—", "—"], priceUrl: QWEN_PRICE, tags: [] },
     { key: "openai", vendor: ["OpenAI", "OpenAI"], name: "GPT-Realtime-Translate", id: "gpt-realtime-translate",
       langs: 13, speak: 13, source: "auto", voices: ["服务端决定", "Server's voice"], twoWay: false,
       price: [["$0.034", "$0.034"], ["含朗读，按输入时长计", "Speech included, by input length"]], free: NONE,
@@ -178,7 +175,6 @@
   var APIS = {
     qwen38: { has: function () { return true; } },
     qwen35: { has: function () { return true; } },
-    qwen3: { has: inList("en zh ru fr de pt es it id ko ja vi th ar yue hi el tr") },
     openai: { has: inList("es pt fr ja ru zh de ko hi id vi it en"), speaksAll: true },
     gemini: { has: function (c) { return "yue ast bs ceb ky tg".split(" ").indexOf(c) < 0; }, speaksAll: true },
     volc: { has: inList("zh en de fr es id ja pt ko tr ms nl ro pl cs ar th vi ru it"), speaks: inList("zh en de fr es id ja pt") }
