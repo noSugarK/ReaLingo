@@ -108,10 +108,15 @@ const keyConsole = computed(
     })[vendor.value]
 );
 const KEY_LABEL = { qwen: "apiKeyGet", openai: "apiKeyGetOpenai", gemini: "apiKeyGetGemini", volc: "apiKeyGetVolc" } as const;
-/** Where a vendor's key has to be switched on before it works: Volcengine's needs the model
- *  enabled by hand, on a page of its own. */
-const ACTIVATE: Partial<Record<Vendor, string>> = { volc: "https://console.volcengine.com/speech/new/setting/activate" };
-const activateUrl = computed(() => ACTIVATE[vendor.value]);
+/** Pages to switch something on by hand: Volcengine's model (and its free quota) before the key
+ *  works, Model Studio's free quota (Beijing) before it applies. */
+const ACTIVATE: Partial<Record<Vendor, { url: string; label: "volcActivate" | "qwenFreeQuota" | "geminiFreeQuota" }>> = {
+  gemini: { url: "https://aistudio.google.com/rate-limit", label: "geminiFreeQuota" },
+  volc: { url: "https://console.volcengine.com/speech/new/setting/activate", label: "volcActivate" },
+  qwen: { url: "https://bailian.console.aliyun.com/cn-beijing/costing-balance/free-quota?model=livetranslate", label: "qwenFreeQuota" },
+};
+// Singapore grants Model Studio's free quota automatically; only Beijing has a page to switch it on.
+const activate = computed(() => (vendor.value === "qwen" && settings.region !== "beijing" ? undefined : ACTIVATE[vendor.value]));
 const keyConsoleLabel = computed(() => t(KEY_LABEL[vendor.value]));
 // The opener plugin, not an <a href>: a plain link navigates the app's own webview away.
 const openUrl = (url: string) => invoke("plugin:opener|open_url", { url });
@@ -149,8 +154,8 @@ const advancedOpen = !!settings.url;
           <button class="link" @click.prevent="openUrl(keyConsole)">
             {{ keyConsoleLabel }} ↗
           </button>
-          <button v-if="activateUrl" class="link" @click.prevent="openUrl(activateUrl)">
-            {{ t("volcActivate") }} ↗
+          <button v-if="activate" class="link" @click.prevent="openUrl(activate.url)">
+            {{ t(activate.label) }} ↗
           </button>
         </small>
       </label>
