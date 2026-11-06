@@ -269,5 +269,11 @@ section.flush { padding-top: 0; }
 #theme { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; cursor: pointer; border-radius: 50%; border: 1px solid var(--hairline); background: transparent; color: var(--ink-1); }
 #theme svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #theme .sun { display: none; }
+/* artwork that has a light and a dark version follows the theme, like the toggle icon */
+.theme-dark { display: none !important; }
+:root[data-theme="dark"] .theme-dark { display: block !important; } :root[data-theme="dark"] .theme-light { display: none !important; }
 :root[data-theme="dark"] #theme .sun { display: block; } :root[data-theme="dark"] #theme .moon { display: none; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #theme .sun { display: block; } :root:not([data-theme="light"]) #theme .moon { display: none; } }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #theme .sun { display: block; } :root:not([data-theme="light"]) #theme .moon { display: none; }
+  :root:not([data-theme="light"]) .theme-dark { display: block !important; } :root:not([data-theme="light"]) .theme-light { display: none !important; }
+}
