@@ -122,6 +122,7 @@ header nav a:hover { color: var(--ink-1); }
 .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--grad); }
 .cta { display: flex; align-items: center; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
 .cta-note { font-size: 13px; color: var(--ink-3); margin-top: 10px; min-height: 1.2em; }
+.cta-note a { text-decoration: none; } .cta-note a:hover { color: var(--hero); }
 .shot { position: relative; }
 .shot img { border-radius: 12px; box-shadow: var(--float); }
 /* a live subtitle bar hovering over the screenshot */
@@ -230,6 +231,13 @@ td small { color: var(--ink-2); }
 .faq summary::after { content: "+"; font-size: 24px; line-height: 1; color: var(--hero); transition: transform .3s var(--ease); }
 .faq details[open] summary::after { transform: rotate(45deg); }
 .faq details p { margin: 0 0 20px; color: var(--ink-2); font-size: 15px; }
+.faq a { color: var(--hero); }
+.faq .tut { padding-bottom: 20px; color: var(--ink-2); font-size: 15px; }
+.faq .tut h4 { margin: 18px 0 6px; font-size: 15px; color: var(--ink-1); }
+.faq .tut h4:first-child { margin-top: 0; }
+.faq .tut p { margin: 0 0 10px; }
+.faq .tut ul, .faq .tut ol { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 6px; }
+.faq .tut b { color: var(--ink-1); }
 
 /* ---------------- film + download ---------------- */
 .player { position: relative; margin-top: 40px; border-radius: 22px; overflow: hidden; box-shadow: var(--float); background: #000; aspect-ratio: 16 / 9; }
@@ -245,9 +253,6 @@ td small { color: var(--ink-2); }
 .film .lead { margin-left: auto; margin-right: auto; }
 /* heading + player fit one laptop screen */
 .film .player { margin: 34px auto 0; max-width: min(1000px, (100vh - 300px) * 16 / 9); }
-.rel-meta { color: var(--ink-2); margin-top: 12px; min-height: 1.6em; }
-.dl-cta { display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap; margin-top: 36px; }
-.dl-cta .cta-note { margin: 0; }
 .alt, .note { color: var(--ink-2); font-size: 15px; margin-top: 20px; }
 footer { display: flex; gap: 20px; padding: 40px 0 60px; color: var(--ink-3); font-size: 14px; border-top: 1px solid var(--hairline); }
 footer .spacer { flex: 1; }
@@ -276,7 +281,7 @@ footer a { text-decoration: none; }
   <nav>
     <a class="hide-sm" href="#film"><span class="zh">宣传片</span><span class="en">Film</span></a>
     <a class="hide-sm" href="#start"><span class="zh">开始使用</span><span class="en">Get started</span></a>
-    <a class="hide-sm" href="models.html"><span class="zh">模型</span><span class="en">Models</span></a>
+    <a href="models.html"><span class="zh">模型</span><span class="en">Models</span></a>
     <a class="hide-sm" href="#faq"><span class="zh">常见问题</span><span class="en">FAQ</span></a>
     <a href="download.html"><span class="zh">下载</span><span class="en">Download</span></a>
     <a class="hide-xs" href="https://github.com/noSugarK/ReaLingo">GitHub</a>
@@ -291,7 +296,7 @@ footer a { text-decoration: none; }
   <div class="wrap">
     <img class="logo reveal" src="banner.webp" alt="ReaLingo" width="1075" height="320" />
     <h1 class="reveal" style="--d:.06s"><span class="zh">实时同传，<span class="grad">就在你的桌面</span></span><span class="en">Live interpreting, <span class="grad">on your desktop</span></span></h1>
-    <p class="lead reveal" style="--d:.12s"><span class="zh">开会、看视频、上网课时，把麦克风、系统声音或音频文件交给它，译文实时浮在任何窗口上。开源免费，自带阿里云百炼、OpenAI 或 Google Gemini 的 API Key 即可。</span><span class="en">In a meeting, a video or a lecture: hand it your mic, system audio or a file, and the translation floats live over any window. Free and open source — bring your own Alibaba Cloud Model Studio, OpenAI or Google Gemini key.</span></p>
+    <p class="lead reveal" style="--d:.12s"><span class="zh">开会、看视频、上网课时，把麦克风、系统声音或音频文件交给它，译文实时浮在任何窗口上。开源免费，自带阿里云百炼、OpenAI、Google Gemini 或火山引擎豆包的 API Key 即可。</span><span class="en">In a meeting, a video or a lecture: hand it your mic, system audio or a file, and the translation floats live over any window. Free and open source — bring your own Alibaba Cloud Model Studio, OpenAI, Google Gemini or Volcengine Doubao key.</span></p>
     <div class="cta reveal" style="--d:.18s">
       <a class="btn primary" id="hero-dl" href="download.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4.2-4.2M12 14l-4.2-4.2M4.5 17.5v1A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-1"/></svg>
@@ -340,8 +345,8 @@ footer a { text-decoration: none; }
       <h2 class="h2"><span class="zh">三步，就能开始翻译</span><span class="en">Three steps and you are translating</span></h2>
     </div>
     <div class="steps">
-      <div class="reveal"><b><span class="zh">下载安装</span><span class="en">Install</span></b><p><span class="zh">Windows、macOS、Ubuntu 各有安装包，页面会自动推荐你的系统对应的那个。</span><span class="en">Installers for Windows, macOS and Ubuntu — this page picks the one for your system.</span></p></div>
-      <div class="reveal" style="--d:.08s"><b><span class="zh">填入 API Key</span><span class="en">Add your API key</span></b><p><span class="zh">在设置里选接口，到 <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">百炼控制台</a>、<a href="https://platform.openai.com/api-keys">OpenAI</a> 或 <a href="https://aistudio.google.com/apikey">Google AI Studio</a> 拿一个 Key 粘贴进去。它存进系统凭据库，不写进配置文件。</span><span class="en">Pick an API in Settings and paste a key from the <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">Model Studio console</a>, <a href="https://platform.openai.com/api-keys">OpenAI</a> or <a href="https://aistudio.google.com/apikey">Google AI Studio</a>. It goes into the OS keychain, not a config file.</span></p></div>
+      <div class="reveal"><b><span class="zh">下载安装</span><span class="en">Install</span></b><p><span class="zh">Windows、macOS、Ubuntu 各有安装包，按钮会自动给你的系统对应的那个。</span><span class="en">Installers for Windows, macOS and Ubuntu — this page picks the one for your system.</span></p></div>
+      <div class="reveal" style="--d:.08s"><b><span class="zh">填入 API Key</span><span class="en">Add your API key</span></b><p><span class="zh">在设置里选接口，到 <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">百炼控制台</a>、<a href="https://platform.openai.com/api-keys">OpenAI</a>、<a href="https://aistudio.google.com/apikey">Google AI Studio</a> 或<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台</a>拿一个 Key 粘贴进去，详细步骤见<a href="#guide">常见问题</a>。它存进系统凭据库，不写进配置文件。</span><span class="en">Pick an API in Settings and paste a key from the <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">Model Studio console</a>, <a href="https://platform.openai.com/api-keys">OpenAI</a>, <a href="https://aistudio.google.com/apikey">Google AI Studio</a> or the <a href="https://console.volcengine.com/speech/new/setting/apikeys">Doubao Speech console</a> (step by step in the <a href="#guide">FAQ</a>). It goes into the OS keychain, not a config file.</span></p></div>
       <div class="reveal" style="--d:.16s"><b><span class="zh">选来源，点开始</span><span class="en">Pick a source, press start</span></b><p><span class="zh">麦克风、系统声音或音频文件三选一，选好目标语言，打开字幕窗，点「开始翻译」。</span><span class="en">Microphone, system audio or a file; choose the target language, open the overlay, press Start.</span></p></div>
     </div>
   </div>
@@ -503,6 +508,48 @@ footer a { text-decoration: none; }
       <h2 class="h2"><span class="zh">你可能想问</span><span class="en">You might be wondering</span></h2>
     </div>
     <div class="faq reveal">
+      <details id="guide"><summary><span class="zh">怎么用？从申请 API Key 到开始翻译</span><span class="en">How do I use it? From API key to first subtitle</span></summary><div class="tut">
+        <div class="zh">
+          <h4>1. 挑一家服务，拿到 API Key</h4>
+          <p>只需要一家。不知道选哪家，先看<a href="models.html">模型与价格</a>；ReaLingo 的设置页里也有各家控制台的直达链接。</p>
+          <ul>
+            <li><b>阿里云百炼（Qwen）</b>：打开<a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">百炼控制台的 API Key 页</a>（国际站账号用<a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">新加坡地域</a>），创建一个 API Key 并复制。Key 跟地域对应：国内站选北京，国际站选新加坡，后面在设置里选同一个地域。Qwen3.8 和 Qwen3.5 共用这一个 Key。</li>
+            <li><b>OpenAI</b>：在 <a href="https://platform.openai.com/api-keys">OpenAI 平台的 API keys 页</a>新建一个 secret key，完整的 Key 只显示这一次，马上复制。账号里需要有可用余额。</li>
+            <li><b>Google Gemini</b>：在 <a href="https://aistudio.google.com/apikey">Google AI Studio 的 API Key 页</a>创建 Key 并复制，有免费层可用。</li>
+            <li><b>火山引擎豆包</b>：先到<a href="https://console.volcengine.com/speech/new/setting/activate">开通管理</a>里手动开通「同声传译」（开通后发放 100 万 token 免费额度），再到<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台的 API Key 页</a>创建 Key。没开通的话，Key 填进去也连不上。</li>
+          </ul>
+          <h4>2. 把 Key 填进 ReaLingo</h4>
+          <p>打开 ReaLingo，点右上角齿轮（或标题栏 logo 下方的模型名）进入设置，在「连接」里选接口，粘贴 Key；用百炼的话再选好地域。Key 存进系统凭据库（Windows 凭据管理器、macOS 钥匙串、Linux Secret Service），不写进配置文件。</p>
+          <h4>3. 开始翻译</h4>
+          <ol>
+            <li>选音频来源：麦克风、系统声音或音频文件。</li>
+            <li>选目标语言。豆包还要指定源语言，其余接口能自动识别。</li>
+            <li>想听译文就打开朗读，想在别的窗口上看字幕就打开字幕窗。</li>
+            <li>点「开始翻译」。</li>
+          </ol>
+          <p>连不上时，先到设置页「高级」里看最终连接的地址，确认接口、地域和 Key 是同一家、同一个地域的。</p>
+        </div>
+        <div class="en">
+          <h4>1. Pick a service and get an API key</h4>
+          <p>You only need one. Not sure which? See <a href="models.html">Models &amp; pricing</a>. ReaLingo's settings page also links straight to each console.</p>
+          <ul>
+            <li><b>Alibaba Cloud Model Studio (Qwen)</b>: open the <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">API key page in the Model Studio console</a> (China-site accounts use the <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">Beijing region</a>), create a key and copy it. Keys follow the region: international accounts use Singapore, China-site accounts Beijing; pick the same region in Settings later. Qwen3.8 and Qwen3.5 share this key.</li>
+            <li><b>OpenAI</b>: create a new secret key on the <a href="https://platform.openai.com/api-keys">API keys page of the OpenAI platform</a>. The full key is shown only once, so copy it right away. The account needs available credit.</li>
+            <li><b>Google Gemini</b>: create a key on the <a href="https://aistudio.google.com/apikey">API key page in Google AI Studio</a> and copy it. A free tier is available.</li>
+            <li><b>Volcengine Doubao</b>: first switch on simultaneous interpretation by hand under <a href="https://console.volcengine.com/speech/new/setting/activate">Activation</a> (that grants 1M free tokens), then create a key on the <a href="https://console.volcengine.com/speech/new/setting/apikeys">API key page of the Doubao Speech console</a>. Without activation the key will not connect.</li>
+          </ul>
+          <h4>2. Put the key into ReaLingo</h4>
+          <p>Open ReaLingo and click the gear in the top-right (or the model name under the title-bar logo). Under Connection, pick the API and paste the key; for Model Studio, also pick the region. The key goes into the OS keychain (Windows Credential Manager, macOS Keychain, Linux Secret Service), never a config file.</p>
+          <h4>3. Start translating</h4>
+          <ol>
+            <li>Pick the audio source: microphone, system audio or an audio file.</li>
+            <li>Pick the target language. Doubao also needs the source language; the others detect it.</li>
+            <li>Turn on read-aloud to hear the translation, and open the overlay to read subtitles over other windows.</li>
+            <li>Press Start.</li>
+          </ol>
+          <p>Can't connect? Settings → Advanced shows the final endpoint: check that the API, region and key all come from the same vendor and region.</p>
+        </div>
+      </div></details>
       <details><summary><span class="zh">要花钱吗？</span><span class="en">Does it cost anything?</span></summary><p><span class="zh">ReaLingo 本身开源免费。翻译由你选的服务（阿里云百炼、OpenAI、Google Gemini 或火山引擎）提供，按你自己账号的用量计费。按官方价目粗算，只听不朗读每分钟大约几分钱人民币，开朗读会贵几倍；各家单价和折算见 <a href="models.html">模型与价格</a>，最终以各家官网为准。</span><span class="en">ReaLingo is free and open source. Translation runs on your own account with the service you pick (Alibaba Cloud Model Studio, OpenAI, Google Gemini or Volcengine) and is billed to it. By the official list prices, listening alone costs a few US cents per minute at most, and reading aloud several times that; <a href="models.html">Models &amp; pricing</a> has each rate — the vendors’ own pages have the final word.</span></p></details>
       <details><summary><span class="zh">选哪个接口？</span><span class="en">Which API should I pick?</span></summary><p><span class="zh">手上有哪家的 Key 就选哪家。语言最全的是 Qwen3.5 / 3.8（60 种，Qwen 还支持热词和 47 种音色）；Gemini 覆盖 54 种且全部能朗读；OpenAI 能译出 13 种；要中英对话互译就选豆包，一场会话里说中文出英文、说英文出中文。模型和接入地址都能自己改，接代理或兼容服务也行。</span><span class="en">Use whichever key you have. Qwen3.5 / 3.8 cover the most languages (60, plus hotwords and 47 voices); Gemini covers 54, all spoken; OpenAI translates into 13; for a Chinese–English conversation pick Doubao, which translates both ways in one session. Model and endpoint are editable, so a proxy or compatible service works too.</span></p></details>
       <details><summary><span class="zh">百炼选北京还是新加坡地域？</span><span class="en">Model Studio: Beijing or Singapore region?</span></summary><p><span class="zh">跟你的百炼账号走：国内站的 Key 选北京，国际站的 Key 选新加坡。目前只有这两个地域提供实时翻译模型。设置页「高级」里会显示最终连接的地址；业务空间 ID 选填，填了走专属域名。</span><span class="en">Match your account: China-site keys use Beijing, international keys use Singapore — the only regions serving the realtime translation models today. Settings → Advanced shows the exact endpoint; a workspace ID is optional and switches to its dedicated domain.</span></p></details>
@@ -510,22 +557,6 @@ footer a { text-decoration: none; }
       <details><summary><span class="zh">朗读会不会被录回去，越翻越乱？</span><span class="en">Will it record its own voice and loop?</span></summary><p><span class="zh">录系统声音时不会：Windows 和 macOS 都会把 ReaLingo 自己的进程排除在采集之外，Linux 上则不朗读。用麦克风时，扬声器的声音会被物理地收进去，请戴耳机。</span><span class="en">Not with system audio: Windows and macOS leave ReaLingo’s own process out of the capture, and Linux does not speak at all. With a microphone the speakers are physically picked up — use headphones.</span></p></details>
       <details><summary><span class="zh">翻译记录会存在哪？</span><span class="en">Where are transcripts kept?</span></summary><p><span class="zh">默认不保存。打开翻译流右上角的「记录」后，每场存成 <code>app-data/history/</code> 下的一个 JSONL 文件，可以在「翻译历史」里打开文件夹、导出或删除。</span><span class="en">Nothing is saved by default. Turn on “Record” and each session becomes one JSONL file in <code>app-data/history/</code>, which the History panel can open, export or delete.</span></p></details>
       <details><summary><span class="zh">Linux 怎么装？</span><span class="en">How do I install on Linux?</span></summary><p><span class="zh">用 apt 装本地包，依赖会一起装上：<code>sudo apt install ./ReaLingo_*_amd64.deb</code>。用 <code>dpkg -i</code> 不会解析依赖。</span><span class="en">Install with apt so the dependencies come along: <code>sudo apt install ./ReaLingo_*_amd64.deb</code>. <code>dpkg -i</code> resolves none of them.</span></p></details>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= download ======================= -->
-<section id="download">
-  <div class="wrap">
-    <div class="head reveal">
-      <div class="kicker"><span class="zh">下载</span><span class="en">Download</span></div>
-      <h2 class="h2"><span class="zh">免费下载</span><span class="en">Free download</span></h2>
-      <p class="rel-meta" id="rel-meta"></p>
-    </div>
-    <div class="dl-cta reveal">
-      <a class="btn primary" id="dl-main" href="download.html"></a>
-      <p class="cta-note" id="dl-note"></p>
-      <a class="btn ghost" href="download.html"><span class="zh">其他系统、安装说明与历史版本 ›</span><span class="en">Other systems, install steps and past versions ›</span></a>
     </div>
   </div>
 </section>
@@ -740,25 +771,25 @@ footer a { text-decoration: none; }
   }
   var mine = detectOS();
   function renderDownloads() {
-    var z = zh(), meta = $("#rel-meta");
+    var z = zh();
     var NAMES = { win: "Windows", mac: "macOS", linux: "Linux" };
     var own = release && mine && release.assets.filter(function (a) { return PICK[mine].test(a.name); })[0];
-    meta.innerHTML = release ? (z ? "最新版本 " : "Latest ") + "<b>" + release.tag_name + "</b> · " +
-      new Date(release.published_at).toLocaleDateString(z ? "zh-CN" : "en-US", { year: "numeric", month: "long", day: "numeric" }) : "";
-    // Both buttons hand out the visitor's own file; anything else goes to the download page.
-    var label = own ? (z ? "下载 " + NAMES[mine] + " 版" : "Download for " + NAMES[mine]) : (z ? "选择你的系统" : "Pick your system");
-    var note = own ? release.tag_name + " · " + fmtSize(own.size) : "";
-    var href = own ? own.browser_download_url : "download.html";
-    $("#hero-dl").href = $("#dl-main").href = href;
-    $("#hero-dl-text").textContent = label;
-    $("#dl-main").innerHTML = $("#hero-dl svg").outerHTML + label;
-    $("#hero-note").textContent = $("#dl-note").textContent = note;
+    // The button hands out the visitor's own file; anything else goes to the download page.
+    $("#hero-dl").href = own ? own.browser_download_url : "download.html";
+    $("#hero-dl-text").textContent = own ? (z ? "下载 " + NAMES[mine] + " 版" : "Download for " + NAMES[mine]) : (z ? "选择你的系统" : "Pick your system");
+    // The version under it leads to the release notes and the other systems.
+    $("#hero-note").innerHTML = release ? '<a href="download.html#history">' + release.tag_name + (own ? " · " + fmtSize(own.size) : "") +
+      " · " + (z ? "更新说明与其他系统" : "Release notes &amp; other systems") + " ›</a>" : "";
   }
   fetch("https://api.github.com/repos/" + REPO + "/releases/latest")
     .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function (data) { release = data; renderDownloads(); })
     .catch(function () { renderDownloads(); });
   renderDownloads();
+
+  /* ---- links to the tutorial open it ---- */
+  function openGuide() { if (location.hash === "#guide") $("#guide").open = true; }
+  addEventListener("hashchange", openGuide); openGuide();
 
   /* ---- video: nothing is fetched until the poster is clicked ---- */
   // The film is voiced and captioned in Chinese; English readers get the subtitle track.
