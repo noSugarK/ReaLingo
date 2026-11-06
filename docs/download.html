@@ -35,7 +35,14 @@
 .guide ol { margin: 22px 0 0; padding-left: 22px; display: grid; gap: 14px; color: var(--ink-2); font-size: 15px; }
 .guide ol[hidden] { display: none; }
 .guide ol b { color: var(--ink-1); }
-.guide .key { margin: 22px 0 0; padding-top: 20px; border-top: 1px solid var(--hairline); font-size: 15px; color: var(--ink-2); }
+.guide + .guide { margin-top: 20px; }
+.tut { color: var(--ink-2); font-size: 15px; }
+.tut h4 { margin: 20px 0 6px; font-size: 16px; color: var(--ink-1); }
+.tut h4:first-child { margin-top: 0; }
+.tut p { margin: 0 0 10px; }
+.tut ul, .guide.tut ol { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 6px; }
+.tut b { color: var(--ink-1); }
+.tut a { color: var(--hero); }
 .guide a, .notes a { color: var(--hero); }
 pre { margin: 8px 0; padding: 12px 16px; border-radius: 12px; background: var(--sunk); overflow-x: auto; }
 pre code { padding: 0; background: none; }
@@ -100,7 +107,7 @@ pre code { padding: 0; background: none; }
   <div class="wrap">
     <div class="head">
       <div class="kicker"><span class="zh">安装</span><span class="en">Install</span></div>
-      <h2 class="h2"><span class="zh">安装与打开</span><span class="en">Install and open</span></h2>
+      <h2 class="h2"><span class="zh">安装与使用</span><span class="en">Install and use</span></h2>
     </div>
     <div class="guide">
       <div class="seg" id="guide-tabs">
@@ -124,7 +131,48 @@ pre code { padding: 0; background: none; }
         <li><span class="zh">从应用菜单打开 ReaLingo，或在终端运行 <code>realingo</code>。</span><span class="en">Open ReaLingo from the app menu, or run <code>realingo</code> in a terminal.</span></li>
         <li><span class="zh">系统声音需要 PulseAudio 或 PipeWire（Ubuntu 桌面默认就有）。托盘图标不响应左键，用右键菜单里的「显示主窗口」。</span><span class="en">System audio needs PulseAudio or PipeWire (standard on the Ubuntu desktop). The tray icon ignores left clicks; use "Show main window" in its right-click menu.</span></li>
       </ol>
-      <p class="key"><span class="zh">还需要一个 API Key：<a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">阿里云百炼</a>、<a href="https://platform.openai.com/api-keys">OpenAI</a>、<a href="https://aistudio.google.com/apikey">Google AI Studio</a> 或<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台</a>任选其一（豆包要先在<a href="https://console.volcengine.com/speech/new/setting/activate">开通管理</a>里开通同声传译）。首次打开后点右上角齿轮，选好接口再填入 Key。各家对比见<a href="models.html">模型与价格</a>。</span><span class="en">You also need an API key from <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">Alibaba Cloud Model Studio</a>, <a href="https://platform.openai.com/api-keys">OpenAI</a>, <a href="https://aistudio.google.com/apikey">Google AI Studio</a> or the <a href="https://console.volcengine.com/speech/new/setting/apikeys">Doubao Speech console</a> (for Doubao, switch on simultaneous interpretation under <a href="https://console.volcengine.com/speech/new/setting/activate">Activation</a> first). On first launch, click the gear in the top-right, pick the API and paste the key. Compare them on <a href="models.html">Models &amp; pricing</a>.</span></p>
+    </div>
+    <div class="guide tut" id="use">
+        <div class="zh">
+          <h4>1. 挑一家服务，拿到 API Key</h4>
+          <p>只需要一家。不知道选哪家，先看<a href="models.html">模型与价格</a>；ReaLingo 的设置页里也有各家控制台的直达链接。</p>
+          <ul>
+            <li><b>阿里云百炼（Qwen）</b>：打开<a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">百炼控制台的 API Key 页</a>（国际站账号用<a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">新加坡地域</a>），创建一个 API Key 并复制。Key 跟地域对应：国内站选北京，国际站选新加坡，后面在设置里选同一个地域。Qwen3.8 和 Qwen3.5 共用这一个 Key。</li>
+            <li><b>OpenAI</b>：在 <a href="https://platform.openai.com/api-keys">OpenAI 平台的 API keys 页</a>新建一个 secret key，完整的 Key 只显示这一次，马上复制。账号里需要有可用余额。</li>
+            <li><b>Google Gemini</b>：在 <a href="https://aistudio.google.com/apikey">Google AI Studio 的 API Key 页</a>创建 Key 并复制，有免费层可用。</li>
+            <li><b>火山引擎豆包</b>：先到<a href="https://console.volcengine.com/speech/new/setting/activate">开通管理</a>里手动开通「同声传译」（开通后发放 100 万 token 免费额度），再到<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台的 API Key 页</a>创建 Key。没开通的话，Key 填进去也连不上。</li>
+          </ul>
+          <h4>2. 把 Key 填进 ReaLingo</h4>
+          <p>打开 ReaLingo，点右上角齿轮（或标题栏 logo 下方的模型名）进入设置，在「连接」里选接口，粘贴 Key；用百炼的话再选好地域。Key 存进系统凭据库（Windows 凭据管理器、macOS 钥匙串、Linux Secret Service），不写进配置文件。</p>
+          <h4>3. 开始翻译</h4>
+          <ol>
+            <li>选音频来源：麦克风、系统声音或音频文件。</li>
+            <li>选目标语言。豆包还要指定源语言，其余接口能自动识别。</li>
+            <li>想听译文就打开朗读，想在别的窗口上看字幕就打开字幕窗。</li>
+            <li>点「开始翻译」。</li>
+          </ol>
+          <p>连不上时，先到设置页「高级」里看最终连接的地址，确认接口、地域和 Key 是同一家、同一个地域的。</p>
+        </div>
+        <div class="en">
+          <h4>1. Pick a service and get an API key</h4>
+          <p>You only need one. Not sure which? See <a href="models.html">Models &amp; pricing</a>. ReaLingo's settings page also links straight to each console.</p>
+          <ul>
+            <li><b>Alibaba Cloud Model Studio (Qwen)</b>: open the <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">API key page in the Model Studio console</a> (China-site accounts use the <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">Beijing region</a>), create a key and copy it. Keys follow the region: international accounts use Singapore, China-site accounts Beijing; pick the same region in Settings later. Qwen3.8 and Qwen3.5 share this key.</li>
+            <li><b>OpenAI</b>: create a new secret key on the <a href="https://platform.openai.com/api-keys">API keys page of the OpenAI platform</a>. The full key is shown only once, so copy it right away. The account needs available credit.</li>
+            <li><b>Google Gemini</b>: create a key on the <a href="https://aistudio.google.com/apikey">API key page in Google AI Studio</a> and copy it. A free tier is available.</li>
+            <li><b>Volcengine Doubao</b>: first switch on simultaneous interpretation by hand under <a href="https://console.volcengine.com/speech/new/setting/activate">Activation</a> (that grants 1M free tokens), then create a key on the <a href="https://console.volcengine.com/speech/new/setting/apikeys">API key page of the Doubao Speech console</a>. Without activation the key will not connect.</li>
+          </ul>
+          <h4>2. Put the key into ReaLingo</h4>
+          <p>Open ReaLingo and click the gear in the top-right (or the model name under the title-bar logo). Under Connection, pick the API and paste the key; for Model Studio, also pick the region. The key goes into the OS keychain (Windows Credential Manager, macOS Keychain, Linux Secret Service), never a config file.</p>
+          <h4>3. Start translating</h4>
+          <ol>
+            <li>Pick the audio source: microphone, system audio or an audio file.</li>
+            <li>Pick the target language. Doubao also needs the source language; the others detect it.</li>
+            <li>Turn on read-aloud to hear the translation, and open the overlay to read subtitles over other windows.</li>
+            <li>Press Start.</li>
+          </ol>
+          <p>Can't connect? Settings → Advanced shows the final endpoint: check that the API, region and key all come from the same vendor and region.</p>
+        </div>
     </div>
   </div>
 </section>
@@ -235,7 +283,7 @@ pre code { padding: 0; background: none; }
 
   function renderGuide() {
     document.querySelectorAll("#guide-tabs button").forEach(function (b) { b.classList.toggle("on", b.dataset.os === guideOs); });
-    document.querySelectorAll(".guide ol").forEach(function (ol) { ol.hidden = ol.dataset.os !== guideOs; });
+    document.querySelectorAll(".guide ol[data-os]").forEach(function (ol) { ol.hidden = ol.dataset.os !== guideOs; });
   }
   $("#guide-tabs").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) { guideOs = b.dataset.os; renderGuide(); } });
   // Downloading for another system: show that system's install steps.
