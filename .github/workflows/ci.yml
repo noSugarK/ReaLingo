@@ -1,0 +1,80 @@
+name: ci
+
+# `build.yml` already runs `vue-tsc` and `cargo test` — but only inside the bundling job,
+# which fires on a release tag. So the 60+ Rust tests and the type check were only ever
+# executed at the moment of release, after whatever broke had already landed.
+#
+# This is the gate for the work itself: every push to a branch with a PR, every push to
+# main, plus reads on the PR before it merges. One platform only, deliberately — the
+# expensive part is compiling the Tauri dependency tree, and doing it three times per push
+# buys nothing that `build.yml` does not already do on all three at tag time.
+#
+# Platform-specific tests (`wasapi.rs` needs Windows, `pulse.rs`/`tap.rs` need Linux) are
+# therefore caught at release rather than at PR time. Add a `strategy: matrix` here if a
+# platform ever matters enough to fail early.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One run per branch, newest wins: a push while the previous is still compiling cancels it.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # `cargo test` has to build the `tauri` crate, so the compile-time dependencies of
+      # the .deb bundle are needed even though nothing gets bundled here. Same list as
+      # build.yml, minus patchelf (a bundling tool) and libssl (rustls is what we use).
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libasound2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install packages
+        run: npm ci
+
+      # Separate steps, not one `&&` chain: a failure should say which check failed, and
+      # later checks should still report. `if: always()` on the style steps keeps a
+      # formatting complaint from hiding behind a test failure and vice versa.
+      - name: Type check
+        run: npx vue-tsc --noEmit
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      # Style gates report but do not block, for now: the existing tree has never been
+      # through clippy, so turning this on as an error would fail every PR on day one.
+      # Promote by deleting `continue-on-error` once the tree is clean (one commit:
+      # `cargo clippy --fix`). No `cargo fmt`: CODING_STANDARDS.md says the repo keeps
+      # its ~120-column layout and a whole-tree reformat is noise by policy.
+      - name: Clippy
+        if: always()
+        continue-on-error: true
+        run: |
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- \
+            -D warnings
