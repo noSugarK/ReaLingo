@@ -177,6 +177,58 @@ fn halt(state: &State<AppState>) {
     state.level.store(0f32.to_bits(), Ordering::Relaxed);
 }
 
+/* ---------- phone shell (mobile.rs on Android, mobile_stub.rs elsewhere) ---------- */
+
+#[tauri::command]
+fn perm_request(app: AppHandle, name: String) -> Result<(), String> {
+    mobile::request(&app, name)
+}
+
+#[tauri::command]
+fn perm_status(name: String) -> Result<mobile::MicStatus, String> {
+    match name.as_str() {
+        "mic" => mobile::mic_status(),
+        _ => Err(format!("unknown permission: {name}")),
+    }
+}
+
+#[tauri::command]
+fn notif_enabled() -> bool {
+    mobile::notif_enabled()
+}
+
+#[tauri::command]
+fn battery_ignored() -> bool {
+    mobile::battery_ignored()
+}
+
+#[tauri::command]
+fn open_app_settings(app: AppHandle) -> Result<(), String> {
+    mobile::open_app_settings(&app)
+}
+
+#[tauri::command]
+fn open_battery_settings(app: AppHandle) -> Result<(), String> {
+    mobile::open_battery_settings(&app)
+}
+
+#[tauri::command]
+fn set_keep_screen_on(app: AppHandle, on: bool) -> Result<(), String> {
+    mobile::set_keep_screen_on(&app, on)
+}
+
+#[tauri::command]
+fn device_name() -> String {
+    // Prefer the Wi-Fi SSID when the radio is on: two phones of the same model beside each
+    // other are otherwise indistinguishable in the hotspot list.
+    let ssid = mobile::wifi_ssid();
+    if ssid != "unknown" && !ssid.is_empty() {
+        ssid
+    } else {
+        mobile::device_model()
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // WebKitGTK's DMA-BUF renderer produces nothing on software GL (VMs) and on some
@@ -234,7 +286,15 @@ pub fn run() {
             history::history_delete,
             history::history_clear,
             history::history_dir,
-            tray::sync_tray
+            tray::sync_tray,
+            perm_request,
+            perm_status,
+            notif_enabled,
+            battery_ignored,
+            open_app_settings,
+            open_battery_settings,
+            set_keep_screen_on,
+            device_name
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
