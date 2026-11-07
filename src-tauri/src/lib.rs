@@ -4,8 +4,7 @@ pub mod decode;
 mod history;
 mod player;
 pub mod realtime;
-// PulseAudio monitoring forks pactl/parec: a Linux-desktop path only. Android reports
-// target_os = "linux" as well, hence the explicit exclusion.
+// PulseAudio monitoring forks pactl/parec on desktop Linux; Android uses AAudio.
 #[cfg(all(target_os = "linux", not(target_os = "android")))]
 pub mod pulse;
 pub mod resample;
@@ -189,8 +188,7 @@ pub fn run() {
     // proprietary drivers: the window is created and focused but never painted, which with
     // `transparent: true` looks like the app failed to start. Losing the DMA-BUF path costs
     // a buffer copy; losing the whole UI costs the app. Respect an explicit override.
-    // Android is `target_os = "linux"` for the cfg macro but a different libc: its process
-    // has no `environ`, so set_var panics there and the variable is irrelevant anyway.
+    // This workaround is specific to desktop Linux's WebKitGTK renderer.
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
@@ -210,14 +208,8 @@ pub fn run() {
             if let Some(w) = app.get_webview_window("subtitle") {
                 let _ = w.set_always_on_top(true);
             }
-            // Android creates every declared window too, and they stack inside the one
-            // Activity: the overlay landed on top of the shell, and its locked hint was
-            // the whole screen. The phone's full-screen mode is in-app (MobileApp), and a
-            // real system overlay is phase 2 — destroy the desktop one here.
-            #[cfg(mobile)]
-            if let Some(w) = app.get_webview_window("subtitle") {
-                let _ = w.close();
-            }
+            // tauri.android.conf.json declares only main. Closing an extra mobile window
+            // here is too late: the platform has already created its Activity/WebView.
             tray::init(app.handle())?;
             Ok(())
         })

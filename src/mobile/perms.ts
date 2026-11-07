@@ -54,8 +54,8 @@ let asked = localStorage.getItem("micAsked") === "1";
 export async function refreshPerms(): Promise<void> {
   if (droid) {
     try {
-      const r = JSON.parse(droid.micStatus()) as { granted: boolean; rationale: boolean };
-      perms.mic = r.granted ? "granted" : r.rationale ? "denied" : asked ? "permanent" : "unset";
+      const r = JSON.parse(droid.micStatus()) as { granted: boolean; rationale: boolean; requesting?: boolean };
+      if (!r.requesting) perms.mic = r.granted ? "granted" : r.rationale ? "denied" : asked ? "permanent" : "unset";
       perms.notif = droid.notifEnabled();
       perms.battery = droid.batteryIgnored();
       if (perms.deviceName === null) perms.deviceName = droid.deviceName();
@@ -91,6 +91,13 @@ export async function askMic(): Promise<MicState> {
   for (let i = 0; i < 60; i++) {
     await new Promise((r) => setTimeout(r, 500));
     await refreshPerms();
+    // rationale stays false while the OS dialog is open. It only means permanent
+    // denial after onRequestPermissionsResult, not on the first polling tick.
+    if (droid) {
+      const { requesting } = JSON.parse(droid.micStatus());
+      if (requesting) continue;
+      if (requesting === false) break;
+    }
     if (perms.mic !== before) break;
   }
   return perms.mic;
@@ -128,7 +135,7 @@ export async function pickAudio(): Promise<string | null> {
     if (s.state === "picked") return s.path ?? null;
     if (s.state === "cancelled" || s.state === "error") return null;
   }
-  return null; // ten minutes: whatever the picker is doing, stop waiting on it
+  return null; // two minutes: the picker may remain open, but stop polling
 }
 
 /** Permissions the system dialog can no longer fix — the only ones worth alarming on.

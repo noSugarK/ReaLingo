@@ -22,9 +22,12 @@ import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
+import org.json.JSONObject
+import androidx.annotation.Keep
 
 class MainActivity : TauriActivity() {
     @Volatile private var keepFlag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+    @Volatile private var micRequesting = false
 
     // One-slot result for the file picker: busy while the dialog/copy lives, then a
     // terminal JSON the frontend reads and resets. "picked" carries a real path the
@@ -32,6 +35,8 @@ class MainActivity : TauriActivity() {
     private val pick = AtomicReference("""{"state":"idle"}""")
     private val pickThread = AtomicReference<Thread?>(null)
 
+    // WebView resolves these names through reflection, outside R8's call graph.
+    @Keep
     inner class Bridge {
         /// {"granted":bool,"rationale":bool} — the same shape the Rust command answered,
         /// so the state machine in src/mobile/perms.ts did not change: rationale is the
@@ -41,13 +46,19 @@ class MainActivity : TauriActivity() {
             val granted = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED
             val rationale = shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)
-            return """{"granted":$granted,"rationale":$rationale}"""
+            return """{"granted":$granted,"rationale":$rationale,"requesting":$micRequesting}"""
         }
 
         @JavascriptInterface
         fun requestMic() {
+            if (micRequesting) return
+            micRequesting = true
             runOnUiThread {
-                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 0)
+                try {
+                    requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQUEST_MIC)
+                } catch (_: RuntimeException) {
+                    micRequesting = false
+                }
             }
         }
 
@@ -94,13 +105,9 @@ class MainActivity : TauriActivity() {
             }
         }
 
-        /// Wi-Fi SSID when joined (quotes stripped), else "MANUFACTURER MODEL". Same
-        /// preferring logic the old Rust command used, for naming the phone in lists.
+        // Device identity must not query Wi-Fi/location services without permissions.
         @JavascriptInterface
         fun deviceName(): String {
-            val wifi = getSystemService(WIFI_SERVICE) as? android.net.wifi.WifiManager
-            val ssid = runCatching { wifi?.connectionInfo?.ssid }.getOrNull()
-            if (!ssid.isNullOrBlank() && ssid != "<unknown ssid>") return ssid.trim('"')
             return "${Build.MANUFACTURER} ${Build.MODEL}".trim()
         }
 
@@ -134,6 +141,11 @@ class MainActivity : TauriActivity() {
         }
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_MIC) micRequesting = false
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != PICK_AUDIO) return
@@ -152,15 +164,19 @@ class MainActivity : TauriActivity() {
         }
         pickThread.get()?.interrupt()
         val t = Thread {
-            val name = queryName(uri) ?: "audio-${System.currentTimeMillis()}.m4a"
-            val out = File(cacheDir, "picked-$name")
+            // Providers control DISPLAY_NAME. Keep only the basename, and make each
+            // cache entry unique so a later pick cannot overwrite an active decoder.
+            var out: File? = null
             try {
+                val name = File(queryName(uri) ?: "audio.m4a").name
+                val file = File.createTempFile("picked-", "-${name.takeLast(80)}", cacheDir)
+                out = file
                 contentResolver.openInputStream(uri)?.use { input ->
-                    out.outputStream().use { input.copyTo(it) }
+                    file.outputStream().use { input.copyTo(it) }
                 } ?: error("no stream")
-                pick.set("""{"state":"picked","path":"${out.absolutePath.jsonEscape()}"}""")
+                pick.set(JSONObject().put("state", "picked").put("path", file.absolutePath).toString())
             } catch (_: Exception) {
-                out.delete()
+                out?.delete()
                 pick.set("""{"state":"error"}""")
             }
         }
@@ -183,9 +199,6 @@ class MainActivity : TauriActivity() {
 
     companion object {
         private const val PICK_AUDIO = 42
+        private const val REQUEST_MIC = 43
     }
 }
-
-// Path characters that would break the hand-built JSON (quotes/backslashes from exotic
-// file names); Android paths are otherwise plain.
-private fun String.jsonEscape(): String = replace("\\", "\\\\").replace("\"", "\\\"")

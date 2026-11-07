@@ -22,17 +22,25 @@ test('every bridge method perms.ts declares exists in Kotlin', () => {
     assert.match(kt, new RegExp(`fun ${name}\\(`), `MainActivity.kt is missing ${name}`);
   }
   assert.match(kt, /addJavascriptInterface\(Bridge\(\), "ReaLingoAndroid"\)/, 'the bridge must register under the name window.ReaLingoAndroid reads');
+  assert.match(kt, /@Keep\s+inner class Bridge/, 'release shrinking must preserve the JavaScript entry points');
 });
 
 test('micStatus speaks the same JSON shape on both ends', () => {
-  assert.match(kt, /return """\{"granted":\$granted,"rationale":\$rationale\}"""/, 'Kotlin micStatus returns {granted,rationale}');
-  assert.match(permsTs, /JSON\.parse\(droid\.micStatus\(\)\) as \{ granted: boolean; rationale: boolean \}/, 'perms.ts parses that exact shape');
+  assert.match(kt, /return """\{"granted":\$granted,"rationale":\$rationale,"requesting":\$micRequesting\}"""/);
+  assert.match(permsTs, /requesting\?: boolean/);
+});
+
+test('permission completion and file result serialization use Android APIs', () => {
+  assert.match(kt, /onRequestPermissionsResult/);
+  assert.match(kt, /requestCode == REQUEST_MIC\) micRequesting = false/);
+  assert.match(kt, /JSONObject\(\)\.put\("state", "picked"\)\.put\("path", file.absolutePath\)/);
+  assert.doesNotMatch(kt, /WIFI_SERVICE|jsonEscape/);
 });
 
 test('pickAudioFile/pickResult agree on the one-slot states', () => {
   const states = (kt.match(/"state":"(\w+)"/g) ?? []).join(" ");
   for (const s of ['idle', 'busy', 'picked', 'cancelled', 'error']) {
-    assert.ok(states.includes(`"state":"${s}"`), `Kotlin never emits ${s}`);
+    assert.ok(states.includes(`"state":"${s}"`) || kt.includes(`.put("state", "${s}")`), `Kotlin never emits ${s}`);
   }
   // Terminal states the poller must handle explicitly; "busy" is the implicit
   // keep-waiting state, and "idle" only appears in Kotlin's reset paths.

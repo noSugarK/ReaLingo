@@ -134,3 +134,47 @@ test('pickAudio walks the one-slot state machine', async () => {
   const m3 = await fresh();
   assert.equal(await m3.pickAudio(), null); // desktop: no bridge, caller falls to the dialog plugin
 });
+
+test('an open system prompt cannot be mistaken for permanent denial', async () => {
+  store.clear();
+  let polling = 0;
+  bridge = {
+    requestMic: () => {},
+    micStatus: () => {
+      polling++;
+      return JSON.stringify({ granted: polling > 4, rationale: false, requesting: polling <= 4 });
+    },
+    notifEnabled: () => true, batteryIgnored: () => true, deviceName: () => 'vivo X300',
+  };
+  const m = await fresh();
+  assert.equal(await m.askMic(), 'granted');
+  assert.deepEqual(m.pendingList(), []);
+});
+
+test('a completed repeated denial returns promptly even when the state is unchanged', async () => {
+  store.clear();
+  bridge = {
+    requestMic: () => {},
+    micStatus: () => JSON.stringify({ granted: false, rationale: true, requesting: false }),
+    notifEnabled: () => true, batteryIgnored: () => true, deviceName: () => 'X',
+  };
+  const m = await fresh();
+  await m.refreshPerms();
+  assert.equal(await m.askMic(), 'denied');
+});
+
+test('returning from settings refreshes revoked permissions and battery status', async () => {
+  store.clear();
+  bridge = {
+    micStatus: status({ granted: true, rationale: false }),
+    notifEnabled: () => true, batteryIgnored: () => true, deviceName: () => 'X',
+  };
+  const m = await fresh();
+  await m.refreshPerms();
+  store.set('micAsked', '1');
+  bridge.micStatus = status({ granted: false, rationale: true });
+  bridge.batteryIgnored = () => false;
+  await m.refreshPerms();
+  assert.equal(m.perms.mic, 'denied');
+  assert.deepEqual(m.pendingList(), ['battery']);
+});
