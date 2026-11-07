@@ -192,20 +192,20 @@ fn perm_request(app: AppHandle, name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn perm_status(name: String) -> Result<mobile::MicStatus, String> {
+fn perm_status(app: AppHandle, name: String) -> Result<mobile::MicStatus, String> {
     match name.as_str() {
-        "mic" => mobile::mic_status(),
+        "mic" => mobile::mic_status(&app),
         _ => Err(format!("unknown permission: {name}")),
     }
 }
 
 #[tauri::command]
-fn notif_enabled() -> bool {
+fn notif_enabled() -> Result<bool, String> {
     mobile::notif_enabled()
 }
 
 #[tauri::command]
-fn battery_ignored() -> bool {
+fn battery_ignored() -> Result<bool, String> {
     mobile::battery_ignored()
 }
 

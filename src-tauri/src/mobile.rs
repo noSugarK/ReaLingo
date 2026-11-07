@@ -1,77 +1,106 @@
 //! Android platform glue: the runtime permissions the phone UI has to reason about, the
 //! system-settings pages it links to, and the device name a hotspot capture needs.
 //!
-//! Everything is behind `cfg(target_os = "android")`; on the desktop the commands are not
-//! registered at all, and the frontend's `call()` wrapper treats the missing command as
-//! "granted / unknown", which is exactly the desktop's real state (there is nothing to
-//! grant there beyond TCC, which the OS prompts for on first capture anyway).
+//! Everything is behind `cfg(target_os = "android")`; the desktop gets the same command
+//! surface through `mobile_stub.rs` (declared in lib.rs via cfg+path), so commands are
+//! registered once and the frontend needs no platform check.
 //!
 //! JNI comes from `jni` and `ndk-context`, both already in the dependency graph via cpal's
 //! AAudio backend and tauri's Android support — declaring them for the Android target adds
 //! no new crates to the lockfile.
 //!
-//! Threading: `ndk_context::android_context()` only answers on a thread Android knows
-//! about. Tauri runs commands on its tokio pool, so every entry point hops onto the main
-//! thread with `run_on_main_thread` and returns through a channel. Permission *results*
-//! cannot be read synchronously either: `request_permissions` resolves asynchronously, so
-//! the frontend polls `perm_status` after firing the request (see src/mobile/perms.ts).
+//! Threading: JNI env is attached per call; anything touching window tokens (the consent
+//! dialog, startActivity, FLAG_KEEP_SCREEN_ON) hops onto the main thread with
+//! `run_on_main_thread` and returns through a channel. Permission *results* cannot be read
+//! synchronously either: `requestPermissions` resolves asynchronously, so the frontend
+//! polls `perm_status` after firing the request (see src/mobile/perms.ts).
+//!
+//! The Activity itself comes from Tauri (`AndroidAppHandleExt::android_app()`), not from
+//! ndk-context — `AndroidContext` only carries the VM and the application context.
 
 #![cfg(target_os = "android")]
 
-use jni::objects::{JObject, JValue};
+use jni::objects::{JObject, JString, JValue};
 use jni::JNIEnv;
 use std::sync::mpsc;
+use tauri::AndroidAppHandleExt;
 
-/// Class-lookup failure is a bug in this file, not user input: panic on desktop-visible
-/// paths, but these functions all run inside a command whose Result the frontend swallows.
+/// Every command's error is a plain String for the frontend; this folds jni's own error
+/// type into it so `?` works directly (String has no From<jni::Error>).
 type Jum<T> = Result<T, String>;
 
-fn with_env<R>(f: impl FnOnce(&mut JNIEnv) -> R) -> Jum<R> {
+trait Je<T> {
+    fn je(self) -> Jum<T>;
+}
+impl<T> Je<T> for std::result::Result<T, jni::errors::Error> {
+    fn je(self) -> Jum<T> {
+        self.map_err(|e| e.to_string())
+    }
+}
+
+/// Run `f` with a live JNIEnv. Closures return `Jum<R>` themselves — with_env forwards it
+/// instead of nesting another Ok around it.
+fn with_env<R>(f: impl FnOnce(&mut JNIEnv) -> Jum<R>) -> Jum<R> {
     let ctx = ndk_context::android_context();
     let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
     let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-    Ok(f(&mut env))
+    f(&mut env)
 }
 
-fn context(env: &mut JNIEnv) -> Jum<JObject> {
+/// The application context, as a JObject living as long as the env we hand it to.
+fn context<'a>(_env: &mut JNIEnv<'a>) -> Jum<JObject<'a>> {
     Ok(unsafe { JObject::from_raw(ndk_context::android_context().context().cast()) })
 }
 
+/// The activity, as Tauri sees it — the token the consent dialog and window flags hang on.
+fn activity_obj(app: &tauri::AppHandle) -> JObject<'static> {
+    unsafe { JObject::from_raw(app.android_app().activity()) }
+}
+
 /// `context.getSystemService(name)` — the three services we touch all answer the same way.
-fn service(env: &mut JNIEnv, name: &str) -> Jum<JObject> {
+fn service<'a>(env: &mut JNIEnv<'a>, name: &str) -> Jum<JObject<'a>> {
     let ctx = context(env)?;
-    let sname = env.new_string(name).map_err(|e| e.to_string())?;
-    let obj = env
-        .call_method(&ctx, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[JValue::Object(&sname)])
-        .map_err(|e| e.to_string())?
-        .l()?;
-    Ok(obj)
+    let sname: JObject = env.new_string(name).je()?.into();
+    env.call_method(
+        &ctx,
+        "getSystemService",
+        "(Ljava/lang/String;)Ljava/lang/Object;",
+        &[JValue::Object(&sname)],
+    )
+    .je()?
+    .l()
+    .je()
 }
 
 fn call_bool(env: &mut JNIEnv, obj: &JObject, method: &str, sig: &str, args: &[JValue]) -> Jum<bool> {
-    env.call_method(obj, method, sig, args).map_err(|e| e.to_string())?.z().map_err(|e| e.to_string())
+    env.call_method(obj, method, sig, args).je()?.z().je()
 }
 
 /// `checkSelfPermission` is Context-level since API 23; minSdk is 26, so it is always there.
 fn self_granted(env: &mut JNIEnv, permission: &str) -> Jum<bool> {
     let ctx = context(env)?;
-    let p = env.new_string(permission).map_err(|e| e.to_string())?;
+    let p: JObject = env.new_string(permission).je()?.into();
     let code = env
         .call_method(&ctx, "checkSelfPermission", "(Ljava/lang/String;)I", &[JValue::Object(&p)])
-        .map_err(|e| e.to_string())?
-        .i()?;
+        .je()?
+        .i()
+        .je()?;
     Ok(code == 0) // PackageManager.PERMISSION_GRANTED
 }
 
 /// `Activity.shouldShowRequestPermissionRationale` — the difference between "denied once"
 /// and "never again": the case the design says only the app can guide the user out of.
-fn rationale(env: &mut JNIEnv, permission: &str) -> Jum<bool> {
-    let activity = unsafe { JObject::from_raw(ndk_context::android_context().activity().cast()) };
-    let p = env.new_string(permission).map_err(|e| e.to_string())?;
-    env.call_method(&activity, "shouldShowRequestPermissionRationale", "(Ljava/lang/String;)Z", &[JValue::Object(&p)])
-        .map_err(|e| e.to_string())?
-        .z()
-        .map_err(|e| e.to_string())
+fn rationale(env: &mut JNIEnv, activity: &JObject, permission: &str) -> Jum<bool> {
+    let p: JObject = env.new_string(permission).je()?.into();
+    env.call_method(
+        activity,
+        "shouldShowRequestPermissionRationale",
+        "(Ljava/lang/String;)Z",
+        &[JValue::Object(&p)],
+    )
+    .je()?
+    .z()
+    .je()
 }
 
 fn permission_name(name: &str) -> Jum<&'static str> {
@@ -88,18 +117,21 @@ pub fn request(app: &tauri::AppHandle, name: String) -> Result<(), String> {
     let app = app.clone();
     app.run_on_main_thread(move || {
         let _ = with_env(|env| {
-            let activity = unsafe { JObject::from_raw(ndk_context::android_context().activity().cast()) };
-            let s = env.new_string(&perm).map_err(|e| e.to_string())?;
-            let empty = env.new_string("").map_err(|e| e.to_string())?;
-            let array = env
-                .new_object_array(1, "java/lang/String", JValue::from(&empty))
-                .map_err(|e| e.to_string())?;
-            env.set_object_array_element(&array, 0, JObject::from(&s)).map_err(|e| e.to_string())?;
-            // ActivityCompat: requestPermissions(String[], int). The plain Activity method
-            // exists since API 23 with the same signature. requestCode is meaningless to us
-            // (we poll the status, the dialog result needs no routing) — 0 it is.
-            env.call_method(&activity, "requestPermissions", "([Ljava/lang/String;I)V", &[JValue::Object(&array), JValue::Int(0)])
-                .map_err(|e| e.to_string())
+            let activity = activity_obj(&app);
+            // One-element String[] pre-filled with the permission itself; Activity's own
+            // requestPermissions(String[], int) suffices from API 23 (minSdk 26), so no
+            // ActivityCompat. requestCode is meaningless to us (we poll the status, the
+            // dialog result needs no routing) — 0 it is.
+            let s = env.new_string(&perm).je()?;
+            let array: JObject = env.new_object_array(1, "java/lang/String", &s).je()?.into();
+            env.call_method(
+                &activity,
+                "requestPermissions",
+                "([Ljava/lang/String;I)V",
+                &[JValue::Object(&array), JValue::Int(0)],
+            )
+            .je()?;
+            Ok(())
         });
     })
     .map_err(|e| e.to_string())
@@ -111,20 +143,30 @@ pub struct MicStatus {
     pub rationale: bool,
 }
 
-/// Returns `Result` even though reading the state cannot realistically fail, so the stub's
-/// signature matches and `lib.rs` need not care which module it is calling.
-pub fn mic_status() -> Result<MicStatus, String> {
-    with_env(|env| {
-        Ok(MicStatus { granted: self_granted(env, "android.permission.RECORD_AUDIO")?, rationale: rationale(env, "android.permission.RECORD_AUDIO")? })
+/// Both halves read the same permission; rationale needs the Activity, so the whole call
+/// runs on the main thread like the others (the frontend polls this anyway).
+pub fn mic_status(app: &tauri::AppHandle) -> Result<MicStatus, String> {
+    let app = app.clone();
+    let (tx, rx) = mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(with_env(|env| {
+            let activity = activity_obj(&app);
+            Ok(MicStatus {
+                granted: self_granted(env, "android.permission.RECORD_AUDIO")?,
+                rationale: rationale(env, &activity, "android.permission.RECORD_AUDIO")?,
+            })
+        }));
     })
+    .map_err(|e| e.to_string())?;
+    rx.recv().map_err(|e| e.to_string())?
 }
 
 /// POST_NOTIFICATIONS is a runtime permission from API 33; on 26–32 notifications are simply
 /// on. Reporting false only where the user can actually still grant.
 pub fn notif_enabled() -> Jum<bool> {
     let sdk = with_env(|env| {
-        let cls = env.find_class("android/os/Build$VERSION").map_err(|e| e.to_string())?;
-        env.get_static_field(&cls, "SDK_INT", "I").map_err(|e| e.to_string())?.i().map_err(|e| e.to_string())
+        let cls = env.find_class("android/os/Build$VERSION").je()?;
+        env.get_static_field(&cls, "SDK_INT", "I").je()?.i().je()
     })?;
     if sdk < 33 {
         return Ok(true);
@@ -138,32 +180,30 @@ pub fn battery_ignored() -> Jum<bool> {
     with_env(|env| {
         let pm = service(env, "power")?;
         let ctx = context(env)?;
-        let id = env
-            .call_method(&ctx, "getPackageName", "()Ljava/lang/String;", &[])
-            .map_err(|e| e.to_string())?
-            .l()?;
+        let id = env.call_method(&ctx, "getPackageName", "()Ljava/lang/String;", &[]).je()?.l().je()?;
         call_bool(env, &pm, "isIgnoringBatteryOptimizations", "(Ljava/lang/String;)Z", &[JValue::Object(&id)])
     })
 }
 
 fn launch(env: &mut JNIEnv, action: &str, data_pkg: Option<&str>) -> Jum<()> {
     let ctx = context(env)?;
-    let s = env.new_string(action).map_err(|e| e.to_string())?;
+    let s: JObject = env.new_string(action).je()?.into();
     let intent = env
         .new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&s)])
-        .map_err(|e| e.to_string())?;
+        .je()?;
     if let Some(pkg) = data_pkg {
         // Uri.parse("package:<pkg>") keeps the page on *this* app instead of the global list.
-        let uri_str = env.new_string(format!("package:{pkg}")).map_err(|e| e.to_string())?;
+        let uri_str: JObject = env.new_string(format!("package:{pkg}")).je()?.into();
         let uri = env
             .call_static_method("android/net/Uri", "parse", "(Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&uri_str)])
-            .map_err(|e| e.to_string())?
-            .l()?;
+            .je()?
+            .l()
+            .je()?;
         env.call_method(&intent, "setData", "(Landroid/net/Uri;)Landroid/content/Intent;", &[JValue::Object(&uri)])
-            .map_err(|e| e.to_string())?;
+            .je()?;
     }
     env.call_method(&ctx, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])
-        .map_err(|e| e.to_string())?;
+        .je()?;
     Ok(())
 }
 
@@ -197,14 +237,10 @@ pub fn set_keep_screen_on(app: &tauri::AppHandle, on: bool) -> Result<(), String
     let app = app.clone();
     app.run_on_main_thread(move || {
         let _ = with_env(|env| {
-            let activity = unsafe { JObject::from_raw(ndk_context::android_context().activity().cast()) };
-            let window = env
-                .call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])
-                .map_err(|e| e.to_string())?
-                .l()?;
+            let activity = activity_obj(&app);
+            let window = env.call_method(&activity, "getWindow", "()Landroid/view/Window;", &[]).je()?.l().je()?;
             let (method, flag) = if on { ("addFlags", 0x0000_0080) } else { ("clearFlags", 0x0000_0080) };
-            env.call_method(&window, method, "(I)V", &[JValue::Int(flag)])
-                .map_err(|e| e.to_string())
+            env.call_method(&window, method, "(I)V", &[JValue::Int(flag)]).je()
         });
     })
     .map_err(|e| e.to_string())
@@ -213,11 +249,8 @@ pub fn set_keep_screen_on(app: &tauri::AppHandle, on: bool) -> Result<(), String
 fn package_name() -> Jum<String> {
     with_env(|env| {
         let ctx = context(env)?;
-        let s = env
-            .call_method(&ctx, "getPackageName", "()Ljava/lang/String;", &[])
-            .map_err(|e| e.to_string())?
-            .l()?;
-        Ok(env.get_string(&s.into()).map_err(|e| e.to_string())?.into())
+        let s = env.call_method(&ctx, "getPackageName", "()Ljava/lang/String;", &[]).je()?.l().je()?;
+        Ok(env.get_string(&JString::from(s)).je()?.into())
     })
 }
 
@@ -226,18 +259,12 @@ fn package_name() -> Jum<String> {
 pub fn wifi_ssid() -> String {
     with_env(|env| {
         let wifi = service(env, "wifi")?;
-        let info = env
-            .call_method(&wifi, "getConnectionInfo", "()Landroid/net/wifi/WifiInfo;", &[])
-            .map_err(|e| e.to_string())?
-            .l()?;
+        let info = env.call_method(&wifi, "getConnectionInfo", "()Landroid/net/wifi/WifiInfo;", &[]).je()?.l().je()?;
         if info.is_null() {
             return Ok("unknown".to_string());
         }
-        let s = env
-            .call_method(&info, "getSSID", "()Ljava/lang/String;", &[])
-            .map_err(|e| e.to_string())?
-            .l()?;
-        let str = env.get_string(&s.into()).map_err(|e| e.to_string())?.into();
+        let s = env.call_method(&info, "getSSID", "()Ljava/lang/String;", &[]).je()?.l().je()?;
+        let str: String = env.get_string(&JString::from(s)).je()?.into();
         Ok(str.trim_matches('"').to_string())
     })
     .unwrap_or_else(|_| "unknown".to_string())
@@ -245,15 +272,11 @@ pub fn wifi_ssid() -> String {
 
 /// Manufacturer + model, for the same purpose on phones whose hotspot we cannot name.
 pub fn device_model() -> String {
-    let f = |key: &str| {
+    let f = |key: &str| -> String {
         with_env(|env| {
-            let cls = env.find_class("android/os/Build").map_err(|e| e.to_string())?;
-            let obj = env
-                .get_static_field(&cls, key, "Ljava/lang/String;")
-                .map_err(|e| e.to_string())?
-                .l()
-                .map_err(|e| e.to_string())?;
-            Ok(env.get_string(&obj.into()).map_err(|e| e.to_string())?.into())
+            let cls = env.find_class("android/os/Build").je()?;
+            let obj = env.get_static_field(&cls, key, "Ljava/lang/String;").je()?.l().je()?;
+            Ok(env.get_string(&JString::from(obj)).je()?.into())
         })
         .unwrap_or_default()
     };

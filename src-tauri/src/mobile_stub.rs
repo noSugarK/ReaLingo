@@ -20,16 +20,16 @@ pub fn request(_app: &AppHandle, _name: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn mic_status() -> Result<MicStatus, String> {
+pub fn mic_status(_app: &AppHandle) -> Result<MicStatus, String> {
     Ok(MicStatus { granted: true, rationale: false })
 }
 
-pub fn notif_enabled() -> bool {
-    true
+pub fn notif_enabled() -> Result<bool, String> {
+    Ok(true)
 }
 
-pub fn battery_ignored() -> bool {
-    true
+pub fn battery_ignored() -> Result<bool, String> {
+    Ok(true)
 }
 
 pub fn open_app_settings(_app: &AppHandle) -> Result<(), String> {
