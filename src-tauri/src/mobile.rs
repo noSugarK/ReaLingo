@@ -23,7 +23,7 @@
 use jni::objects::{JObject, JString, JValue};
 use jni::JNIEnv;
 use std::sync::mpsc;
-use tauri::AndroidAppHandleExt;
+use tauri::android::AndroidAppHandleExt;
 
 /// Every command's error is a plain String for the frontend; this folds jni's own error
 /// type into it so `?` works directly (String has no From<jni::Error>).
@@ -52,9 +52,10 @@ fn context<'a>(_env: &mut JNIEnv<'a>) -> Jum<JObject<'a>> {
     Ok(unsafe { JObject::from_raw(ndk_context::android_context().context().cast()) })
 }
 
-/// The activity, as Tauri sees it — the token the consent dialog and window flags hang on.
+/// The activity, as Tauri hands it out — the token the consent dialog and window flags
+/// hang on. `AndroidAppHandleExt::activity()` answers the raw jobject on the main thread.
 fn activity_obj(app: &tauri::AppHandle) -> JObject<'static> {
-    unsafe { JObject::from_raw(app.android_app().activity()) }
+    unsafe { JObject::from_raw(app.activity()) }
 }
 
 /// `context.getSystemService(name)` — the three services we touch all answer the same way.
@@ -114,10 +115,10 @@ fn permission_name(name: &str) -> Jum<&'static str> {
 /// The system dialog, fired on the main thread (window tokens belong to it).
 pub fn request(app: &tauri::AppHandle, name: String) -> Result<(), String> {
     let perm = permission_name(&name)?.to_string();
-    let app = app.clone();
+    let sink = app.clone();
     app.run_on_main_thread(move || {
         let _ = with_env(|env| {
-            let activity = activity_obj(&app);
+            let activity = activity_obj(&sink);
             // One-element String[] pre-filled with the permission itself; Activity's own
             // requestPermissions(String[], int) suffices from API 23 (minSdk 26), so no
             // ActivityCompat. requestCode is meaningless to us (we poll the status, the
@@ -146,11 +147,11 @@ pub struct MicStatus {
 /// Both halves read the same permission; rationale needs the Activity, so the whole call
 /// runs on the main thread like the others (the frontend polls this anyway).
 pub fn mic_status(app: &tauri::AppHandle) -> Result<MicStatus, String> {
-    let app = app.clone();
+    let sink = app.clone();
     let (tx, rx) = mpsc::channel();
     app.run_on_main_thread(move || {
         let _ = tx.send(with_env(|env| {
-            let activity = activity_obj(&app);
+            let activity = activity_obj(&sink);
             Ok(MicStatus {
                 granted: self_granted(env, "android.permission.RECORD_AUDIO")?,
                 rationale: rationale(env, &activity, "android.permission.RECORD_AUDIO")?,
@@ -234,13 +235,16 @@ pub fn open_battery_settings(app: &tauri::AppHandle) -> Result<(), String> {
 /// WindowManager.FLAG_KEEP_SCREEN_ON, set on the activity's window while a session runs so
 /// "屏幕常亮" means the phone, not the webview's own timer hacks (which WebView ignores).
 pub fn set_keep_screen_on(app: &tauri::AppHandle, on: bool) -> Result<(), String> {
-    let app = app.clone();
+    let sink = app.clone();
     app.run_on_main_thread(move || {
         let _ = with_env(|env| {
-            let activity = activity_obj(&app);
+            let activity = activity_obj(&sink);
             let window = env.call_method(&activity, "getWindow", "()Landroid/view/Window;", &[]).je()?.l().je()?;
             let (method, flag) = if on { ("addFlags", 0x0000_0080) } else { ("clearFlags", 0x0000_0080) };
-            env.call_method(&window, method, "(I)V", &[JValue::Int(flag)]).je()
+            // The JValue call_method returns borrows from env, so drop it here rather than
+            // returning it out of the closure.
+            env.call_method(&window, method, "(I)V", &[JValue::Int(flag)]).je()?;
+            Ok(())
         });
     })
     .map_err(|e| e.to_string())
