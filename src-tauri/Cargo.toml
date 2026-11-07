@@ -16,7 +16,6 @@ anyhow = "1.0.104"
 base64 = "0.23.1"
 cpal = "0.17.1"
 futures-util = "0.3.34"
-keyring = { version = "4.2.0", features = ["apple-native-keyring-store"] }
 prost = "0.14.4"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -26,7 +25,20 @@ tauri-plugin-dialog = "2.7.3"
 tauri-plugin-opener = "2.5.5"
 tauri-plugin-store = "2.4.4"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# TLS split per target: native-tls has no Android backend, so mobile builds rustls with
+# bundled roots. Desktop keeps the exact same native-tls stack it has always built with.
+# Declared only per target — one table per platform, no base entry to merge defaults with.
+[target.'cfg(not(target_os = "android"))'.dependencies]
 tokio-tungstenite = { version = "0.29.0", features = ["native-tls"] }
+# No Android backend exists; secret.rs stubs itself out there and the frontend keeps the
+# key in settings.json, the same fallback as a Linux box without Secret Service.
+keyring = { version = "4.2.0", features = ["apple-native-keyring-store"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+tokio-tungstenite = { version = "0.29.0", features = ["rustls-tls-webpki-roots"] }
+# AAudio backend for microphone capture; desktop cpal builds its native backends.
+cpal = { version = "0.17.1", features = ["aaudio"] }
 
 [target.'cfg(windows)'.dependencies]
 # Same major as cpal's, so it is not built twice. Process loopback is not in cpal.
