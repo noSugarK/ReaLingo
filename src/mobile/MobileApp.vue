@@ -12,7 +12,7 @@ import StreamList from "./StreamList.vue";
 import Toaster from "./Toaster.vue";
 import { session } from "../session";
 import { loadCaps } from "../platform";
-import { settings, activeKey, initSettings, resolvedTheme } from "../store";
+import { settings, activeKey, initSettings } from "../store";
 import { PRESETS, PROTOCOLS, langName, modelName } from "../languages";
 import { locale, t, tf } from "../i18n";
 import { checkUpdateAtStartup } from "../update";
@@ -131,6 +131,14 @@ watch(session.sourceKind, (k) => {
   if (k === "file" && !session.filePath.value) void chooseFile();
 });
 
+/* ---------- theme cycle: follow system -> light -> dark ---------- */
+function cycleTheme() {
+  settings.theme = settings.theme === "system" ? "light" : settings.theme === "light" ? "dark" : "system";
+}
+const themeLabel = computed(() =>
+  `${t("theme")} · ${settings.theme === "system" ? t("themeSystem") : settings.theme === "light" ? t("themeLight") : t("themeDark")}`,
+);
+
 /* ---------- language card ---------- */
 function swap() {
   if (settings.sourceLang === "auto" || session.sourceMode.value === "detected") {
@@ -190,13 +198,22 @@ async function askFromCenter() {
           </span>
         </button>
         <span class="spacer" />
+        <!-- Narrow screens drop the label and keep the icon: the source always has a
+             distinct glyph, so no text is needed to tell the three states apart. -->
         <button class="pill" :aria-label="t('srcTitle')" @click="drawer = 'src'">
-          {{ srcLabel }}
+          <svg v-if="session.sourceKind.value === 'mic'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11"/><path d="M8 7a4 4 0 0 0 8 0"/><path d="M5.5 12.5A6.5 6.5 0 0 0 12 19a6.5 6.5 0 0 0 6.5-6.5"/><path d="M12 19v2.5"/></svg>
+          <svg v-else-if="session.sourceKind.value === 'system'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.5 6.5 8H3v8h3.5L11 19.5z"/><path d="M15 8.6a4.6 4.6 0 0 1 0 6.8"/></svg>
+          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H14l5 5v10.5A2.5 2.5 0 0 1 16.5 21h-10A2.5 2.5 0 0 1 4 18.5z"/><path d="M13.5 3.2V8.5H19"/></svg>
+          <span class="tx">{{ srcLabel }}</span>
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round"><path d="m4 6 4 4 4-4"/></svg>
         </button>
-        <button class="pill" :class="{ alerted: bad.length }" :aria-label="t('settings')" @click="page = 'settings'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.4v2.8M12 18.8v2.8M2.4 12h2.8M18.8 12h2.8M5.2 5.2l2 2M16.8 16.8l2 2M18.8 5.2l-2 2M7.2 16.8l-2 2"/></svg>
-          {{ t("settings") }}
+        <button class="icobtn xs" :aria-label="themeLabel" @click="cycleTheme">
+          <svg v-if="settings.theme === 'system'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7"/></svg>
+          <svg v-else-if="settings.theme === 'light'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>
+          <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.2A8.2 8.2 0 0 1 10.8 4 7.6 7.6 0 1 0 20 13.2z"/></svg>
+        </button>
+        <button class="icobtn xs" :aria-label="t('settings')" @click="page = 'settings'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.4v2.8M12 18.8v2.8M2.4 12h2.8M18.8 12h2.8M5.2 5.2l2 2M16.8 16.8l2 2M18.8 5.2l-2 2M7.2 16.8l-2 2"/></svg>
           <em v-if="bad.length" class="dot" />
         </button>
       </header>
@@ -338,9 +355,9 @@ async function askFromCenter() {
               <span class="rt"><b>{{ t("uiLang") }}</b></span>
               <span class="rv">{{ settings.uiLang === "system" ? t("uiSystem") : settings.uiLang === "zh" ? "简体中文" : "English" }}</span>
             </button>
-            <button class="rowbtn" :class="{ on: resolvedTheme === 'dark' }" @click="settings.theme = resolvedTheme === 'dark' ? 'light' : 'dark'">
-              <span class="rt"><b>{{ t("theme") }}</b></span>
-              <span class="rv">{{ resolvedTheme === "dark" ? t("themeDark") : t("themeLight") }}</span>
+            <button class="rowbtn" @click="cycleTheme">
+              <span class="rt"><b>{{ t("theme") }}</b><small>{{ t("themeSub") }}</small></span>
+              <span class="rv">{{ settings.theme === "system" ? t("themeSystem") : settings.theme === "light" ? t("themeLight") : t("themeDark") }}</span>
             </button>
           </div>
         </section>
@@ -451,8 +468,22 @@ async function askFromCenter() {
   border-radius: 999px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline);
   font-size: 12px; font-weight: 680; color: var(--ink-2);
 }
-.pill .dot { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--canvas); }
 .spacer { flex: 1; }
+
+/* Topbar icon buttons share the pill's height so the row stays one line tall. */
+.icobtn.xs {
+  position: relative; width: 32px; height: 32px; flex: none; border-radius: 999px;
+  display: grid; place-items: center; background: var(--shade); color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.icobtn.xs .dot { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--canvas); }
+
+/* Narrow phones (SE-classic 320 px, desktop subtitle windows on a phone-size view):
+   the source pill folds to icon + chevron, the label gives way to space. */
+@media (max-width: 360px) {
+  .pill .tx { display: none; }
+  .pill { padding: 0 9px; }
+}
 
 /* ---------- language card ---------- */
 .langcard { flex: none; border-radius: 20px; padding: 6px 7px; display: flex; align-items: center; gap: 2px; }

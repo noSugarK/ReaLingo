@@ -247,8 +247,10 @@ const zh = {
   permAskAgain: "系统弹窗已再次询问",
   faceHint: "把手机平放在两人中间，下半屏转向对面。开中英双向，你说一句、对方看他那侧的译文",
   langAutoHint: "对坐自动中英双向",
+  themeSystem: "跟随系统",
   themeLight: "浅色",
   themeDark: "深色",
+  themeSub: "顶栏的日/月图标也可以随时切换",
 };
 
 const en: typeof zh = {
@@ -497,8 +499,10 @@ const en: typeof zh = {
   permAskAgain: "Asked again through the system dialog",
   faceHint: "Lay the phone flat between you two; the lower half turns toward the other person. With Chinese ⇄ English on, each side reads its own.",
   langAutoHint: "Face-to-face runs Chinese ⇄ English automatically",
+  themeSystem: "Follow system",
   themeLight: "Light",
   themeDark: "Dark",
+  themeSub: "The sun/moon icon in the top bar cycles it too",
 };
 
 const DICT = { zh, en };
