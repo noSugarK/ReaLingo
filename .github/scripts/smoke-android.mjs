@@ -35,7 +35,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const waitFor = async (labels) => {
     for (let i = 0; i < 20; i++) {
       assert.ok(adb('shell', 'pidof', packageId).trim(), 'the app process died');
-      const bounds = targetBounds(ui(), labels);
+      let xml;
+      try { xml = ui(); } catch { await sleep(500); continue; }
+      const bounds = targetBounds(xml, labels);
       if (bounds) return bounds;
       await sleep(500);
     }
@@ -48,7 +50,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     adb('wait-for-device');
     adb('install', '-r', apk);
     adb('shell', 'pm', 'clear', packageId);
-    adb('logcat', '-c');
+    // Some old system images cannot clear all buffers. Failure to clear diagnostics
+    // must not prevent exercising the app itself.
+    try { adb('logcat', '-b', 'crash', '-c'); } catch {}
     for (let launch = 0; launch < 2; launch++) {
       adb('shell', 'am', 'force-stop', packageId);
       assert.doesNotMatch(adb('shell', 'am', 'start', '-W', '-n', component), /Error:|Exception/);
