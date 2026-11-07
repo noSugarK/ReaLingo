@@ -1,7 +1,7 @@
 import { reactive, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { load, type Store } from "@tauri-apps/plugin-store";
-import { MODEL_QWEN3_8, PROTOCOLS, type Vendor, type VoiceList } from "./languages";
+import { MODEL_QWEN3_8, PRESETS, PROTOCOLS, type Vendor, type VoiceList } from "./languages";
 
 /** Only the regions that serve the LiveTranslate models — see `config::Region` in Rust. */
 export type Region = "beijing" | "singapore";
@@ -9,6 +9,9 @@ export type Region = "beijing" | "singapore";
 /** Model Studio's region id: part of every console link. */
 export const REGION_ID: Record<Region, string> = { beijing: "cn-beijing", singapore: "ap-southeast-1" };
 export type Theme = "system" | "light" | "dark";
+/** Which language the UI text is drawn in; "system" follows `navigator.language`.
+ *  Affects interface strings only, never what gets translated. */
+export type UiLang = "system" | "zh" | "en";
 export type SubMode = "both" | "target" | "source";
 export type SubAlign = "left" | "center" | "right";
 
@@ -90,6 +93,9 @@ export interface Settings {
   /** Chinese<->English both ways in one session, where the protocol can (`twoWay`). */
   twoWay: boolean;
   theme: Theme;
+  uiLang: UiLang;
+  /** Phone only: keep the screen awake while a session runs (FLAG_KEEP_SCREEN_ON). */
+  keepScreenOn: boolean;
   sub: SubtitleStyle;
   stream: StreamStyle;
 }
@@ -115,6 +121,8 @@ export const settings = reactive<Settings>({
   voice: "Tina",
   twoWay: false,
   theme: "system",
+  uiLang: "system",
+  keepScreenOn: true,
   sub: {
     show: false,
     mode: "both",
@@ -172,6 +180,10 @@ export async function initSettings(persist = true) {
     // Saved before the protocol was a setting: the model was what picked the 3.8 schema. With
     // no model saved either there was no choice to keep, and the new defaults stand as a pair.
     if (!saved.protocol && saved.model) settings.protocol = saved.model === MODEL_QWEN3_8 ? "qwen38" : "qwen35";
+    // The desktop's old UI-language toggle lived in localStorage; a user who ever pressed it
+    // keeps that explicit choice rather than falling back to "follow system".
+    const legacy = localStorage.getItem("locale");
+    if (!saved.uiLang && (legacy === "zh" || legacy === "en")) settings.uiLang = legacy;
     // Before the two rows were sized separately, the bar had one `fontSize` and the source
     // line was 0.62em of it. Carry that pair over so an existing install looks unchanged.
     const oldSub = saved.sub as (Partial<SubtitleStyle> & { fontSize?: number }) | undefined;
@@ -215,6 +227,24 @@ export async function initSettings(persist = true) {
 /** The key of the protocol in use — the one a session will actually send. */
 export function activeKey(): string {
   return settings[keyField(settings.protocol)];
+}
+
+/**
+ * A model belongs to one protocol and a URL to one vendor (the two Qwens share an endpoint),
+ * so each is put away on the way out and brought back on return: a round trip through
+ * another protocol no longer loses a custom model or proxy address. The desktop settings
+ * sheet and the phone's provider drawer both drive this, hence it lives beside the settings
+ * rather than inside either component.
+ */
+export function switchProtocol(to: Protocol): boolean {
+  const from = settings.protocol;
+  if (to === from) return false;
+  settings.savedModels[from] = settings.model;
+  settings.savedUrls[PROTOCOLS[from].vendor] = settings.url;
+  settings.protocol = to;
+  settings.model = settings.savedModels[to] ?? PRESETS[to][0].id;
+  settings.url = settings.savedUrls[PROTOCOLS[to].vendor] ?? "";
+  return true;
 }
 
 export function setActiveKey(key: string) {

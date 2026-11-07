@@ -1,4 +1,5 @@
-import { ref } from "vue";
+import { computed, watch } from "vue";
+import { settings } from "./store";
 
 const zh = {
   appTitle: "ReaLingo",
@@ -160,6 +161,94 @@ const zh = {
   errPickDevice: "请先选择一个音频设备",
   errPickFile: "请先选择一个音频文件",
   fileDone: "文件处理完成",
+
+  // ---------- phone shell ----------
+  back: "返回",
+  uiLang: "界面语言",
+  uiLangHint: "默认跟随系统语言。只影响界面文字，不影响翻译",
+  uiSystem: "跟随系统",
+  uiDetected: "当前检测到：{l}",
+  permCenter: "权限中心",
+  permCenterSub: "麦克风 · 悬浮窗 · 后台 · 电池 · 通知",
+  permPending: "{n} 项待开",
+  permAllOk: "全部就绪",
+  permSum: "{ok} 项已开启 · {bad} 项待处理",
+  permRecheck: "权限状态每次回到应用时重新检测，改完不用重启",
+  cbTitle: "{n} 项权限未开启",
+  cbOkTitle: "权限齐全",
+  cbOkSub: "麦克风、通知、电池优化都已就绪",
+  cbSubBad: "{list}。首次未授权不报警，交给系统弹窗",
+  cbGo: "去开启",
+  pmMic: "麦克风",
+  pmNotif: "通知",
+  pmBattery: "不受电池优化限制",
+  pmMust: "必须",
+  pmGranted: "已允许",
+  pmDenied: "已拒绝",
+  pmPermanent: "永久拒绝",
+  pmUnset: "未授权",
+  pmAsk: "申请权限",
+  pmReask: "重新申请",
+  pmOpenSet: "打开系统设置",
+  pmOn: "已开启",
+  pmGo: "去开启",
+  pmNotifSub: "前台服务与通知栏控制",
+  pmBatterySub: "锁屏后不会被系统杀掉",
+  micSub: "采集声音，没有它无法翻译",
+  micSubDenied: "上次拒绝了。再点开始仍会弹系统框",
+  micSubPerm: "你勾选了「不再询问」，系统从此不会再弹。这是唯一需要应用介入的情况",
+  guideTitle: "需要麦克风权限",
+  guideSub: "你勾选了「不再询问」，系统从此不会再弹。到系统设置里打开后，返回会自动开始翻译",
+  guidePath: "应用信息 → 权限 → 麦克风 → 允许",
+  guideOpen: "打开系统设置",
+  guideFile: "改用音频文件",
+  guideLater: "以后再说",
+  permDeniedToast: "已拒绝麦克风 · 再点开始仍会询问一次",
+  permPermToast: "麦克风被永久拒绝 · 需要到系统设置开启",
+  autoStartToast: "麦克风已允许 · 返回后自动开始",
+  keepScreen: "屏幕常亮",
+  keepScreenSub: "翻译时不自动锁屏",
+  srcHintPhone: "默认自动检测。Qwen3.8 只支持自动；Qwen3.5 可手动指定，豆包必须手动指定",
+  tgtSearchPh: "搜索语言或代码，如「韩」或 ko",
+  langCount: "按当前接口支持的语言列出",
+  langMatch: "匹配 {n} 种",
+  langNoMatch: "没有匹配的语言。可能是当前模型不支持",
+  gTarget: "目标语言 · 翻成什么",
+  gSource: "源语言 · 一般不用动",
+  chipFrequent: "常用",
+  ifaceDrawerHint: "切换接口会换消息格式；每家的 Key 分开存。运行中切换需要重新开始",
+  customModelId: "自定义模型 ID",
+  customModelHint: "兼容同一接口的服务（代理、私有部署）也能接",
+  ifaceSwitched: "接口已切换到 {p}",
+  restartNeeded: "接口已切换 · 需要重新开始翻译",
+  restartNow: "重新开始",
+  noKeyToast: "未配置 API Key · 去设置",
+  goSettings: "去设置",
+  streamEmptyPhone: "按下开始，说的话会实时翻成{lang}出现在这里",
+  swapAuto: "源语言是自动检测，没有可互换的值",
+  aboutNote: "配置与翻译历史都存在本机，与桌面端各自独立、不互通",
+  platformAndroid: "Android",
+  usageSoon: "用量与费用统计在后续版本提供",
+  historyRow: "翻译历史",
+  faceMode: "对坐",
+  faceModeHint: "把下半屏转向对面的人",
+  fullscreenSub: "全屏字幕",
+  exitMode: "退出",
+  runningDrawerHint: "运行中改来源不打断会话；改接口需要重新开始",
+  srcHintSwitch: "翻译什么声音。切换来源不影响正在进行的会话",
+  groupPerm: "权限与后台",
+  groupData: "数据与外观",
+  ifaceSub: "决定按哪种消息格式通信",
+  srcMicSub: "采集手机自己听到的声音，面对面对译用这个",
+  srcSysSub: "采集本机播放的音频，翻视频、播客、网课。每次开始会弹一次系统授权框",
+  srcFileSub: "选一个本地文件翻完，SRT 时间轴能对上原视频",
+  needAuth: "需授权",
+  projUnsupported: "这个版本暂不支持系统声音采集",
+  permAskAgain: "系统弹窗已再次询问",
+  faceHint: "把手机平放在两人中间，下半屏转向对面。开中英双向，你说一句、对方看他那侧的译文",
+  langAutoHint: "对坐自动中英双向",
+  themeLight: "浅色",
+  themeDark: "深色",
 };
 
 const en: typeof zh = {
@@ -322,23 +411,118 @@ const en: typeof zh = {
   errPickDevice: "Pick an audio device first",
   errPickFile: "Pick an audio file first",
   fileDone: "File finished",
+
+  // ---------- phone shell ----------
+  back: "Back",
+  uiLang: "Interface language",
+  uiLangHint: "Follows the system by default. Affects UI text only, never the translation",
+  uiSystem: "Follow system",
+  uiDetected: "Detected: {l}",
+  permCenter: "Permission center",
+  permCenterSub: "Microphone · notifications · battery",
+  permPending: "{n} pending",
+  permAllOk: "All set",
+  permSum: "{ok} granted · {bad} pending",
+  permRecheck: "Re-checked every time the app resumes; no restart needed",
+  cbTitle: "{n} permissions need attention",
+  cbOkTitle: "All permissions ready",
+  cbOkSub: "Microphone, notifications and battery are all set",
+  cbSubBad: "{list}. First-time denials are left to the system prompt",
+  cbGo: "Fix",
+  pmMic: "Microphone",
+  pmNotif: "Notifications",
+  pmBattery: "Unrestricted battery",
+  pmMust: "required",
+  pmGranted: "Allowed",
+  pmDenied: "Denied",
+  pmPermanent: "Permanently denied",
+  pmUnset: "Not granted",
+  pmAsk: "Request access",
+  pmReask: "Ask again",
+  pmOpenSet: "Open system settings",
+  pmOn: "On",
+  pmGo: "Enable",
+  pmNotifSub: "Foreground service and controls",
+  pmBatterySub: "Not killed after screen-off",
+  micSub: "Captures sound; without it nothing can be translated",
+  micSubDenied: "Denied last time. Starting again will prompt once more",
+  micSubPerm: "You picked “don't ask again”, so the system will not prompt. This is the only case the app steps in",
+  guideTitle: "Microphone access needed",
+  guideSub: "You picked \"don't ask again\", so the system will not prompt. Turn it on in system settings; returning here starts translation",
+  guidePath: "App info → Permissions → Microphone → Allow",
+  guideOpen: "Open system settings",
+  guideFile: "Use an audio file",
+  guideLater: "Later",
+  permDeniedToast: "Microphone denied · starting again will ask once more",
+  permPermToast: "Microphone permanently denied · turn it on in system settings",
+  autoStartToast: "Microphone allowed · starting on return",
+  keepScreen: "Keep screen on",
+  keepScreenSub: "No auto-lock while translating",
+  srcHintPhone: "Auto-detect by default. Qwen3.8 is detect-only; Qwen3.5 allows manual; Doubao requires it",
+  tgtSearchPh: "Search a language or code, e.g. ko",
+  langCount: "Lists what the current API supports",
+  langMatch: "{n} matches",
+  langNoMatch: "No match. This model may not support it",
+  gTarget: "Target · what to translate into",
+  gSource: "Source · usually leave it",
+  chipFrequent: "Common",
+  ifaceDrawerHint: "Switching changes the wire format; keys are stored per vendor. A running session must restart",
+  customModelId: "Custom model ID",
+  customModelHint: "Any service speaking the same protocol works (proxy, private deploy)",
+  ifaceSwitched: "Provider switched to {p}",
+  restartNeeded: "Provider changed · the session must restart",
+  restartNow: "Restart",
+  noKeyToast: "No API key · open Settings",
+  goSettings: "Settings",
+  streamEmptyPhone: "Press start and your words appear here in {lang}",
+  swapAuto: "Source is auto-detect; nothing to swap",
+  aboutNote: "Settings and history live on this device, separate from the desktop app",
+  platformAndroid: "Android",
+  usageSoon: "Usage & cost reporting comes in a later build",
+  historyRow: "History",
+  faceMode: "Face to face",
+  faceModeHint: "Turns the lower half toward the other person",
+  fullscreenSub: "Full-screen subtitles",
+  exitMode: "Exit",
+  runningDrawerHint: "Changing the source never interrupts a session; changing the API does",
+  srcHintSwitch: "What to translate. Switching does not affect a running session",
+  groupPerm: "Permissions & background",
+  groupData: "Data & appearance",
+  ifaceSub: "Which message format to speak",
+  srcMicSub: "Picks up sound around the phone; for face-to-face talks",
+  srcSysSub: "Captures what this device plays: video, podcasts, courses. One system prompt per session",
+  srcFileSub: "Translate a local file; the SRT timeline lines up with the video",
+  needAuth: "needs grant",
+  projUnsupported: "System-audio capture is not in this build yet",
+  permAskAgain: "Asked again through the system dialog",
+  faceHint: "Lay the phone flat between you two; the lower half turns toward the other person. With Chinese ⇄ English on, each side reads its own.",
+  langAutoHint: "Face-to-face runs Chinese ⇄ English automatically",
+  themeLight: "Light",
+  themeDark: "Dark",
 };
 
 const DICT = { zh, en };
 export type Locale = keyof typeof DICT;
 export type Key = keyof typeof zh;
 
-export const locale = ref<Locale>(
-  (localStorage.getItem("locale") as Locale) ||
-    (navigator.language.startsWith("zh") ? "zh" : "en")
+/** "system" resolves through `navigator.language`, like the desktop app always did. */
+export const locale = computed<Locale>(() =>
+  settings.uiLang === "system" ? (navigator.language.startsWith("zh") ? "zh" : "en") : settings.uiLang
 );
 
-export function setLocale(l: Locale) {
-  locale.value = l;
-  localStorage.setItem("locale", l);
-  document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
+export function setLocale(l: "system" | Locale) {
+  settings.uiLang = l;
+  document.documentElement.lang = locale.value === "zh" ? "zh-CN" : "en";
 }
+watch(locale, () => { document.documentElement.lang = locale.value === "zh" ? "zh-CN" : "en"; }, { immediate: true });
 
 export function t(key: Key): string {
-  return DICT[locale.value][key];
+  return DICT[locale.value][key] ?? DICT.zh[key] ?? key;
+}
+
+/** `t` with `{name}` placeholders: t("perm_pending", { n: 2 }) → "2 项权限未开启". */
+export function tf(key: Key, vars?: Record<string, string | number>): string {
+  let s = t(key);
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
+  return s;
 }
