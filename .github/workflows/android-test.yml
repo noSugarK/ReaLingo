@@ -16,6 +16,10 @@ concurrency:
 jobs:
   apk:
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
     env:
       ANDROID_NDK_VERSION: '28.2.13676358'
     steps:
@@ -37,11 +41,11 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-linux-android
+          targets: ${{ matrix.target }}-linux-android
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: android-test-x86_64
+          key: android-test-${{ matrix.target }}
       - run: npm ci
       - run: npm test
       - run: python3 -m unittest discover -s tests -p 'test_*.py'
@@ -51,7 +55,7 @@ jobs:
           npm run tauri -- android init --ci --skip-targets-install
           chmod +x src-tauri/gen/android/gradlew
           node .github/scripts/prepare-android.mjs
-          npm run tauri -- android build --ci --apk --target x86_64
+          npm run tauri -- android build --ci --apk --target ${{ matrix.target }}
       - name: Verify signature and 16 KB ZIP alignment
         run: |
           mapfile -d '' apks < <(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' ! -name '*unsigned*' -print0)
@@ -63,7 +67,7 @@ jobs:
           cp "${apks[0]}" smoke-apk/realingo.apk
       - uses: actions/upload-artifact@v6
         with:
-          name: android-smoke-apk
+          name: android-${{ matrix.target }}-apk
           path: smoke-apk/realingo.apk
           if-no-files-found: error
 
@@ -87,7 +91,7 @@ jobs:
           node-version: 24
       - uses: actions/download-artifact@v7
         with:
-          name: android-smoke-apk
+          name: android-x86_64-apk
           path: smoke-apk
       - name: Enable KVM
         run: |
