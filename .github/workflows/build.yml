@@ -140,6 +140,109 @@ jobs:
           printf 'uploading %s\n' "${files[@]}"
           gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
 
+  # ARM64 APK, built and signed the same way LittleLobby's release pipeline does it.
+  # The generated Gradle project lives in src-tauri/gen/ (gitignored), so CI runs
+  # `android init` fresh every time — the repo stays desktop-shaped and the Android
+  # specifics live in .github/scripts/prepare-android.mjs.
+  #
+  # Without the four ANDROID_* secrets, the job still produces an installable test APK
+  # (debug key, `.debug` id suffix); on a release tag the signing script refuses to run
+  # unsigned, because temporary keys cannot support upgrades.
+  android:
+    needs: create-release
+    runs-on: ubuntu-22.04
+    env:
+      ANDROID_NDK_VERSION: '28.2.13676358'
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Configure Android signing
+        id: signing
+        run: node .github/scripts/configure-android-signing.mjs
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' "ndk;$ANDROID_NDK_VERSION"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android-arm64
+
+      - run: npm ci
+
+      - name: Initialize Android project
+        run: |
+          if [[ ! -f src-tauri/gen/android/app/build.gradle.kts ]]; then
+            npm run tauri -- android init --ci --skip-targets-install
+          fi
+          chmod +x src-tauri/gen/android/gradlew
+          node .github/scripts/prepare-android.mjs
+
+      - name: Build APK
+        run: npm run tauri -- android build --ci --apk --target aarch64
+
+      - name: Collect the installable APK
+        env:
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          mapfile -d '' packages < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' ! -name '*unsigned*' -print0)
+          if [[ ${#packages[@]} -ne 1 ]]; then
+            echo 'Expected exactly one installable ARM64 APK'
+            exit 1
+          fi
+          version=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
+          suffix=''
+          if [[ "$SIGNED" != true ]]; then suffix='-test-signed'; fi
+          mkdir -p installers
+          cp "${packages[0]}" "installers/ReaLingo_${version}_android-arm64${suffix}.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "${packages[0]}"
+          ls -lh installers/*.apk
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: realingo-android-arm64
+          if-no-files-found: error
+          path: installers/*.apk
+
+      - name: Attach the APK to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$GITHUB_REF_NAME" installers/*.apk --clobber
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/realingo-upload.jks"
+
+  # `android` deliberately NOT in needs yet: the pipeline is proving itself on this branch,
+  # and a green desktop release must not wait on an untested NDK path. Once the first
+  # tagged build has an APK passing here, add `, android` and its upload step takes effect.
   publish-release:
     needs: bundle
     if: startsWith(github.ref, 'refs/tags/v')
