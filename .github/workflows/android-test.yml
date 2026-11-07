@@ -86,8 +86,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - api: 26
-            tag: default
+          - api: 35
+            tag: google_apis
             page-size: 4096
           - api: 35
             tag: google_apis_ps16k
@@ -124,5 +124,5 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: android-api${{ matrix.api }}-diagnostics
+          name: android-api${{ matrix.api }}-${{ matrix.page-size }}-diagnostics
           path: android-smoke/

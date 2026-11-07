@@ -40,8 +40,10 @@ grant/revocation across launches. It saves screenshots, UI XML and logcat in
 `android-smoke/` (override with `ANDROID_SMOKE_OUTPUT`). Never use the smoke runner
 against an installation containing settings/history you want to keep.
 
-`.github/workflows/android-test.yml` builds release ARM64 and x86_64 APKs and runs the latter on API 26
-and API 35 with 16 KB pages. The page size is asserted on the emulator. Both this
+`.github/workflows/android-test.yml` builds release ARM64 and x86_64 APKs and runs the latter on API 35
+with both 4 KB and 16 KB pages. The page size is asserted on the emulator. The API 26
+default emulator image has no WebView provider; testing older supported devices requires
+an installed, current WebView and remains a separate device check. Both this
 workflow and the ARM64 release workflow check APK ZIP alignment and every native
 library's ELF load-segment alignment. These are regression gates, not evidence that
 a particular vendor device has passed. Remote emulator results are available only

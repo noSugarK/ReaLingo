@@ -2,7 +2,7 @@
 // insufficient: require the rendered phone UI, then test navigation and lifecycle.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -46,6 +46,14 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
   const screenshot = (name) => writeFileSync(join(output, `${name}.png`),
     execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000 }));
+  const saveLog = (name, args) => {
+    const fd = openSync(join(output, name), 'w');
+    try {
+      execFileSync('adb', args, { stdio: ['ignore', fd, fd], timeout: 30000 });
+    } catch (e) {
+      console.error(`Could not collect ${name}: ${e.message}`);
+    } finally { closeSync(fd); }
+  };
   try {
     adb('wait-for-device');
     adb('install', '-r', apk);
@@ -63,7 +71,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     assert.match(lastXml, /android.webkit.WebView/, 'the native Activity alone is not a rendered app');
     screenshot('home');
     await tap(['About', '关于']);
-    await waitFor(['MIT']);
+    await waitFor(['MIT', 'License MIT', '许可 MIT']);
     screenshot('about');
     await tap(['Close', '关闭']);
     await tap(['Settings', '设置']);
@@ -93,8 +101,11 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     console.log('Android smoke passed: cold launches, rendered UI, navigation, resume, microphone grant/revoke');
   } finally {
     writeFileSync(join(output, 'last-ui.xml'), lastXml);
-    writeFileSync(join(output, 'logcat.txt'), adb('logcat', '-d'));
-    writeFileSync(join(output, 'crash.txt'), adb('logcat', '-b', 'crash', '-d'));
+    // Diagnostics must not exhaust Node's buffered subprocess output or mask the
+    // original assertion. Save crash evidence first, then the unbounded full log.
+    saveLog('crash.txt', ['logcat', '-b', 'crash', '-d']);
+    saveLog('logcat.txt', ['logcat', '-d']);
+    try { screenshot('last-screen'); } catch (e) { console.error(e.message); }
   }
 }
 
