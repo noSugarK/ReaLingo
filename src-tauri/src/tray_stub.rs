@@ -4,6 +4,10 @@
 //! menu to rebuild here, so the command accepts the same payload and drops it. Keeping the
 //! interface identical means no `cfg` branches reach the Vue side.
 
+// Field-for-field identical to tray.rs's payload types: the wire format must match even
+// though nothing here reads the fields, and Debug/unused warnings are noise by design.
+#![allow(dead_code)]
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
