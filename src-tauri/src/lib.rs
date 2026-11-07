@@ -4,12 +4,21 @@ pub mod decode;
 mod history;
 mod player;
 pub mod realtime;
+// PulseAudio monitoring forks pactl/parec: a Linux-desktop path only. Android reports
+// target_os = "linux" as well, hence the explicit exclusion.
+#[cfg(all(target_os = "linux", not(target_os = "android")))]
 pub mod pulse;
 pub mod resample;
 pub mod volc;
 mod secret;
 #[cfg(target_os = "macos")]
 mod tap;
+// Tray icons are a desktop concept. Mobile gets the same command surface backed by
+// no-ops, so the frontend can keep calling sync_tray without a platform check.
+#[cfg(not(target_os = "android"))]
+mod tray;
+#[cfg(target_os = "android")]
+#[path = "tray_stub.rs"]
 mod tray;
 #[cfg(windows)]
 mod wasapi;
@@ -174,7 +183,9 @@ pub fn run() {
     // proprietary drivers: the window is created and focused but never painted, which with
     // `transparent: true` looks like the app failed to start. Losing the DMA-BUF path costs
     // a buffer copy; losing the whole UI costs the app. Respect an explicit override.
-    #[cfg(target_os = "linux")]
+    // Android is `target_os = "linux"` for the cfg macro but a different libc: its process
+    // has no `environ`, so set_var panics there and the variable is irrelevant anyway.
+    #[cfg(all(target_os = "linux", not(target_os = "android")))]
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }

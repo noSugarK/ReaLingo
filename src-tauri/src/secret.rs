@@ -12,11 +12,18 @@
 //! Linux without a running Secret Service provider (headless, or a minimal desktop) has no
 //! store at all. There [`available`] is false and the frontend keeps the key in
 //! settings.json as before — refusing to run would be worse than the status quo.
+//!
+//! Android takes the same fallback path by construction: the `keyring` crate is not even
+//! in its dependency graph (it has no Android backend), so every function below folds to
+//! the "no store" behaviour.
 
+#[cfg(not(target_os = "android"))]
 use keyring::Entry;
 
 use crate::config::Protocol;
 
+// Only the keyring-backed arms name it; Android's stubs never touch a service string.
+#[cfg_attr(target_os = "android", allow(dead_code))]
 const SERVICE: &str = "com.nosugark.realingo";
 
 /// One slot per vendor, not per protocol: both Qwen protocols sign in with the same Model
@@ -31,8 +38,15 @@ fn user(protocol: Protocol) -> &'static str {
 }
 
 /// Whether this machine has a usable credential store. Probed once by keyring itself.
+#[cfg(not(target_os = "android"))]
 pub fn available() -> bool {
     Entry::store_status().is_ok()
+}
+
+/// Android: no store, full stop. The frontend's settings.json fallback takes the key.
+#[cfg(target_os = "android")]
+pub fn available() -> bool {
+    false
 }
 
 pub fn get(protocol: Protocol) -> Option<String> {
@@ -44,11 +58,18 @@ pub fn set(protocol: Protocol, key: &str) -> Result<(), String> {
     set_as(user(protocol), key)
 }
 
+#[cfg(not(target_os = "android"))]
 fn get_as(user: &str) -> Option<String> {
     let key = Entry::new(SERVICE, user).ok()?.get_password().ok()?;
     (!key.is_empty()).then_some(key)
 }
 
+#[cfg(target_os = "android")]
+fn get_as(_user: &str) -> Option<String> {
+    None
+}
+
+#[cfg(not(target_os = "android"))]
 fn set_as(user: &str, key: &str) -> Result<(), String> {
     let entry = Entry::new(SERVICE, user).map_err(|e| e.to_string())?;
     if key.is_empty() {
@@ -58,6 +79,11 @@ fn set_as(user: &str, key: &str) -> Result<(), String> {
         };
     }
     entry.set_password(key).map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "android")]
+fn set_as(_user: &str, _key: &str) -> Result<(), String> {
+    Ok(())
 }
 
 #[cfg(test)]

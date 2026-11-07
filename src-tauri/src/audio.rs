@@ -48,11 +48,13 @@ const SYS: &str = "sys";
 /// a sound server being up, which can change while the app is open. Elsewhere it folds to a
 /// compile-time fact.
 pub fn loopback_supported() -> bool {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_os = "android")))]
     {
         crate::pulse::available()
     }
-    #[cfg(not(target_os = "linux"))]
+    // Android shares target_os = "linux" but has no sound server to shell out to;
+    // system-audio capture (AudioPlaybackCapture) would need platform APIs cpal lacks.
+    #[cfg(any(target_os = "android", not(target_os = "linux")))]
     {
         cfg!(any(target_os = "windows", target_os = "macos"))
     }
@@ -77,13 +79,13 @@ pub fn list_devices() -> Vec<DeviceInfo> {
     }
     // Listing output devices where loopback is impossible would only offer the user streams
     // that fail to build.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_os = "android")))]
     out.extend(crate::pulse::monitors().into_iter().map(|m| DeviceInfo {
         id: format!("{SYS}{SEP}{}", m.name),
         name: m.label,
         loopback: true,
     }));
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(target_os = "android", not(target_os = "linux")))]
     if loopback_supported() {
         if let Ok(devices) = host.output_devices() {
             out.extend(devices.filter_map(|d| describe(&d, SYS)));
@@ -99,7 +101,7 @@ pub fn default_device_id(loopback: bool) -> Option<String> {
         return host.default_input_device().and_then(|d| describe(&d, MIC)).map(|d| d.id);
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_os = "android")))]
     {
         // Fall back to the first monitor: `pactl get-default-sink` can name a sink whose
         // monitor is not actually offered (a just-removed device), and an id that matches
@@ -110,7 +112,7 @@ pub fn default_device_id(loopback: bool) -> Option<String> {
             .or_else(|| all.first().map(|m| m.name.clone()))?;
         Some(format!("{SYS}{SEP}{preferred}"))
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(target_os = "android", not(target_os = "linux")))]
     {
         if !loopback_supported() {
             return None;
@@ -153,7 +155,7 @@ pub fn start(
 ) -> Result<()> {
     // Linux system audio never reaches cpal — it is a `parec` pipe, which owns its own
     // thread and reports failure synchronously already.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_os = "android")))]
     if let Some(source) = id.strip_prefix(SYS).and_then(|r| r.strip_prefix(SEP)) {
         return crate::pulse::start(source, rate, tx, level, stop);
     }
