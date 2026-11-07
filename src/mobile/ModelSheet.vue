@@ -34,7 +34,7 @@ const customDraft = ref(PRESETS[settings.protocol].some((x) => x.id === settings
 function pick(p: Protocol) {
   if (!switchProtocol(p)) return;
   customDraft.value = "";
-  emit.close();
+  emit("close");
   // The design's rule: a wire-format change cannot hot-swap a live session.
   if (props.running) toast(tf("restartNeeded"), { label: t("restartNow"), run: () => emit("restart") });
   else toast(tf("ifaceSwitched", { p: modelName(p, PRESETS[p][0].id) }));
