@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds } from '../.github/scripts/smoke-android.mjs';
+import { targetBounds, appCrashLines } from '../.github/scripts/smoke-android.mjs';
 import { decode } from '../tools/png.mjs';
 
 test('UI navigation locates visible English and Chinese controls by text or accessibility label', () => {
@@ -31,4 +31,15 @@ test('launcher artwork is valid PNG at every Android density', () => {
       assert.ok(icon.rgba.some((channel, i) => i % 4 === 3 && channel > 0), 'artwork must not be transparent');
     }
   }
+});
+
+test('crashes from the app are detected across cold starts, independently of UiAutomation', () => {
+  const log = '11-07 18:00:36.676 3344 3357 E AndroidRuntime: FATAL EXCEPTION: UiAutomation\n' +
+    '11-07 18:00:40.123 2000 2001 F libc: Fatal signal 6 (SIGABRT)\n' +
+    '11-07 18:00:41.123 3000 3000 E AndroidRuntime: FATAL EXCEPTION: main';
+  assert.equal(appCrashLines(log, new Set(['4000'])), '');
+  const app = appCrashLines(log, new Set(['2000', '3000']));
+  assert.match(app, /Fatal signal/);
+  assert.match(app, /FATAL EXCEPTION: main/);
+  assert.doesNotMatch(app, /UiAutomation/);
 });

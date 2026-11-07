@@ -21,6 +21,13 @@ export function targetBounds(xml, labels) {
   return null;
 }
 
+export function appCrashLines(log, pids) {
+  // Java FATAL EXCEPTION and libc Fatal signal records carry the crashing process PID.
+  // The emulator's UiAutomation helper can crash independently during an early dump.
+  const ids = new Set([...pids].map(String));
+  return log.split('\n').filter((line) => ids.has(line.match(/^\S+\s+\S+\s+(\d+)\s+\d+\s+[A-Z]\s/)?.[1])).join('\n');
+}
+
 export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug') {
   assert.ok(apk, 'usage: node .github/scripts/smoke-android.mjs APK [package-id]');
   const output = process.env.ANDROID_SMOKE_OUTPUT ?? 'android-smoke';
@@ -29,6 +36,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const component = `${packageId}/com.nosugark.realingo.MainActivity`;
   let lastXml = '';
+  const appPids = new Set();
   const ui = () => {
     adb('shell', 'uiautomator', 'dump', '/sdcard/realingo-smoke.xml');
     lastXml = adb('shell', 'cat', '/sdcard/realingo-smoke.xml');
@@ -36,7 +44,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   };
   const waitFor = async (labels) => {
     for (let i = 0; i < 20; i++) {
-      assert.ok(adb('shell', 'pidof', packageId).trim(), 'the app process died');
+      const pids = adb('shell', 'pidof', packageId).trim();
+      assert.ok(pids, 'the app process died');
+      for (const pid of pids.split(/\s+/)) appPids.add(pid);
       let xml;
       try { xml = ui(); } catch { await sleep(500); continue; }
       const bounds = targetBounds(xml, labels);
@@ -98,8 +108,8 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await waitFor(['Start', '开始翻译']);
-    const crashes = adb('logcat', '-b', 'crash', '-d');
-    assert.doesNotMatch(crashes, /FATAL EXCEPTION|Fatal signal|Abort message/);
+    const crashes = adb('logcat', '-v', 'threadtime', '-b', 'crash', '-d');
+    assert.doesNotMatch(appCrashLines(crashes, appPids), /FATAL EXCEPTION|Fatal signal|Abort message/);
     console.log('Android smoke passed: cold launches, rendered UI, navigation, resume, microphone grant/revoke');
   } finally {
     writeFileSync(join(output, 'last-ui.xml'), lastXml);
