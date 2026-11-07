@@ -14,6 +14,13 @@ const prepareMjs = readFileSync(new URL('../.github/scripts/prepare-android.mjs'
 const libRs = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8');
 const conf = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
 
+test('the locked Android runtime initializes the shared NDK context used by cpal', () => {
+  const lock = readFileSync(new URL('../src-tauri/Cargo.lock', import.meta.url), 'utf8');
+  const tao = lock.split('[[package]]').find((entry) => /^\s*name = "tao"/m.test(entry));
+  assert.ok(tao, 'Tao must be present in the resolved runtime');
+  assert.match(tao, /"ndk-context"/, 'Tao must initialize ndk-context before the first list_devices IPC');
+});
+
 test('every bridge method perms.ts declares exists in Kotlin', () => {
   const iface = permsTs.match(/interface Droid \{([\s\S]*?)\n\}/)[1];
   const names = [...iface.matchAll(/(\w+)\(/g)].map((m) => m[1]);

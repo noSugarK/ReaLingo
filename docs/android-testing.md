@@ -4,6 +4,17 @@ Run Git pulls and commits through WSL. Android builds need Node 24+, Rust, JDK 1
 Android SDK 36 and NDK 28.2.13676358. A browser preview only tests the web UI;
 it cannot prove that Android's native Activity, audio backend or plugins start.
 
+## Confirmed startup failure
+
+The release APK reproduced a native abort on both 4 KB and 16 KB Android 15 images:
+the first `list_devices` IPC entered cpal's AAudio device enumeration, which called
+`ndk_context::android_context()` and panicked with `android context was not initialized`.
+The panic crossed the JNI callback, which cannot unwind, and terminated the process.
+Tauri 2.11 / Tao 0.35 did not initialize this shared context. The runtime is upgraded to
+Tauri 2.12 / Tao 0.37, whose Activity startup initializes it before any audio queries.
+The lockfile regression check requires Tao's shared `ndk-context` dependency; the APK
+cold-launch tests exercise the actual initialization and first device query.
+
 ## Local checks
 
 ```bash
