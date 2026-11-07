@@ -21,6 +21,15 @@ test('the locked Android runtime initializes the shared NDK context used by cpal
   assert.match(tao, /"ndk-context"/, 'Tao must initialize ndk-context before the first list_devices IPC');
 });
 
+test('the locked Rust runtime and JavaScript API use the same major and minor release', () => {
+  const lock = readFileSync(new URL('../src-tauri/Cargo.lock', import.meta.url), 'utf8');
+  const runtime = lock.split('[[package]]').find((entry) => /^\s*name = "tauri"/m.test(entry));
+  const rust = runtime.match(/version = "([^"]+)"/)[1];
+  const npm = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'));
+  const api = npm.packages['node_modules/@tauri-apps/api'].version;
+  assert.deepEqual(rust.split('.').slice(0, 2), api.split('.').slice(0, 2));
+});
+
 test('every bridge method perms.ts declares exists in Kotlin', () => {
   const iface = permsTs.match(/interface Droid \{([\s\S]*?)\n\}/)[1];
   const names = [...iface.matchAll(/(\w+)\(/g)].map((m) => m[1]);
