@@ -16,6 +16,12 @@ test('hidden or malformed controls never become taps at the origin', () => {
   assert.equal(targetBounds(xml, ['Start']), null);
 });
 
+test('a button title remains navigable when Android merges its subtitle into the label', () => {
+  const xml = '<node text="Permission center Microphone · notifications · battery All ready" bounds="[10,20][210,80]" />';
+  assert.deepEqual(targetBounds(xml, ['Permission center']), [110, 50]);
+  assert.equal(targetBounds('<node text="Background" bounds="[0,0][100,100]" />', ['Back']), null);
+});
+
 test('launcher artwork is valid PNG at every Android density', () => {
   for (const [density, size] of Object.entries({ mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 })) {
     for (const name of ['ic_launcher', 'ic_launcher_round']) {

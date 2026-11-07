@@ -10,7 +10,9 @@ export function targetBounds(xml, labels) {
   for (const node of xml.matchAll(/<node\b[^>]*>/g)) {
     const text = node[0].match(/\btext="([^"]*)"/)?.[1];
     const desc = node[0].match(/\bcontent-desc="([^"]*)"/)?.[1];
-    if (!labels.includes(text) && !labels.includes(desc)) continue;
+    // Android accessibility may merge a button's title and subtitle into one node.
+    const matches = (value) => labels.some((label) => value === label || value?.startsWith(`${label} `) || value?.startsWith(`${label}\n`));
+    if (!matches(text) && !matches(desc)) continue;
     const bounds = node[0].match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
     if (!bounds) continue;
     const [, x1, y1, x2, y2] = bounds.map(Number);
