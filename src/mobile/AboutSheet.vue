@@ -1,0 +1,84 @@
+<script setup lang="ts">
+import { onMounted, ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
+import Sheet from "./Sheet.vue";
+import { check, checkUpdate, openHome, REPO } from "../update";
+import { isMobile } from "../platform";
+import { t } from "../i18n";
+
+defineEmits<{ close: [] }>();
+const AUTHOR = "https://github.com/noSugarK";
+
+const version = ref("");
+onMounted(async () => {
+  version.value = await getVersion();
+  if (check.value.state === "idle") void checkUpdate();
+});
+
+const open = (url: string) => invoke("plugin:opener|open_url", { url });
+const platform = () => (isMobile.value ? t("platformAndroid") : "desktop");
+</script>
+
+<template>
+  <Sheet @close="$emit('close')">
+    <div class="hero">
+      <span class="mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h7M7.5 5v3M4 12h9M4 19h6"/><path d="M15 9l4.5 10M13.5 15h6"/></svg>
+      </span>
+      <div>
+        <div class="nm">{{ t("appTitle") }}</div>
+        <div class="sub">v{{ version }} · {{ platform() }}</div>
+      </div>
+    </div>
+
+    <p class="tag">{{ t("aboutTagline") }}</p>
+
+    <div class="rows">
+      <button class="rowbtn" :disabled="check.state === 'checking'" @click="checkUpdate">
+        <span class="rt"><b>{{ t("updCheck") }}</b></span>
+        <span class="rv">
+          {{ check.state === "checking" ? t("updChecking") : check.state === "found" ? t("updFound") + " " + check.tag : check.state === "latest" ? t("updLatest") : "" }}
+        </span>
+      </button>
+      <button v-if="check.state === 'found'" class="rowbtn primary" @click="openHome">
+        <span class="rt"><b>{{ t("updNewVersion") }} {{ check.tag }} ↗</b></span>
+      </button>
+      <button class="rowbtn" @click="open(REPO)">
+        <span class="rt"><b>{{ t("aboutRepo") }}</b><small>github.com/noSugarK/ReaLingo</small></span>
+      </button>
+      <button class="rowbtn" @click="open(AUTHOR)">
+        <span class="rt"><b>{{ t("aboutAuthor") }}</b><small>noSugarK</small></span>
+      </button>
+      <button class="rowbtn" @click="open(`${REPO}/issues`)">
+        <span class="rt"><b>{{ t("aboutIssues") }}</b><small>{{ t("aboutIssuesLink") }}</small></span>
+      </button>
+      <button class="rowbtn" @click="open(`${REPO}/blob/main/LICENSE`)">
+        <span class="rt"><b>{{ t("aboutLicense") }}</b><small>MIT</small></span>
+      </button>
+    </div>
+
+    <p class="note">{{ t("aboutNote") }}</p>
+  </Sheet>
+</template>
+
+<style scoped>
+.hero { display: flex; align-items: center; gap: 13px; }
+.mark { width: 46px; height: 46px; border-radius: 14px; background: var(--accent-grad); display: grid; place-items: center; box-shadow: 0 8px 20px -8px rgba(10, 132, 255, 0.9); }
+.nm { font-size: 19px; font-weight: 730; letter-spacing: -0.022em; }
+.sub { font-size: 12px; color: var(--ink-3); font-weight: 600; margin-top: 2px; }
+.tag { margin: 0; font-size: 13px; line-height: 1.65; color: var(--ink-2); }
+.rows {
+  border-radius: 16px; padding: 0 14px;
+  background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.rowbtn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 6px 0; text-align: left; color: var(--ink); }
+.rowbtn + .rowbtn { box-shadow: inset 0 1px 0 var(--hairline); }
+.rowbtn:disabled { opacity: 0.6; }
+.rowbtn .rt { flex: 1; min-width: 0; }
+.rowbtn .rt b { display: block; font-size: 14px; font-weight: 600; }
+.rowbtn .rt small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--ink-3); line-height: 1.45; }
+.rowbtn .rv { font-size: 12.5px; color: var(--ink-3); font-weight: 600; }
+.rowbtn.primary .rt b { color: var(--accent); font-weight: 720; }
+.note { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--ink-3); text-align: center; }
+</style>
