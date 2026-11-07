@@ -17,7 +17,7 @@ import { PRESETS, PROTOCOLS, langName, modelName } from "../languages";
 import { locale, t, tf } from "../i18n";
 import { checkUpdateAtStartup } from "../update";
 import { isRunning, lines, status, errorMsg, warnMsg, fileProgress, saveAs } from "../stream";
-import { perms, refreshPerms, askMic, openAppSettings, openBatterySettings, pendingList, setKeepScreenOn } from "./perms";
+import { perms, droid, refreshPerms, askMic, openAppSettings, openBatterySettings, pendingList, setKeepScreenOn, pickAudio } from "./perms";
 import { toast } from "./toasts";
 
 type Page = "home" | "settings" | "perms";
@@ -124,6 +124,15 @@ function guideUseFile() {
 /* ---------- file source ---------- */
 const AUDIO_EXT = ["mp3", "wav", "m4a", "mp4", "aac", "flac", "ogg", "oga"];
 async function chooseFile() {
+  // Android: the Kotlin bridge owns the picker (ACTION_OPEN_DOCUMENT plus a cache copy —
+  // Tauri's dialog plugin has no mobile file dialog, and content:// paths would not open
+  // in the decode pipeline anyway). Elsewhere: the desktop dialog plugin.
+  const viaBridge = await pickAudio();
+  if (viaBridge !== null) {
+    session.filePath.value = viaBridge;
+    return;
+  }
+  if (droid) return; // user backed out of the system picker — do not open a second dialog
   const picked = await openDialog({ multiple: false, directory: false, filters: [{ name: "Audio", extensions: AUDIO_EXT }] });
   if (typeof picked === "string") session.filePath.value = picked;
 }
