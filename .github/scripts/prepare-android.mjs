@@ -88,31 +88,66 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   }
 
   const gradle = join(app, 'build.gradle.kts');
-  let text = read(gradle);
-  text = text.split(SIGNING_MARKER)[0];
+  // Strip any previously appended signing block before patching, so a re-run neither
+  // stacks two blocks nor (as it did when the tail was captured up front and written back
+  // last) clobbers the minSdk patch below. The signing block is appended from the file's
+  // final on-disk state, after every patch has landed.
+  writeFileSync(gradle, read(gradle).split(SIGNING_MARKER)[0].trimEnd());
 
   // AAudio (cpal's Android capture backend) links against libaaudio.so, which the NDK
-  // sysroot only exposes from API 26. The Tauri CLI picks the linker wrapper
-  // (`aarch64-linux-android<API>-clang`) from the project's minSdk, so the template's
-  // default 24 makes `-laaudio` unresolvable at link time. Raise it to 26 (Android 8.0,
-  // 2017 — no audience cost). The value has lived in different files across template
-  // versions — a literal `minSdk` in build.gradle.kts, and a `minSdkVersion` property in
-  // gradle.properties — so patch both and fail loudly if neither matched, instead of the
-  // previous silent no-op.
-  let bumped = 0;
-  // build.gradle.kts: a literal `minSdk = 24`.
-  const kts = read(gradle).replace(/\bminSdk(\s*)=\s*\d+/g, 'minSdk$1= 26');
-  if (kts !== read(gradle)) { writeFileSync(gradle, kts); bumped++; }
-  // gradle.properties (either level): `minSdkVersion = 24`, unquoted.
-  for (const props of [join(app, '../gradle.properties'), join(app, 'gradle.properties')]) {
-    if (!existsSync(props)) continue;
-    const before = read(props);
-    const after = before.replace(/^(minSdkVersion\s*=\s*)\d+/gm, '$126');
-    if (after !== before) { writeFileSync(props, after); bumped++; }
+  // sysroot only exposes from API 26. The API level the *linker* targets comes from
+  // tauri.conf.json's bundle.android.minSdkVersion (default 24), which is why patching
+  // the generated Gradle files alone never changed the wrapper name — `android24-clang`
+  // still could not resolve `-laaudio`. That is fixed in the config; what is left here is
+  // the Gradle-side declaration, which drives the manifest's minSdkVersion and must not
+  // sit below it.
+  //
+  // Verify the end state instead of counting edits: with 26 in the config, `android init`
+  // may already render the template at 26, so "nothing changed" is a valid outcome and
+  // must not fail. Anything below 26 still does.
+  // The load-bearing value is in tauri.conf.json, not here: assert it survived rather than
+  // trusting a patch that cannot see it. Without bundle.android.minSdkVersion the CLI
+  // defaults to 24, the linker picks `aarch64-linux-android24-clang`, and `-laaudio` is
+  // unresolvable — the exact failure this whole section exists to prevent.
+  const MIN_SDK = 26;
+  const config = JSON.parse(read(join(tauri, 'tauri.conf.json')));
+  const configured = config.bundle?.android?.minSdkVersion;
+  if (configured !== MIN_SDK) {
+    throw new Error(`prepare-android: tauri.conf.json bundle.android.minSdkVersion is ${JSON.stringify(configured)}, expected ${MIN_SDK}. The linker would target API 24 and fail to resolve -laaudio.`);
   }
-  if (!bumped) {
-    throw new Error('prepare-android: found no minSdk declaration to raise to 26; the aaudio link would fail. Inspect the generated android template.');
+
+  const sites = [
+    // build.gradle.kts: a literal `minSdk = 24`.
+    { file: gradle, pattern: /\bminSdk(\s*)=\s*\d+/g, replace: (m, space) => `minSdk${space}= ${MIN_SDK}` },
+    // gradle.properties at either level: `minSdkVersion = 24`, optionally namespaced
+    // (`tauri.android.minSdkVersion`) — template layout has varied across CLI versions.
+    ...[join(app, '../gradle.properties'), join(app, 'gradle.properties')].map((file) => ({
+      file,
+      pattern: /^([\w.]*minSdkVersion\s*=\s*)\d+/gm,
+      replace: (_m, head) => `${head}${MIN_SDK}`,
+    })),
+  ];
+
+  for (const site of sites) {
+    if (!existsSync(site.file)) continue;
+    const before = read(site.file);
+    const after = before.replace(site.pattern, site.replace);
+    if (after !== before) writeFileSync(site.file, after);
   }
+
+  // The manifest's minSdkVersion comes from Gradle. If a future template expresses it in a
+  // shape neither pattern above matches, the APK would advertise support for API < 26 and
+  // crash on load where libaaudio.so is absent — silent, and only on old devices. Scan
+  // broadly for any straggler instead of assuming the patch covered everything.
+  for (const file of [gradle, join(app, '../gradle.properties'), join(app, 'gradle.properties')]) {
+    if (!existsSync(file)) continue;
+    for (const match of read(file).matchAll(/minSdk(?:Version)?\s*=\s*(\d+)/g)) {
+      if (Number(match[1]) < MIN_SDK) {
+        throw new Error(`prepare-android: ${file} still declares minSdk ${match[1]} after patching, below ${MIN_SDK}. The APK would install on devices without libaaudio.so. Inspect the generated android template.`);
+      }
+    }
+  }
+
   writeFileSync(gradle, `${read(gradle).trimEnd()}\n${SIGNING}`);
 }
 
