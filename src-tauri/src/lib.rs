@@ -20,6 +20,13 @@ mod tray;
 #[cfg(target_os = "android")]
 #[path = "tray_stub.rs"]
 mod tray;
+// Phone shell commands, same trick as the tray: the two files carry identical
+// signatures, so the command bodies below never need a platform check.
+#[cfg(target_os = "android")]
+mod mobile;
+#[cfg(not(target_os = "android"))]
+#[path = "mobile_stub.rs"]
+mod mobile;
 #[cfg(windows)]
 mod wasapi;
 
