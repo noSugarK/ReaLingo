@@ -210,6 +210,14 @@ pub fn run() {
             if let Some(w) = app.get_webview_window("subtitle") {
                 let _ = w.set_always_on_top(true);
             }
+            // Android creates every declared window too, and they stack inside the one
+            // Activity: the overlay landed on top of the shell, and its locked hint was
+            // the whole screen. The phone's full-screen mode is in-app (MobileApp), and a
+            // real system overlay is phase 2 — destroy the desktop one here.
+            #[cfg(mobile)]
+            if let Some(w) = app.get_webview_window("subtitle") {
+                let _ = w.close();
+            }
             tray::init(app.handle())?;
             Ok(())
         })
