@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, type InvokeArgs } from "@tauri-apps/api/core";
 import { reactive } from "vue";
 
 /**
@@ -28,7 +28,7 @@ export const perms = reactive({
 // the two cases must not look alike (unset would otherwise read as permanently denied).
 let asked = localStorage.getItem("micAsked") === "1";
 
-async function call<T>(cmd: string, args?: object): Promise<T | null> {
+async function call<T>(cmd: string, args?: InvokeArgs): Promise<T | null> {
   try {
     return await invoke<T>(cmd, args);
   } catch {
