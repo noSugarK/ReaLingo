@@ -90,6 +90,12 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   const gradle = join(app, 'build.gradle.kts');
   let text = read(gradle);
   text = text.split(SIGNING_MARKER)[0];
+
+  // AAudio (cpal's Android capture backend) links against libaaudio.so, which the NDK
+  // sysroot only exposes from API 26: with the template's minSdk 24 the linker wrapper is
+  // aarch64-linux-android24-clang and `-laaudio` fails to resolve. 26 is Android 8.0
+  // (2017) — no real audience cost. Tauri derives the wrapper name from this number.
+  text = text.replace(/minSdk\s*=\s*\d+/, 'minSdk = 26');
   writeFileSync(gradle, `${text.trimEnd()}\n${SIGNING}`);
 }
 
