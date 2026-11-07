@@ -5,6 +5,7 @@ import { session } from "../session";
 import { caps } from "../platform";
 import { perms } from "./perms";
 import { t } from "../i18n";
+import Icon from "./Icon.vue";
 
 defineEmits<{ close: [] }>();
 
@@ -34,7 +35,7 @@ const micBadge = computed(() =>
     <div class="cards">
       <button class="srccard" :class="{ on: source === 'mic' }" @click="source = 'mic'">
         <span class="ic mic">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11"/><path d="M8 7a4 4 0 0 0 8 0"/><path d="M5.5 12.5A6.5 6.5 0 0 0 12 19a6.5 6.5 0 0 0 6.5-6.5"/><path d="M12 19v2.5"/></svg>
+          <Icon name="mic" />
         </span>
         <span class="tx">
           <b>{{ t('srcMic') }} <em v-if="micBadge" class="badge" :class="micBadge.cls">{{ micBadge.text }}</em></b>

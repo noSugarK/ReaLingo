@@ -3,6 +3,8 @@ import { settings } from "./store";
 
 const zh = {
   appTitle: "ReaLingo",
+  startupFailed: "启动失败，请重试",
+  retryStartup: "重新加载",
 
   srcTitle: "音频来源",
   srcMic: "麦克风",
@@ -255,6 +257,8 @@ const zh = {
 
 const en: typeof zh = {
   appTitle: "ReaLingo",
+  startupFailed: "Startup failed. Please try again.",
+  retryStartup: "Reload",
 
   srcTitle: "Audio source",
   srcMic: "Microphone",

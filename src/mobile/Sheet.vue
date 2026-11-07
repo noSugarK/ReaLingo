@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../i18n";
 defineProps<{ title?: string }>();
 defineEmits<{ close: [] }>();
 </script>
@@ -8,6 +9,7 @@ defineEmits<{ close: [] }>();
     <div class="sheet-bg" @click.self="$emit('close')">
       <section class="sheet glass" role="dialog" :aria-label="title">
         <div class="grab" />
+        <button class="sheet-close" :aria-label="t('close')" @click="$emit('close')">×</button>
         <h3 v-if="title">{{ title }}</h3>
         <div class="sheet-body"><slot /></div>
       </section>
@@ -30,6 +32,7 @@ defineEmits<{ close: [] }>();
 @keyframes fade { from { opacity: 0; } }
 
 .sheet {
+  position: relative;
   width: 100%;
   max-height: 84%;
   overflow-y: auto;
@@ -37,6 +40,7 @@ defineEmits<{ close: [] }>();
   padding: 10px 20px calc(26px + env(safe-area-inset-bottom));
   animation: rise 0.32s var(--ease);
 }
+.sheet-close { position: absolute; top: 10px; right: 12px; width: 36px; height: 36px; border-radius: 50%; background: var(--shade); color: var(--ink-2); font-size: 24px; }
 @keyframes rise { from { transform: translateY(6%); opacity: 0.6; } }
 
 .grab {

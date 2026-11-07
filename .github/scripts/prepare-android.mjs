@@ -58,9 +58,12 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
     copyFileSync(custom, activity);
   }
 
-  // `tauri android icon` output, so the launcher uses real artwork instead of the template.
+  // Fail the build rather than silently shipping the template's launcher artwork.
   const icons = join(tauri, 'icons/android');
-  if (existsSync(icons)) cpSync(icons, join(app, 'src/main/res'), { recursive: true });
+  if (!existsSync(join(icons, 'mipmap-xxxhdpi/ic_launcher.png'))) {
+    throw new Error('prepare-android: missing Android launcher artwork; run npm run icons:android');
+  }
+  cpSync(icons, join(app, 'src/main/res'), { recursive: true });
 
   // Gradle's default 10-second download timeout is too short for CI network stalls.
   const wrapper = join(app, '../gradle/wrapper/gradle-wrapper.properties');
@@ -75,6 +78,7 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
     if (!xml.includes(`<uses-permission android:name="${name}"`)) xml = xml.replace(/<application\b/, `<uses-permission android:name="${name}" />\n    $&`);
   }
   xml = setAttr(xml, 'application', 'android:icon', '@mipmap/ic_launcher');
+  xml = setAttr(xml, 'application', 'android:roundIcon', '@mipmap/ic_launcher_round');
   xml = setAttr(xml, 'application', 'android:label', '@string/app_name');
   writeFileSync(manifest, xml);
 
@@ -110,17 +114,11 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
     throw new Error(`prepare-android: tauri.conf.json bundle.android.minSdkVersion is ${JSON.stringify(configured)}, expected ${MIN_SDK}. The linker would target API 24 and fail to resolve -laaudio.`);
   }
 
-  // Tauri mobile instantiates EVERY window declared in the config inside the one
-  // Activity — the declared-hidden subtitle overlay came up on top of the phone shell
-  // and its locked hint was the only thing on screen (the unlock control lives in the
-  // desktop App.vue only). Delete it from the Android build's config outright; w.close()
-  // in setup is a second line of defense, not the primary fix. Phase 1's phone subtitles
-  // are the in-app full-screen mode; a real overlay comes later through Kotlin.
-  // Desktop is untouched: this edit lives in the CI checkout only.
-  const overlay = config.app.windows.findIndex((w) => w.label === 'subtitle');
-  if (overlay >= 0) {
-    config.app.windows.splice(overlay, 1);
-    writeFileSync(join(tauri, 'tauri.conf.json'), `${JSON.stringify(config, null, 2)}\n`);
+  // Tauri merges this platform config for local builds as well as CI builds. Never edit
+  // the desktop config in place: a later desktop build would otherwise lose its overlay.
+  const android = JSON.parse(read(join(tauri, 'tauri.android.conf.json')));
+  if (android.app?.windows?.length !== 1 || android.app.windows[0].label !== 'main') {
+    throw new Error('prepare-android: Android must declare exactly one main window');
   }
 
   const sites = [

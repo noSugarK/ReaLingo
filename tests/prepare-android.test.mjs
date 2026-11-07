@@ -6,7 +6,7 @@
 // minSdk lands on 26 everywhere, MainActivity is copied to the package path, and the
 // RECORD_AUDIO permission reaches the manifest.
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -15,13 +15,16 @@ import { pathToFileURL } from 'node:url';
 const repo = new URL('..', import.meta.url);
 const read = (file) => readFileSync(file, 'utf8');
 
-function fakeTree() {
+function fakeTree(t) {
   const root = mkdtempSync(join(tmpdir(), 'prepare-android-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   // Same relative layout the script expects: .github/scripts, src-tauri, gen/android.
   mkdirSync(join(root, '.github/scripts'), { recursive: true });
   cpSync(new URL('.github/scripts/prepare-android.mjs', repo), join(root, '.github/scripts/prepare-android.mjs'));
   mkdirSync(join(root, 'src-tauri'), { recursive: true });
   cpSync(new URL('src-tauri/tauri.conf.json', repo), join(root, 'src-tauri/tauri.conf.json'));
+  cpSync(new URL('src-tauri/tauri.android.conf.json', repo), join(root, 'src-tauri/tauri.android.conf.json'));
+  cpSync(new URL('src-tauri/icons/android', repo), join(root, 'src-tauri/icons/android'), { recursive: true });
   mkdirSync(join(root, 'src-tauri/android'), { recursive: true });
   cpSync(new URL('src-tauri/android/MainActivity.kt', repo), join(root, 'src-tauri/android/MainActivity.kt'));
 
@@ -51,16 +54,18 @@ async function run(root, app) {
   }
 }
 
-test('prepare-android strips the subtitle window and patches the tree', async () => {
-  const { root, app } = fakeTree();
+test('prepare-android keeps desktop config intact and packages one Android window', async (t) => {
+  const { root, app } = fakeTree(t);
+  const before = read(join(root, 'src-tauri/tauri.conf.json'));
   await run(root, app);
 
-  const config = JSON.parse(read(join(root, 'src-tauri/tauri.conf.json')));
+  assert.equal(read(join(root, 'src-tauri/tauri.conf.json')), before);
+  const config = JSON.parse(read(join(root, 'src-tauri/tauri.android.conf.json')));
   const labels = config.app.windows.map((w) => w.label);
   assert.ok(!labels.includes('subtitle'), `subtitle survived into the mobile build: ${labels}`);
   assert.ok(labels.includes('main'), 'the main window must stay');
   // The rest of the config is not collateral damage.
-  assert.equal(config.bundle.android.minSdkVersion, 26);
+  assert.equal(JSON.parse(before).bundle.android.minSdkVersion, 26);
 
   const gradle = read(join(app, 'build.gradle.kts'));
   assert.match(gradle, /minSdk = 26/);
@@ -71,17 +76,36 @@ test('prepare-android strips the subtitle window and patches the tree', async ()
 
   const manifest = read(join(app, 'src/main/AndroidManifest.xml'));
   assert.ok(manifest.includes('android.permission.RECORD_AUDIO'), 'mic permission must reach the manifest');
+  assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
+  for (const density of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+    for (const icon of ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']) {
+      assert.deepEqual(readFileSync(join(app, 'src/main/res', `mipmap-${density}`, icon)),
+        readFileSync(join(root, 'src-tauri/icons/android', `mipmap-${density}`, icon)));
+    }
+  }
 
   const copied = read(join(app, 'src/main/java/com/nosugark/realingo/MainActivity.kt'));
   assert.equal(copied, read(new URL('src-tauri/android/MainActivity.kt', repo)), 'the bridge must be copied verbatim');
 });
 
-test('prepare-android is idempotent (safe to re-run)', async () => {
-  const { root, app } = fakeTree();
+test('prepare-android is idempotent (safe to re-run)', async (t) => {
+  const { root, app } = fakeTree(t);
   await run(root, app);
   const first = read(join(app, 'build.gradle.kts'));
   await run(root, app);
   assert.equal(read(join(app, 'build.gradle.kts')), first, 're-running must not stack signing blocks or re-splice windows');
   const config = JSON.parse(read(join(root, 'src-tauri/tauri.conf.json')));
   assert.equal(config.app.windows.filter((w) => w.label === 'main').length, 1);
+});
+
+test('missing artwork fails the build instead of shipping the default icon', async (t) => {
+  const { root, app } = fakeTree(t);
+  rmSync(join(root, 'src-tauri/icons/android'), { recursive: true });
+  await assert.rejects(run(root, app), /missing Android launcher artwork/);
+});
+
+test('multiple Android windows fail the build', async (t) => {
+  const { root, app } = fakeTree(t);
+  writeFileSync(join(root, 'src-tauri/tauri.android.conf.json'), JSON.stringify({ app: { windows: [{ label: 'main' }, { label: 'subtitle' }] } }));
+  await assert.rejects(run(root, app), /exactly one main window/);
 });

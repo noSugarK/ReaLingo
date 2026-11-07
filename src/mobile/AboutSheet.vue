@@ -6,6 +6,7 @@ import Sheet from "./Sheet.vue";
 import { check, checkUpdate, openHome, REPO } from "../update";
 import { isMobile } from "../platform";
 import { t } from "../i18n";
+import appIcon from "../../app-icon.png";
 
 defineEmits<{ close: [] }>();
 const AUTHOR = "https://github.com/noSugarK";
@@ -23,9 +24,7 @@ const platform = () => (isMobile.value ? t("platformAndroid") : "desktop");
 <template>
   <Sheet @close="$emit('close')">
     <div class="hero">
-      <span class="mark">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h7M7.5 5v3M4 12h9M4 19h6"/><path d="M15 9l4.5 10M13.5 15h6"/></svg>
-      </span>
+      <img class="mark" :src="appIcon" alt="ReaLingo" />
       <div>
         <div class="nm">{{ t("appTitle") }}</div>
         <div class="sub">v{{ version }} · {{ platform() }}</div>
@@ -64,7 +63,7 @@ const platform = () => (isMobile.value ? t("platformAndroid") : "desktop");
 
 <style scoped>
 .hero { display: flex; align-items: center; gap: 13px; }
-.mark { width: 46px; height: 46px; border-radius: 14px; background: var(--accent-grad); display: grid; place-items: center; box-shadow: 0 8px 20px -8px rgba(10, 132, 255, 0.9); }
+.mark { width: 54px; height: 54px; border-radius: 15px; object-fit: contain; }
 .nm { font-size: 19px; font-weight: 730; letter-spacing: -0.022em; }
 .sub { font-size: 12px; color: var(--ink-3); font-weight: 600; margin-top: 2px; }
 .tag { margin: 0; font-size: 13px; line-height: 1.65; color: var(--ink-2); }

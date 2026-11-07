@@ -10,9 +10,11 @@ import AboutSheet from "./AboutSheet.vue";
 import UiLangSheet from "./UiLangSheet.vue";
 import StreamList from "./StreamList.vue";
 import Toaster from "./Toaster.vue";
+import Icon from "./Icon.vue";
+import mark from "../assets/mark.png";
 import { session } from "../session";
 import { loadCaps } from "../platform";
-import { settings, activeKey, initSettings } from "../store";
+import { settings, activeKey, setActiveKey, keyringOk, initSettings } from "../store";
 import { PRESETS, PROTOCOLS, langName, modelName } from "../languages";
 import { locale, t, tf } from "../i18n";
 import { checkUpdateAtStartup } from "../update";
@@ -30,6 +32,9 @@ const mode = ref<"normal" | "face" | "big">("normal");
 
 /* ---------- boot ---------- */
 let levelTimer: number | undefined;
+let unlistenResume: (() => void) | undefined;
+const bootError = ref("");
+const reload = () => window.location.reload();
 
 /** Coming back to the app re-checks permissions (the design's "改完不用重启") and fires a
  *  start the guide dialog promised. `tauri://resume` is mobile's lifecycle event;
@@ -44,18 +49,28 @@ async function onResume() {
 }
 
 onMounted(async () => {
-  void checkUpdateAtStartup();
-  await initSettings();
-  await loadCaps();
-  await refreshPerms();
-  await session.refreshDevices();
-  levelTimer = window.setInterval(() => void session.pollLevel(), 120);
-  void listen("tauri://resume", onResume);
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) void onResume();
-  });
+  try {
+    await initSettings();
+    await loadCaps();
+    await refreshPerms();
+    await session.refreshDevices();
+    levelTimer = window.setInterval(() => void session.pollLevel(), 120);
+    unlistenResume = await listen("tauri://resume", onResume);
+    document.addEventListener("visibilitychange", onVisible);
+    void checkUpdateAtStartup();
+  } catch (e) {
+    bootError.value = String(e);
+    console.error("ReaLingo startup failed", e);
+  }
 });
-onUnmounted(() => window.clearInterval(levelTimer));
+function onVisible() {
+  if (!document.hidden) void onResume();
+}
+onUnmounted(() => {
+  window.clearInterval(levelTimer);
+  unlistenResume?.();
+  document.removeEventListener("visibilitychange", onVisible);
+});
 
 /* ---------- derived ---------- */
 const running = computed(() => isRunning());
@@ -63,6 +78,7 @@ const srcLabel = computed(() => t(({ mic: "srcMic", system: "srcSystem", file: "
 const modelLine = computed(() => `${modelName(settings.protocol, settings.model)} · ${PRESETS[settings.protocol][0].langs} ${t("langsUnit")}`);
 const bad = computed(() => pendingList());
 const emptyText = computed(() => tf("streamEmptyPhone", { lang: langName(settings.targetLang, locale.value) }));
+const apiKey = computed({ get: activeKey, set: setActiveKey });
 
 // Keep-screen-on follows the session, and only the user's switch: the native flag is a
 // side effect of running, not of the page being open.
@@ -194,23 +210,26 @@ async function askFromCenter() {
   <div class="ambient"><i /></div>
 
   <div class="phone">
+    <div v-if="bootError" class="boot-error" role="alert">
+      <b>{{ t("startupFailed") }}</b>
+      <small>{{ bootError }}</small>
+      <button class="ghost" @click="reload">{{ t("retryStartup") }}</button>
+    </div>
     <!-- ══ HOME / RUN ══ -->
     <div v-show="page === 'home'" class="page">
       <header class="topbar">
         <button class="brand" :aria-label="t('about')" @click="drawer = 'about'">
-          <span class="mark">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h7M7.5 5v3M4 12h9M4 19h6"/><path d="M15 9l4.5 10M13.5 15h6"/></svg>
-          </span>
+          <img class="mark" :src="mark" alt="ReaLingo" />
           <span class="brand-col">
             <strong>{{ t("appTitle") }}</strong>
-            <small @click.stop="drawer = 'model'">{{ modelLine }}</small>
+            <small>{{ modelLine }}</small>
           </span>
         </button>
         <span class="spacer" />
         <!-- Narrow screens drop the label and keep the icon: the source always has a
              distinct glyph, so no text is needed to tell the three states apart. -->
         <button class="pill" :aria-label="t('srcTitle')" @click="drawer = 'src'">
-          <svg v-if="session.sourceKind.value === 'mic'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11"/><path d="M8 7a4 4 0 0 0 8 0"/><path d="M5.5 12.5A6.5 6.5 0 0 0 12 19a6.5 6.5 0 0 0 6.5-6.5"/><path d="M12 19v2.5"/></svg>
+          <Icon v-if="session.sourceKind.value === 'mic'" name="mic" :size="16" />
           <svg v-else-if="session.sourceKind.value === 'system'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.5 6.5 8H3v8h3.5L11 19.5z"/><path d="M15 8.6a4.6 4.6 0 0 1 0 6.8"/></svg>
           <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H14l5 5v10.5A2.5 2.5 0 0 1 16.5 21h-10A2.5 2.5 0 0 1 4 18.5z"/><path d="M13.5 3.2V8.5H19"/></svg>
           <span class="tx">{{ srcLabel }}</span>
@@ -222,7 +241,7 @@ async function askFromCenter() {
           <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.2A8.2 8.2 0 0 1 10.8 4 7.6 7.6 0 1 0 20 13.2z"/></svg>
         </button>
         <button class="icobtn xs" :aria-label="t('settings')" @click="page = 'settings'">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.4v2.8M12 18.8v2.8M2.4 12h2.8M18.8 12h2.8M5.2 5.2l2 2M16.8 16.8l2 2M18.8 5.2l-2 2M7.2 16.8l-2 2"/></svg>
+          <Icon name="settings" :size="19" />
           <em v-if="bad.length" class="dot" />
         </button>
       </header>
@@ -234,7 +253,7 @@ async function askFromCenter() {
           <span class="val dim">{{ settings.sourceLang === "auto" || session.sourceMode.value === "detected" ? langName("auto", locale) : langName(settings.sourceLang, locale) }}</span>
         </button>
         <button class="swap" :aria-label="t('swap')" :disabled="session.sourceMode.value === 'detected'" @click="swap">
-          <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5v10M4 12.5L1.8 10.3M4 12.5l2.2-2.2M11 12.5v-10M11 2.5L8.8 4.7M11 2.5l2.2 2.2"/></svg>
+          <Icon name="swap" :size="19" />
         </button>
         <button class="side right" @click="drawer = 'lang'">
           <span class="cap">{{ t("to") }}</span>
@@ -324,6 +343,16 @@ async function askFromCenter() {
               <span class="rt"><b>{{ t("model") }}</b><small class="mono">{{ settings.model }}</small></span>
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
             </button>
+            <label class="connection-field">
+              <b>{{ t("apiKey") }}</b>
+              <input v-model.trim="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="running" />
+              <small>{{ keyringOk ? t("apiKeyHint") : t("apiKeyPlain") }}</small>
+            </label>
+            <label class="connection-field">
+              <b>{{ t("url") }}</b>
+              <input v-model.trim="settings.url" type="url" placeholder="wss://…" autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="running" />
+              <small>{{ PROTOCOLS[settings.protocol].urlAsIs ? t("urlHintAsIs") : t("urlHint") }}</small>
+            </label>
           </div>
         </section>
 
@@ -398,7 +427,7 @@ async function askFromCenter() {
         <div class="card" :class="{ alert: perms.mic === 'permanent' }">
           <div class="card-row">
             <span class="tint" :class="{ g: perms.mic === 'granted', r: perms.mic === 'permanent' }">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v11"/><path d="M8 7a4 4 0 0 0 8 0"/><path d="M5.5 12.5A6.5 6.5 0 0 0 12 19a6.5 6.5 0 0 0 6.5-6.5"/><path d="M12 19v2.5"/></svg>
+              <Icon name="mic" :size="19" />
             </span>
             <span class="tx"><b>{{ t("pmMic") }} <em class="badge r">{{ t("pmMust") }}</em></b><small>{{ perms.mic === "permanent" ? t("micSubPerm") : perms.mic === "denied" ? t("micSubDenied") : t("micSub") }}</small></span>
             <span class="state" :class="{ g: perms.mic === 'granted', r: perms.mic === 'permanent', d: perms.mic === 'denied' }">
@@ -468,7 +497,9 @@ async function askFromCenter() {
 /* ---------- topbar ---------- */
 .topbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 2px; }
 .brand { display: flex; align-items: center; gap: 8px; text-align: left; padding: 2px 4px; border-radius: 8px; }
-.brand .mark { width: 26px; height: 26px; border-radius: 8px; background: var(--accent-grad); display: grid; place-items: center; box-shadow: 0 5px 14px -5px rgba(10, 132, 255, 0.95); }
+.brand .mark { width: 34px; height: 34px; flex: none; object-fit: contain; }
+.boot-error { position: absolute; inset: 0; z-index: 150; padding: 28px; display: flex; flex-direction: column; justify-content: center; gap: 16px; background: var(--canvas); }
+.boot-error small { overflow-wrap: anywhere; color: var(--ink-2); }
 .brand-col { display: flex; flex-direction: column; line-height: 1.18; }
 .brand-col strong { font-size: 13px; font-weight: 730; letter-spacing: -0.022em; }
 .brand-col small { font-size: 10px; color: var(--ink-3); font-weight: 600; }
@@ -556,6 +587,10 @@ async function askFromCenter() {
 section { display: flex; flex-direction: column; }
 .glabel { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); margin: 0 4px 8px; }
 .rows { border-radius: 18px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--hairline); padding: 0 15px; }
+.connection-field { display: flex; flex-direction: column; gap: 8px; padding: 13px 0; border-top: 1px solid var(--hairline); }
+.connection-field b { font-size: 14.5px; font-weight: 560; }
+.connection-field input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 11px; background: var(--shade); color: var(--ink); font: inherit; font-size: 16px; }
+.connection-field small { color: var(--ink-3); font-size: 11.5px; line-height: 1.45; }
 .rowbtn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 0; text-align: left; color: var(--ink); }
 .rowbtn + .rowbtn { box-shadow: inset 0 1px 0 var(--hairline); }
 .rowbtn .rt { flex: 1; min-width: 0; }
