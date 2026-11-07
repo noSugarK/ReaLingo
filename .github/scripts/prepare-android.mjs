@@ -110,6 +110,19 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
     throw new Error(`prepare-android: tauri.conf.json bundle.android.minSdkVersion is ${JSON.stringify(configured)}, expected ${MIN_SDK}. The linker would target API 24 and fail to resolve -laaudio.`);
   }
 
+  // Tauri mobile instantiates EVERY window declared in the config inside the one
+  // Activity — the declared-hidden subtitle overlay came up on top of the phone shell
+  // and its locked hint was the only thing on screen (the unlock control lives in the
+  // desktop App.vue only). Delete it from the Android build's config outright; w.close()
+  // in setup is a second line of defense, not the primary fix. Phase 1's phone subtitles
+  // are the in-app full-screen mode; a real overlay comes later through Kotlin.
+  // Desktop is untouched: this edit lives in the CI checkout only.
+  const overlay = config.app.windows.findIndex((w) => w.label === 'subtitle');
+  if (overlay >= 0) {
+    config.app.windows.splice(overlay, 1);
+    writeFileSync(join(tauri, 'tauri.conf.json'), `${JSON.stringify(config, null, 2)}\n`);
+  }
+
   const sites = [
     // build.gradle.kts: a literal `minSdk = 24`.
     { file: gradle, pattern: /\bminSdk(\s*)=\s*\d+/g, replace: (m, space) => `minSdk${space}= ${MIN_SDK}` },
