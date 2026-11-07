@@ -59,7 +59,7 @@ onUnmounted(() => window.clearInterval(levelTimer));
 
 /* ---------- derived ---------- */
 const running = computed(() => isRunning());
-const srcLabel = computed(() => t({ mic: "srcMic", system: "srcSystem", file: "srcFile" }[session.sourceKind.value]));
+const srcLabel = computed(() => t(({ mic: "srcMic", system: "srcSystem", file: "srcFile" } as const)[session.sourceKind.value]));
 const modelLine = computed(() => `${modelName(settings.protocol, settings.model)} · ${PRESETS[settings.protocol][0].langs} ${t("langsUnit")}`);
 const bad = computed(() => pendingList());
 const emptyText = computed(() => tf("streamEmptyPhone", { lang: langName(settings.targetLang, locale.value) }));
@@ -393,7 +393,7 @@ async function askFromCenter() {
             </span>
             <span class="tx"><b>{{ t("pmMic") }} <em class="badge r">{{ t("pmMust") }}</em></b><small>{{ perms.mic === "permanent" ? t("micSubPerm") : perms.mic === "denied" ? t("micSubDenied") : t("micSub") }}</small></span>
             <span class="state" :class="{ g: perms.mic === 'granted', r: perms.mic === 'permanent', d: perms.mic === 'denied' }">
-              {{ t({ granted: "pmGranted", denied: "pmDenied", permanent: "pmPermanent", unset: "pmUnset" }[perms.mic]) }}
+              {{ t(({ granted: "pmGranted", denied: "pmDenied", permanent: "pmPermanent", unset: "pmUnset" } as const)[perms.mic]) }}
             </span>
           </div>
           <div v-if="perms.mic !== 'granted'" class="actions">
