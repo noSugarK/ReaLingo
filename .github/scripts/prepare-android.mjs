@@ -92,11 +92,28 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   text = text.split(SIGNING_MARKER)[0];
 
   // AAudio (cpal's Android capture backend) links against libaaudio.so, which the NDK
-  // sysroot only exposes from API 26: with the template's minSdk 24 the linker wrapper is
-  // aarch64-linux-android24-clang and `-laaudio` fails to resolve. 26 is Android 8.0
-  // (2017) — no real audience cost. Tauri derives the wrapper name from this number.
-  text = text.replace(/minSdk\s*=\s*\d+/, 'minSdk = 26');
-  writeFileSync(gradle, `${text.trimEnd()}\n${SIGNING}`);
+  // sysroot only exposes from API 26. The Tauri CLI picks the linker wrapper
+  // (`aarch64-linux-android<API>-clang`) from the project's minSdk, so the template's
+  // default 24 makes `-laaudio` unresolvable at link time. Raise it to 26 (Android 8.0,
+  // 2017 — no audience cost). The value has lived in different files across template
+  // versions — a literal `minSdk` in build.gradle.kts, and a `minSdkVersion` property in
+  // gradle.properties — so patch both and fail loudly if neither matched, instead of the
+  // previous silent no-op.
+  let bumped = 0;
+  // build.gradle.kts: a literal `minSdk = 24`.
+  const kts = read(gradle).replace(/\bminSdk(\s*)=\s*\d+/g, 'minSdk$1= 26');
+  if (kts !== read(gradle)) { writeFileSync(gradle, kts); bumped++; }
+  // gradle.properties (either level): `minSdkVersion = 24`, unquoted.
+  for (const props of [join(app, '../gradle.properties'), join(app, 'gradle.properties')]) {
+    if (!existsSync(props)) continue;
+    const before = read(props);
+    const after = before.replace(/^(minSdkVersion\s*=\s*)\d+/gm, '$126');
+    if (after !== before) { writeFileSync(props, after); bumped++; }
+  }
+  if (!bumped) {
+    throw new Error('prepare-android: found no minSdk declaration to raise to 26; the aaudio link would fail. Inspect the generated android template.');
+  }
+  writeFileSync(gradle, `${read(gradle).trimEnd()}\n${SIGNING}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) prepareAndroid();
