@@ -15,7 +15,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feat/android]
   workflow_dispatch:
 
 permissions:
@@ -68,6 +68,9 @@ jobs:
       # contract (tests/*.test.mjs) are plain .mjs + type-stripped .ts.
       - name: Frontend tests
         run: npm test
+
+      - name: Android package validation tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml

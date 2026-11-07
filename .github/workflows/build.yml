@@ -220,6 +220,8 @@ jobs:
           mkdir -p installers
           cp "${packages[0]}" "installers/ReaLingo_${version}_android-arm64${suffix}.apk"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "${packages[0]}"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 "${packages[0]}"
+          python3 .github/scripts/check-android-apk.py "${packages[0]}"
           ls -lh installers/*.apk
 
       - uses: actions/upload-artifact@v6
