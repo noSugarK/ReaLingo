@@ -67,14 +67,12 @@ jobs:
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      # Style gates report but do not block, for now: the existing tree has never been
-      # through clippy, so turning this on as an error would fail every PR on day one.
-      # Promote by deleting `continue-on-error` once the tree is clean (one commit:
-      # `cargo clippy --fix`). No `cargo fmt`: CODING_STANDARDS.md says the repo keeps
-      # its ~120-column layout and a whole-tree reformat is noise by policy.
+      # Hard gate, per CODING_STANDARDS.md ("clippy, no warnings"). The first run on the
+      # old 61-test baseline surfaced four findings from a newer clippy than the repo had
+      # ever been linted against (three chunks_exact, one manual `?`); all fixed, so this
+      # can block.
       - name: Clippy
         if: always()
-        continue-on-error: true
         run: |
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- \
             -D warnings
