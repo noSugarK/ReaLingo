@@ -199,7 +199,9 @@ pub fn decode(bytes: &[u8]) -> Option<Value> {
 /// only adds up that way); the player, like every other protocol's audio, is PCM16.
 fn f32_to_i16(bytes: &[u8]) -> Vec<u8> {
     bytes
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .flat_map(|b| {
             let s = f32::from_le_bytes([b[0], b[1], b[2], b[3]]).clamp(-1.0, 1.0);
             ((s * 32767.0) as i16).to_le_bytes()

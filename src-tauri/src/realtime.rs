@@ -265,10 +265,9 @@ fn take_audio(v: &mut Value) -> Option<Vec<u8>> {
         v.get_mut("data").into_iter().collect()
     } else if is_delta {
         v.get_mut("delta").into_iter().collect()
-    } else if let Some(parts) = v.pointer_mut("/serverContent/modelTurn/parts").and_then(Value::as_array_mut) {
-        parts.iter_mut().filter_map(|p| p.pointer_mut("/inlineData/data")).collect()
     } else {
-        return None;
+        let parts = v.pointer_mut("/serverContent/modelTurn/parts").and_then(Value::as_array_mut)?;
+        parts.iter_mut().filter_map(|p| p.pointer_mut("/inlineData/data")).collect()
     };
     let mut pcm = Vec::new();
     for slot in slots {
