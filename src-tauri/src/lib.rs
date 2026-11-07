@@ -20,13 +20,6 @@ mod tray;
 #[cfg(target_os = "android")]
 #[path = "tray_stub.rs"]
 mod tray;
-// Phone shell commands, same trick as the tray: the two files carry identical
-// signatures, so the command bodies below never need a platform check.
-#[cfg(target_os = "android")]
-mod mobile;
-#[cfg(not(target_os = "android"))]
-#[path = "mobile_stub.rs"]
-mod mobile;
 #[cfg(windows)]
 mod wasapi;
 
@@ -184,57 +177,11 @@ fn halt(state: &State<AppState>) {
     state.level.store(0f32.to_bits(), Ordering::Relaxed);
 }
 
-/* ---------- phone shell (mobile.rs on Android, mobile_stub.rs elsewhere) ---------- */
-
-#[tauri::command]
-fn perm_request(app: AppHandle, name: String) -> Result<(), String> {
-    mobile::request(&app, name)
-}
-
-#[tauri::command]
-fn perm_status(app: AppHandle, name: String) -> Result<mobile::MicStatus, String> {
-    match name.as_str() {
-        "mic" => mobile::mic_status(&app),
-        _ => Err(format!("unknown permission: {name}")),
-    }
-}
-
-#[tauri::command]
-fn notif_enabled() -> Result<bool, String> {
-    mobile::notif_enabled()
-}
-
-#[tauri::command]
-fn battery_ignored() -> Result<bool, String> {
-    mobile::battery_ignored()
-}
-
-#[tauri::command]
-fn open_app_settings(app: AppHandle) -> Result<(), String> {
-    mobile::open_app_settings(&app)
-}
-
-#[tauri::command]
-fn open_battery_settings(app: AppHandle) -> Result<(), String> {
-    mobile::open_battery_settings(&app)
-}
-
-#[tauri::command]
-fn set_keep_screen_on(app: AppHandle, on: bool) -> Result<(), String> {
-    mobile::set_keep_screen_on(&app, on)
-}
-
-#[tauri::command]
-fn device_name() -> String {
-    // Prefer the Wi-Fi SSID when the radio is on: two phones of the same model beside each
-    // other are otherwise indistinguishable in the hotspot list.
-    let ssid = mobile::wifi_ssid();
-    if ssid != "unknown" && !ssid.is_empty() {
-        ssid
-    } else {
-        mobile::device_model()
-    }
-}
+/* ---------- phone shell ---------- */
+// The permission/status/device-name/picker surface lives in the Kotlin bridge
+// (src-tauri/android/MainActivity.kt, window.ReaLingoAndroid), not here: Tauri's
+// AppHandle has no stable Activity accessor for the JNI round, and the bridge is how
+// LittleLobby ships the same features. src/mobile/perms.ts calls the bridge directly.
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -293,15 +240,7 @@ pub fn run() {
             history::history_delete,
             history::history_clear,
             history::history_dir,
-            tray::sync_tray,
-            perm_request,
-            perm_status,
-            notif_enabled,
-            battery_ignored,
-            open_app_settings,
-            open_battery_settings,
-            set_keep_screen_on,
-            device_name
+            tray::sync_tray
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
