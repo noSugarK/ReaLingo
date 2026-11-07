@@ -103,10 +103,10 @@ jobs:
         with:
           api-level: ${{ matrix.api }}
           arch: x86_64
-          tag: ${{ matrix.tag }}
+          target: ${{ matrix.tag }}
           disable-animations: true
           script: |
-            test "$(adb shell getconf PAGE_SIZE | tr -d '\r')" = '${{ matrix.page-size }}'
+            bash .github/scripts/check-android-pages.sh '${{ matrix.page-size }}'
             node .github/scripts/smoke-android.mjs smoke-apk/realingo.apk
       - uses: actions/upload-artifact@v6
         if: always()
