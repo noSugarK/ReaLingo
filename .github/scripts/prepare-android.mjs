@@ -3,7 +3,7 @@
 //
 // Modeled on LittleLobby's proven equivalent, cut down to what ReaLingo actually needs:
 // no cleartext (all endpoints are wss://), no orientation lock, no QR camera.
-import { copyFileSync, existsSync, readFileSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, readFileSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -98,17 +98,11 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   // sysroot only exposes from API 26. The API level the *linker* targets comes from
   // tauri.conf.json's bundle.android.minSdkVersion (default 24), which is why patching
   // the generated Gradle files alone never changed the wrapper name — `android24-clang`
-  // still could not resolve `-laaudio`. That is fixed in the config; what is left here is
-  // the Gradle-side declaration, which drives the manifest's minSdkVersion and must not
-  // sit below it.
+  // still could not resolve `-laaudio`. The Gradle-side declaration is what drives the
+  // manifest's minSdkVersion, and must not sit below it.
   //
-  // Verify the end state instead of counting edits: with 26 in the config, `android init`
-  // may already render the template at 26, so "nothing changed" is a valid outcome and
-  // must not fail. Anything below 26 still does.
-  // The load-bearing value is in tauri.conf.json, not here: assert it survived rather than
-  // trusting a patch that cannot see it. Without bundle.android.minSdkVersion the CLI
-  // defaults to 24, the linker picks `aarch64-linux-android24-clang`, and `-laaudio` is
-  // unresolvable — the exact failure this whole section exists to prevent.
+  // The load-bearing value lives in tauri.conf.json, not here: assert it survived rather
+  // than trusting a patch that cannot see it.
   const MIN_SDK = 26;
   const config = JSON.parse(read(join(tauri, 'tauri.conf.json')));
   const configured = config.bundle?.android?.minSdkVersion;
@@ -127,6 +121,26 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
       replace: (_m, head) => `${head}${MIN_SDK}`,
     })),
   ];
+
+  // `android init` renders the Gradle files from the config, so what it rendered is the
+  // only proof the field name above is one the CLI actually honours — a wrong name would
+  // be ignored by serde, leave the default 24 in place, and the assert above (which reads
+  // our own JSON back) would happily pass. Record the rendered values before patching,
+  // because patching overwrites exactly that evidence.
+  const rendered = [];
+  for (const site of sites) {
+    if (!existsSync(site.file)) continue;
+    rendered.push(...[...read(site.file).matchAll(/minSdk(?:Version)?\s*=\s*(\d+)/g)].map((m) => Number(m[1])));
+  }
+  if (rendered.length && !rendered.some((value) => value === MIN_SDK)) {
+    // Non-fatal: this is a heuristic and a template that expresses the value only through
+    // a property lookup would legitimately render a stale fallback. Say it loudly so a
+    // config rename shows up in the log next to the linker error, instead of being
+    // silently patched away.
+    const note = `prepare-android: warning — the generated template rendered minSdk ${rendered.join(', ')} despite bundle.android.minSdkVersion = ${MIN_SDK}. If the link step below still picks aarch64-linux-android24-clang, that config key is not being honoured (renamed or misspelled).`;
+    console.error(note);
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `⚠️ ${note}\n`);
+  }
 
   for (const site of sites) {
     if (!existsSync(site.file)) continue;
