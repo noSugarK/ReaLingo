@@ -197,7 +197,10 @@ pub fn run() {
         .manage(AppState::default())
         .setup(|app| {
             // The overlay is declared in tauri.conf.json but starts hidden; the main window
-            // shows it on demand.
+            // shows it on demand. Z-order belongs to the window manager, so the call is
+            // desktop-only (tauri gates it with cfg(desktop)); the mobile overlay (phase 2)
+            // would use a system overlay window instead.
+            #[cfg(desktop)]
             if let Some(w) = app.get_webview_window("subtitle") {
                 let _ = w.set_always_on_top(true);
             }
