@@ -64,6 +64,11 @@ jobs:
       - name: Type check
         run: npx vue-tsc --noEmit
 
+      # Node's own runner, no bundler: perms.ts's state machine and the Kotlin-bridge
+      # contract (tests/*.test.mjs) are plain .mjs + type-stripped .ts.
+      - name: Frontend tests
+        run: npm test
+
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 

@@ -1,0 +1,59 @@
+// The Kotlin bridge is a second language speaking a protocol the TypeScript side
+// assumes. CI compiles neither half against the other, so this asserts the contract at
+// the source level: every method perms.ts calls exists in MainActivity.kt with a JSON
+// shape on both ends, the package line matches what prepare-android.mjs copies into, and
+// the Rust side no longer registers the commands the bridge replaced (perms.ts's
+// fallback must therefore *expect* to fail against current APKs).
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+const kt = readFileSync(new URL('../src-tauri/android/MainActivity.kt', import.meta.url), 'utf8');
+const permsTs = readFileSync(new URL('../src/mobile/perms.ts', import.meta.url), 'utf8');
+const prepareMjs = readFileSync(new URL('../.github/scripts/prepare-android.mjs', import.meta.url), 'utf8');
+const libRs = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8');
+const conf = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+
+test('every bridge method perms.ts declares exists in Kotlin', () => {
+  const iface = permsTs.match(/interface Droid \{([\s\S]*?)\n\}/)[1];
+  const names = [...iface.matchAll(/(\w+)\(/g)].map((m) => m[1]);
+  assert.ok(names.length >= 9, `expected the full surface, got ${names}`);
+  for (const name of names) {
+    assert.match(kt, new RegExp(`fun ${name}\\(`), `MainActivity.kt is missing ${name}`);
+  }
+  assert.match(kt, /addJavascriptInterface\(Bridge\(\), "ReaLingoAndroid"\)/, 'the bridge must register under the name window.ReaLingoAndroid reads');
+});
+
+test('micStatus speaks the same JSON shape on both ends', () => {
+  assert.match(kt, /return """\{"granted":\$granted,"rationale":\$rationale\}"""/, 'Kotlin micStatus returns {granted,rationale}');
+  assert.match(permsTs, /JSON\.parse\(droid\.micStatus\(\)\) as \{ granted: boolean; rationale: boolean \}/, 'perms.ts parses that exact shape');
+});
+
+test('pickAudioFile/pickResult agree on the one-slot states', () => {
+  const states = (kt.match(/"state":"(\w+)"/g) ?? []).join(" ");
+  for (const s of ['idle', 'busy', 'picked', 'cancelled', 'error']) {
+    assert.ok(states.includes(`"state":"${s}"`), `Kotlin never emits ${s}`);
+  }
+  // Terminal states the poller must handle explicitly; "busy" is the implicit
+  // keep-waiting state, and "idle" only appears in Kotlin's reset paths.
+  for (const s of ['picked', 'cancelled', 'error']) {
+    assert.ok(permsTs.includes(`s.state === "${s}"`), `perms.ts does not handle ${s}`);
+  }
+  assert.doesNotMatch(permsTs, /s\.state === "busy"/, 'busy is keep-polling, not a branch');
+});
+
+test('package line matches the path prepare-android copies to', () => {
+  const pkg = kt.match(/^package ([\w.]+)/m)[1];
+  assert.equal(pkg, conf.identifier, 'Kotlin package must equal the app identifier, or the class never loads');
+  const dir = pkg.split('.').join('/');
+  assert.ok(prepareMjs.includes(`'${dir.split('/').join("', '")}'`) || prepareMjs.includes(dir), `prepare-android.mjs does not copy into ${dir}`);
+  assert.match(prepareMjs, /android\/MainActivity\.kt/, 'prepare-android.mjs must source the bridge file');
+});
+
+test('the Rust commands the bridge replaced are really gone', () => {
+  for (const cmd of ['perm_status', 'perm_request', 'notif_enabled', 'battery_ignored', 'open_app_settings', 'open_battery_settings', 'set_keep_screen_on', 'device_name']) {
+    assert.doesNotMatch(libRs, new RegExp(`#\\[tauri::command\\]\\s*fn ${cmd}\\b`), `lib.rs still registers ${cmd}`);
+  }
+  assert.doesNotMatch(libRs, /mod mobile\b/, 'lib.rs must not reference the deleted modules');
+  assert.doesNotMatch(libRs, /\bperm_request,/, 'generate_handler! must not list the phone commands');
+});
