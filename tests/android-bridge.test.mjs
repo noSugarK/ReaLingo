@@ -50,6 +50,14 @@ test('package line matches the path prepare-android copies to', () => {
   assert.match(prepareMjs, /android\/MainActivity\.kt/, 'prepare-android.mjs must source the bridge file');
 });
 
+test('no Rust idioms leaked into the Kotlin bridge', () => {
+  // First CI pass died on `trimMatches` — Rust's trim_matches carried across. The
+  // gradle compiler is the real gate, but these fingerprints are unmistakable.
+  for (const idiom of ['trimMatches', 'trim_matches', '.unwrap()', '.expect(', 'map_err', '.to_string()', 'vec![']) {
+    assert.ok(!kt.includes(idiom), `MainActivity.kt contains the Rust idiom ${idiom}`);
+  }
+});
+
 test('the Rust commands the bridge replaced are really gone', () => {
   for (const cmd of ['perm_status', 'perm_request', 'notif_enabled', 'battery_ignored', 'open_app_settings', 'open_battery_settings', 'set_keep_screen_on', 'device_name']) {
     assert.doesNotMatch(libRs, new RegExp(`#\\[tauri::command\\]\\s*fn ${cmd}\\b`), `lib.rs still registers ${cmd}`);

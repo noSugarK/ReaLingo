@@ -100,7 +100,7 @@ class MainActivity : TauriActivity() {
         fun deviceName(): String {
             val wifi = getSystemService(WIFI_SERVICE) as? android.net.wifi.WifiManager
             val ssid = runCatching { wifi?.connectionInfo?.ssid }.getOrNull()
-            if (!ssid.isNullOrBlank() && ssid != "<unknown ssid>") return ssid.trimMatches('"')
+            if (!ssid.isNullOrBlank() && ssid != "<unknown ssid>") return ssid.trim('"')
             return "${Build.MANUFACTURER} ${Build.MODEL}".trim()
         }
 
