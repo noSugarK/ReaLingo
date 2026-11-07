@@ -19,11 +19,15 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 import androidx.annotation.Keep
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
     @Volatile private var keepFlag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
@@ -194,6 +198,26 @@ class MainActivity : TauriActivity() {
     // LittleLobby registers its bridge in.
     override fun onWebViewCreate(webView: android.webkit.WebView) {
         super.onWebViewCreate(webView)
+        // Android 15+ enforces edge-to-edge, but WebView's CSS safe-area env values
+        // can stay zero. Resize the actual viewport around system bars/cutouts/IME.
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->
+            val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or
+                WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime())
+            val params = view.layoutParams as? ViewGroup.MarginLayoutParams
+            if (params != null && (params.leftMargin != safe.left || params.topMargin != safe.top ||
+                params.rightMargin != safe.right || params.bottomMargin != safe.bottom)) {
+                params.setMargins(safe.left, safe.top, safe.right, safe.bottom)
+                view.layoutParams = params
+            }
+            WindowInsetsCompat.CONSUMED
+        }
+        webView.post { ViewCompat.requestApplyInsets(webView) }
+        val lightBars = resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK != android.content.res.Configuration.UI_MODE_NIGHT_YES
+        WindowCompat.getInsetsController(window, webView).apply {
+            isAppearanceLightStatusBars = lightBars
+            isAppearanceLightNavigationBars = lightBars
+        }
         webView.addJavascriptInterface(Bridge(), "ReaLingoAndroid")
     }
 
