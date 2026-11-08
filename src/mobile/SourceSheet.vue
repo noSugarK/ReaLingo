@@ -17,9 +17,13 @@ const source = session.sourceKind;
 const fileName = session.fileName;
 const level = session.level;
 const testing = ref(false);
+const testError = ref("");
+const testResult = ref("");
 async function testMic() {
   if (testing.value || isRunning()) return;
   testing.value = true;
+  testError.value = "";
+  testResult.value = "";
   try {
     if (perms.mic !== "granted" && await askMic() !== "granted") return;
     await session.refreshDevices();
@@ -28,8 +32,9 @@ async function testMic() {
     const id = await invoke<string | null>("default_device", { loopback: system });
     if (!id) throw new Error(t("noDevice"));
     const samples = await invoke<number>("probe_audio", { id });
-    toast(samples > 0 ? t(system ? "systemTestOk" : "micTestOk") : t("micTestEmpty"));
-  } catch (e) { toast(String(e)); }
+    testResult.value = samples > 0 ? t(system ? "systemTestOk" : "micTestOk") : t("micTestEmpty");
+    toast(testResult.value);
+  } catch (e) { testError.value = String(e); toast(testError.value); }
   finally { stopCapture(); testing.value = false; }
 }
 
@@ -81,6 +86,8 @@ const micBadge = computed(() =>
     </div>
 
     <button v-if="source !== 'file'" class="test-mic" :disabled="testing || isRunning()" @click="testMic">{{ testing ? t("micTesting") : t(source === 'system' ? "systemTest" : "micTest") }}</button>
+    <p v-if="testError" role="alert" class="test-error">{{ testError }}</p>
+    <p v-if="testResult" role="status">{{ testResult }}</p>
 
     <div class="grp">
       <span class="glabel">{{ t('level') }}</span>
@@ -92,6 +99,7 @@ const micBadge = computed(() =>
 <style scoped>
 .test-mic { padding: 12px; border-radius: 14px; background: var(--accent); color: white; font: inherit; font-weight: 650; }
 .test-mic:disabled { opacity: 0.5; }
+.test-error { color: var(--danger); overflow-wrap: anywhere; }
 .cards { display: flex; flex-direction: column; gap: 10px; }
 .srccard {
   width: 100%;
