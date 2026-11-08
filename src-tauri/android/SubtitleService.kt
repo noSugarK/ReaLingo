@@ -185,7 +185,7 @@ class SubtitleService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT).apply {
             gravity = Gravity.TOP or Gravity.START
-            title = "ReaLingo subtitles"
+            setTitle("ReaLingo subtitles")
             x = prefs.getInt("x", (screenWidth() - width) / 2)
             y = prefs.getInt("y", screenHeight() * 2 / 3)
         }
