@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused, scrollDirection } from '../.github/scripts/smoke-android.mjs';
+import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused, scrollDirection, launcherAnrClose } from '../.github/scripts/smoke-android.mjs';
 import { decode } from '../tools/png.mjs';
+
+test('only the emulator launcher ANR can be dismissed; app ANRs remain failures', () => {
+  const xml = '<node text="Pixel Launcher isn\'t responding" />' +
+    '<node text="Close app" package="android" resource-id="android:id/aerr_close" bounds="[70,898][1010,1024]" />';
+  assert.deepEqual(launcherAnrClose(xml), [540, 961]);
+  assert.equal(launcherAnrClose(xml.replace('Pixel Launcher', 'ReaLingo')), null);
+  assert.equal(launcherAnrClose(xml.replace('android:id/aerr_close', 'android:id/aerr_wait')), null);
+  assert.equal(launcherAnrClose(xml.replace('package="android"', 'package="com.nosugark.realingo"')), null);
+});
 
 test('native overlay checks select its own surfaced window and support Android frame formats', () => {
   const dump = 'Window #0 Window{a u0 Other}:\n mHasSurface=true mFrame=[0,0][1080,1920]\n' +

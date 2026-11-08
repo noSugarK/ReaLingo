@@ -77,6 +77,13 @@ export function scrollDirection(bounds, height, fallback) {
   return null;
 }
 
+export function launcherAnrClose(xml) {
+  if (!xml.includes('text="Pixel Launcher isn\'t responding"')) return null;
+  const button = [...xml.matchAll(/<node\b[^>]*>/g)].find(([node]) =>
+    node.includes('package="android"') && node.includes('resource-id="android:id/aerr_close"'));
+  return button ? targetBounds(button[0], ['Close app']) : null;
+}
+
 export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug') {
   assert.ok(apk, 'usage: node .github/scripts/smoke-android.mjs APK [package-id]');
   const output = process.env.ANDROID_SMOKE_OUTPUT ?? 'android-smoke';
@@ -86,6 +93,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const component = `${packageId}/com.nosugark.realingo.MainActivity`;
   const peer = await startSessionPeer(8766);
   let lastXml = '';
+  let launcherDismissed = false;
   const appPids = new Set();
   const ui = () => {
     const result = adb('shell', 'uiautomator', 'dump', '/sdcard/realingo-smoke.xml');
@@ -93,6 +101,15 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     // Never navigate using coordinates from that stale page.
     assert.match(result, /dumped to:/, 'UIAutomator must produce a fresh snapshot');
     lastXml = adb('shell', 'cat', '/sdcard/realingo-smoke.xml');
+    const closeLauncher = launcherAnrClose(lastXml);
+    if (closeLauncher && !launcherDismissed) {
+      launcherDismissed = true;
+      writeFileSync(join(output, 'launcher-anr.xml'), lastXml);
+      screenshot('launcher-anr');
+      console.warn('Dismissing the emulator Pixel Launcher ANR once; app failures remain fatal.');
+      adb('shell', 'input', 'tap', ...closeLauncher);
+      throw new Error('Wait for a fresh app snapshot after closing the launcher dialog');
+    }
     return lastXml;
   };
   const waitFor = async (labels) => {
