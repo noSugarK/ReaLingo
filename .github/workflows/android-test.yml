@@ -20,8 +20,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      apk_run_id: ${{ steps.reuse.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Reuse APKs when only the smoke runner or tests changed
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK_RUN_ID: ${{ inputs.apk_run_id }}
+        shell: bash
+        run: |
+          run_id="$APK_RUN_ID"
+          if [[ -z "$run_id" && "$GITHUB_EVENT_NAME" == push ]] && git rev-parse HEAD^ >/dev/null 2>&1; then
+            if git diff --quiet HEAD^ HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs'; then
+              previous=$(git rev-parse HEAD^)
+              run_id=$(gh run list --workflow android-test.yml --commit "$previous" --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
+              if [[ -n "$run_id" ]]; then
+                count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" --jq '[.artifacts[] | select(.expired == false and (.name == "android-aarch64-apk" or .name == "android-x86_64-apk"))] | length' || true)
+                if [[ "$count" != 2 ]]; then run_id=''; fi
+              fi
+            fi
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
   apk:
-    if: inputs.apk_run_id == ''
+    needs: resolve
+    if: needs.resolve.outputs.apk_run_id == ''
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -96,8 +125,8 @@ jobs:
         run: rm -f "$RUNNER_TEMP/realingo-upload.jks"
 
   launch:
-    needs: apk
-    if: always() && (needs.apk.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.apk_run_id != ''))
+    needs: [resolve, apk]
+    if: always() && needs.resolve.result == 'success' && (needs.apk.result == 'success' || needs.resolve.outputs.apk_run_id != '')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -118,7 +147,7 @@ jobs:
         with:
           name: android-x86_64-apk
           path: smoke-apk
-          run-id: ${{ inputs.apk_run_id || github.run_id }}
+          run-id: ${{ needs.resolve.outputs.apk_run_id || github.run_id }}
           github-token: ${{ github.token }}
       - name: Enable KVM
         run: |

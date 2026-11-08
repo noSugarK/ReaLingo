@@ -7,12 +7,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export function targetBounds(xml, labels, className) {
+  for (const partial of [false, true]) {
   let labelledField = false;
   for (const node of xml.matchAll(/<node\b[^>]*>/g)) {
     const text = node[0].match(/\btext="([^"]*)"/)?.[1];
     const desc = node[0].match(/\bcontent-desc="([^"]*)"/)?.[1];
     // Android accessibility may merge a button's title and subtitle into one node.
-    const matches = (value) => labels.some((label) => value === label || value?.startsWith(`${label} `) || value?.startsWith(`${label}\n`));
+    const matches = (value) => labels.some((label) => value === label || (partial && (value?.startsWith(`${label} `) || value?.startsWith(`${label}\n`))));
     const named = matches(text) || matches(desc);
     const isClass = !className || node[0].includes(`class="${className}"`);
     // WebView 124 exposes a textarea's label as a preceding TextView but omits
@@ -28,6 +29,7 @@ export function targetBounds(xml, labels, className) {
     if (!bounds) continue;
     const [, x1, y1, x2, y2] = bounds.map(Number);
     if (x2 > x1 && y2 > y1) return [Math.round((x1 + x2) / 2), Math.round((y1 + y2) / 2)];
+  }
   }
   return null;
 }
@@ -156,7 +158,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await tap(['Cancel', '取消']);
     await waitFor(['Test system audio', '测试系统声音']);
     await tap(['Test system audio', '测试系统声音']);
-    await tap(['Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
+    await tap(['Start', '开始', 'Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
     await waitFor(['System audio ready: audio received', '系统声音可用，已读取到音频']);
     screenshot('system-audio-capture');
     await tap(['Close', '关闭']);
