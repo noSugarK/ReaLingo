@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused } from '../.github/scripts/smoke-android.mjs';
+import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused, scrollDirection } from '../.github/scripts/smoke-android.mjs';
 import { decode } from '../tools/png.mjs';
 
 test('native overlay checks select its own surfaced window and support Android frame formats', () => {
@@ -30,6 +30,13 @@ test('typing waits for the requested editor rather than a different focused fiel
   assert.equal(editorFocused(xml, ['API Key']), true);
   assert.equal(editorFocused(xml, ['Custom URL']), false);
   assert.equal(editorFocused(xml.replaceAll('focused="true"', 'focused="false"'), ['API Key']), false);
+});
+
+test('clipped fields behind the fixed toolbar are scrolled into the usable viewport before tapping', () => {
+  assert.equal(scrollDirection([529, 78], 1920, 'down'), 'up');
+  assert.equal(scrollDirection([529, 900], 1920, 'down'), null);
+  assert.equal(scrollDirection([529, 1850], 1920, 'up'), 'down');
+  assert.equal(scrollDirection(null, 1920, 'up'), 'up');
 });
 
 test('UI navigation locates visible English and Chinese controls by text or accessibility label', () => {

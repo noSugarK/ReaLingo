@@ -69,6 +69,14 @@ export function editorFocused(xml, labels) {
   });
 }
 
+export function scrollDirection(bounds, height, fallback) {
+  if (!bounds) return fallback;
+  // WebView can expose clipped editors behind the fixed toolbar or navigation bar.
+  if (bounds[1] < height * .15) return 'up';
+  if (bounds[1] > height * .9) return 'down';
+  return null;
+}
+
 export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug') {
   assert.ok(apk, 'usage: node .github/scripts/smoke-android.mjs APK [package-id]');
   const output = process.env.ANDROID_SMOKE_OUTPUT ?? 'android-smoke';
@@ -119,8 +127,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
       let snapshot;
       try { snapshot = ui(); } catch { await sleep(500); continue; }
       const bounds = targetBounds(snapshot, labels, className);
-      if (bounds) return bounds;
-      adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * (direction === 'down' ? .78 : .35)), Math.round(width / 2), Math.round(height * (direction === 'down' ? .35 : .78)), 350);
+      const move = scrollDirection(bounds, height, direction);
+      if (!move) return bounds;
+      adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * (move === 'down' ? .78 : .35)), Math.round(width / 2), Math.round(height * (move === 'down' ? .35 : .78)), 350);
       await sleep(400);
     }
     throw new Error(`Could not scroll to ${labels.join(' / ')}`);
@@ -242,12 +251,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     adb('shell', 'am', 'start', '-W', '-n', component);
     await tap(['Close', '关闭']);
     await tap(['Settings', '设置']);
-    adb('shell', 'input', 'tap', ...await scrollTo(['Hotwords', '热词'], 'android.widget.EditText'));
-    await sleep(1000);
-    adb('shell', 'input', 'text', 'AI=Artificial%sIntelligence');
+    await fill(['Hotwords', '热词'], 'AI=Artificial%sIntelligence');
     await waitFor(['AI=Artificial Intelligence']);
     assert.match(lastXml, /AI=Artificial Intelligence/, 'phone hotwords remain editable');
-    await hideKeyboard();
     screenshot('hotwords-settings');
     await tap(['Back', '返回']);
     // The capture probes alone do not prove translation works. Exercise the real
