@@ -1,6 +1,7 @@
 // Local CI peer for the real APK's WebSocket path. No API keys or remote service calls.
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 
 function frame(opcode, payload) {
   const bytes = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
@@ -9,6 +10,48 @@ function frame(opcode, payload) {
   header[1] = bytes.length < 126 ? bytes.length : 126;
   if (bytes.length >= 126) header.writeUInt16BE(bytes.length, 2);
   return Buffer.concat([header, bytes]);
+}
+
+// UIAutomator uses blocking adb calls. Keep the simulated remote server on its
+// own event loop so those calls cannot create fake network/setup timeouts.
+export async function startSessionPeer(port = 0) {
+  const worker = new Worker(new URL(import.meta.url), { workerData: { port } });
+  const pending = new Map();
+  let serial = 0;
+  let failure;
+  const fail = error => { failure = error; for (const call of pending.values()) call.reject(error); pending.clear(); };
+  worker.on('error', fail);
+  worker.on('exit', code => fail(new Error(`CI session peer exited (${code})`)));
+  worker.on('message', ({ id, value, error }) => {
+    const call = pending.get(id);
+    if (!call) return;
+    pending.delete(id);
+    if (error) call.reject(new Error(error)); else call.resolve(value);
+  });
+  const call = (action, value) => new Promise((resolve, reject) => {
+    if (failure) { reject(failure); return; }
+    const id = ++serial;
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ id, action, value });
+  });
+  const url = await call('ready');
+  return { url, setMode: value => call('mode', value), snapshot: () => call('snapshot'),
+    close: async () => { await call('close'); await worker.terminate(); } };
+}
+
+if (!isMainThread) {
+  const peer = await startSessionServer(workerData.port);
+  parentPort.on('message', async ({ id, action, value }) => {
+    try {
+      let result;
+      if (action === 'ready') result = peer.url;
+      else if (action === 'mode') peer.setMode(value);
+      else if (action === 'snapshot') result = peer.snapshot();
+      else if (action === 'close') await peer.close();
+      else throw new Error('invalid CI peer operation');
+      parentPort.postMessage({ id, value: result });
+    } catch (error) { parentPort.postMessage({ id, error: error.message }); }
+  });
 }
 
 export async function startSessionServer(port = 0) {

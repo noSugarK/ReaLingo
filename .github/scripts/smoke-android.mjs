@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { startSessionServer } from './session-server.mjs';
+import { startSessionPeer } from './session-server.mjs';
 
 export function targetBounds(xml, labels, className) {
   for (const partial of [false, true]) {
@@ -59,7 +59,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const adb = (...args) => execFileSync('adb', args.map(String), { encoding: 'utf8', timeout: 30000 });
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const component = `${packageId}/com.nosugark.realingo.MainActivity`;
-  const peer = await startSessionServer(8766);
+  const peer = await startSessionPeer(8766);
   let lastXml = '';
   const appPids = new Set();
   const ui = () => {
@@ -69,6 +69,8 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   };
   const waitFor = async (labels) => {
     for (let i = 0; i < 20; i++) {
+      // Yield between blocking adb calls so worker replies and UI updates can settle.
+      await sleep(100);
       const pids = adb('shell', 'pidof', packageId).trim();
       assert.ok(pids, 'the app process died');
       for (const pid of pids.split(/\s+/)) appPids.add(pid);
@@ -230,42 +232,49 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await tap(['Back', '返回']);
     await tap(['Start', '开始翻译']);
     await waitFor(['Android session verified.']);
-    assert.ok(peer.snapshot().at(-1).audioBytes > 0, 'the Android microphone reaches the socket');
+    assert.ok((await peer.snapshot()).at(-1).audioBytes > 0, 'the Android microphone reaches the socket');
     screenshot('session-translated');
     await tap(['Stop', '停止']);
     await waitFor(['Start', '开始翻译']);
-    assert.equal(peer.snapshot().at(-1).finished, true, 'Stop sends the protocol finish frame');
+    assert.equal((await peer.snapshot()).at(-1).finished, true, 'Stop sends the protocol finish frame');
     await tap(['Audio source', '音频来源']);
     await tap(['System audio', '系统声音']);
     await tap(['Close', '关闭']);
     await tap(['Start', '开始翻译']);
     await grantProjection();
     await waitFor(['Android session verified.']);
-    assert.ok(peer.snapshot().at(-1).audioBytes > 0, 'authorized playback PCM reaches the socket');
+    assert.ok((await peer.snapshot()).at(-1).audioBytes > 0, 'authorized playback PCM reaches the socket');
     screenshot('system-session-translated');
     await tap(['Stop', '停止']);
     await waitFor(['Start', '开始翻译']);
     await tap(['Audio source', '音频来源']);
     await tap(['Microphone', '麦克风']);
     await tap(['Close', '关闭']);
-    peer.setMode('stall');
+    await peer.setMode('stall');
     await tap(['Start', '开始翻译']);
     await waitFor(['Connecting…', '连接中…']);
+    for (let i = 0; i < 50; i++) {
+      const session = (await peer.snapshot()).at(-1);
+      if (session?.mode === 'stall' && session.updates === 1) break;
+      await sleep(100);
+    }
+    assert.equal((await peer.snapshot()).at(-1)?.mode, 'stall');
+    assert.equal((await peer.snapshot()).at(-1)?.updates, 1, 'cancel is tested after the server receives setup');
     assert.doesNotMatch(ui(), /text="Listening…"/, 'pending setup must not masquerade as listening');
     await tap(['Stop', '停止']);
     await waitFor(['Start', '开始翻译']);
     screenshot('session-cancelled');
-    peer.setMode('reject');
+    await peer.setMode('reject');
     await tap(['Start', '开始翻译']);
     await waitFor(['CI setup rejection']);
     await waitFor(['Start', '开始翻译']);
     screenshot('session-error');
-    peer.setMode('linger');
+    await peer.setMode('linger');
     await tap(['Start', '开始翻译']);
     await waitFor(['Android session verified.']);
     await tap(['Stop', '停止']);
     await waitFor(['Start', '开始翻译']);
-    assert.equal(peer.snapshot().at(-1).finished, true);
+    assert.equal((await peer.snapshot()).at(-1).finished, true);
     screenshot('session-stop-deadline');
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
@@ -274,7 +283,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     assert.doesNotMatch(appCrashLines(crashes, appPids), /FATAL EXCEPTION|Fatal signal|Abort message/);
     console.log('Android smoke passed: launches, navigation, microphone capture, native floating subtitles on Home, system capture consent/cancellation, permission revocation');
   } finally {
-    writeFileSync(join(output, 'session-peer.json'), JSON.stringify(peer.snapshot(), null, 2));
+    writeFileSync(join(output, 'session-peer.json'), JSON.stringify(await peer.snapshot(), null, 2));
     await peer.close();
     try { adb('reverse', '--remove', 'tcp:8766'); } catch {}
     writeFileSync(join(output, 'last-ui.xml'), lastXml);
