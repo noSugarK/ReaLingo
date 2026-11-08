@@ -21,7 +21,7 @@ export function configureSigning(env = process.env, listAliases = keytoolAliases
     throw new Error('Configure all four ANDROID_KEYSTORE_* / ANDROID_KEY_* secrets, or leave all unset for branch test builds');
   }
   const signed = present.length === NAMES.length;
-  if (env.GITHUB_REF_TYPE === 'tag' && !signed) {
+  if ((env.GITHUB_REF_TYPE === 'tag' || env.ANDROID_REQUIRE_SIGNING === 'true') && !signed) {
     throw new Error('Release APKs require a persistent signing key. Configure all four ANDROID_KEYSTORE_* / ANDROID_KEY_* secrets; temporary test keys cannot support upgrades.');
   }
   if (signed) {

@@ -3,6 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 
+import Hotwords from "../components/Hotwords.vue";
+import History from "../components/History.vue";
+import OverlaySheet from "./OverlaySheet.vue";
+import { native, refreshNative, requestOverlay, showOverlay, updateOverlay, beginCapture, stopCapture } from "./native";
 import SourceSheet from "./SourceSheet.vue";
 import LangSheet from "./LangSheet.vue";
 import ModelSheet from "./ModelSheet.vue";
@@ -18,19 +22,23 @@ import { settings, activeKey, setActiveKey, keyringOk, initSettings } from "../s
 import { PRESETS, PROTOCOLS, langName, modelName } from "../languages";
 import { locale, t, tf } from "../i18n";
 import { checkUpdateAtStartup } from "../update";
-import { isRunning, lines, status, errorMsg, warnMsg, fileProgress, saveAs } from "../stream";
+import { isRunning, lines, current, status, errorMsg, warnMsg, fileProgress, saveAs } from "../stream";
 import { perms, droid, refreshPerms, askMic, openAppSettings, openBatterySettings, pendingList, setKeepScreenOn, pickAudio } from "./perms";
 import { toast } from "./toasts";
 
 type Page = "home" | "settings" | "perms";
 const page = ref<Page>("home");
-type Drawer = null | "src" | "lang" | "model" | "about" | "uilang";
+type Drawer = null | "src" | "lang" | "model" | "about" | "uilang" | "overlay" | "history";
 const drawer = ref<Drawer>(null);
 
 /** Modes layered over the home layout: the room reads these, the hand does not. */
 const mode = ref<"normal" | "face" | "big">("normal");
 
 /* ---------- boot ---------- */
+let nativeTimer: number | undefined;
+let pendingOverlay = false;
+let lastNativeError = "";
+const starting = ref(false);
 let levelTimer: number | undefined;
 let unlistenResume: (() => void) | undefined;
 const bootError = ref("");
@@ -42,6 +50,8 @@ const reload = () => window.location.reload();
  *  the guard inside keeps a double delivery from starting twice. */
 async function onResume() {
   await refreshPerms();
+  refreshNative();
+  if (pendingOverlay && native.granted) { pendingOverlay = false; await toggleOverlay(); }
   if (perms.pendingStart && perms.mic === "granted") {
     perms.pendingStart = false;
     void start();
@@ -52,6 +62,16 @@ onMounted(async () => {
   try {
     await initSettings();
     await loadCaps();
+    refreshNative();
+    settings.sub.show = native.visible;
+    syncOverlay();
+    nativeTimer = window.setInterval(() => {
+      refreshNative();
+      settings.sub.show = native.visible;
+      if (native.error && native.error !== lastNativeError) toast(native.error);
+      lastNativeError = native.error;
+      if (isRunning() && !starting.value && !native.captureKind) { void session.toggle(); toast(t("captureEnded")); }
+    }, 1000);
     await refreshPerms();
     await session.refreshDevices();
     levelTimer = window.setInterval(() => void session.pollLevel(), 120);
@@ -68,6 +88,7 @@ function onVisible() {
 }
 onUnmounted(() => {
   window.clearInterval(levelTimer);
+  window.clearInterval(nativeTimer);
   unlistenResume?.();
   document.removeEventListener("visibilitychange", onVisible);
 });
@@ -86,11 +107,12 @@ watch([running, () => settings.keepScreenOn], ([run, keep]) => setKeepScreenOn(r
 
 /* ---------- start / stop with the permission state machine ---------- */
 async function start() {
+  if (starting.value) return;
   if (!activeKey().trim()) {
     toast(t("noKeyToast"), { label: t("goSettings"), run: () => (page.value = "settings") });
     return;
   }
-  if (session.sourceKind.value === "mic" && perms.mic !== "granted") {
+  if (session.sourceKind.value !== "file" && perms.mic !== "granted") {
     if (perms.mic === "permanent") {
       drawer.value = null;
       guideOpen.value = true;
@@ -108,10 +130,22 @@ async function start() {
 }
 
 async function doStart() {
-  await session.toggle();
-  if (errorMsg.value) toast(errorMsg.value);
+  if (starting.value) return;
+  starting.value = true;
+  try {
+    if (!await beginCapture(session.sourceKind.value)) return;
+    await session.refreshDevices();
+    await session.toggle();
+    if (errorMsg.value) toast(errorMsg.value);
+    if (!isRunning()) stopCapture();
+  } catch (e) { stopCapture(); toast(String(e)); }
+  finally { starting.value = false; }
 }
+watch(running, (run, old) => { if (old && !run) stopCapture(); });
 
+async function exportRows(kind: "txt" | "srt") {
+  try { await saveAs(kind, lines.value); } catch (e) { toast(String(e)); }
+}
 function stop() {
   void session.toggle();
 }
@@ -176,10 +210,28 @@ function swap() {
 /* ---------- stream pin-to-bottom lives inside StreamList ---------- */
 
 // The desktop subtitle window has no phone counterpart yet (floating overlay is phase 2);
-// the toggle in the dock opens the in-app full-screen mode instead.
-function toggleSub() {
-  mode.value = mode.value === "big" ? "normal" : "big";
+function toggleSub() { drawer.value = "overlay"; }
+async function toggleOverlay() {
+  try {
+    refreshNative();
+    if (!native.granted) { pendingOverlay = true; requestOverlay(); return; }
+    if (!localStorage.getItem("overlay-configured")) {
+      settings.sub.locked = false;
+      localStorage.setItem("overlay-configured", "1");
+    }
+    syncOverlay();
+    await showOverlay(!native.visible);
+    settings.sub.show = native.visible;
+  } catch (e) { toast(String(e)); }
 }
+function syncOverlay() {
+  const active = current.source || current.sourceStash || current.target || current.targetStash;
+  const pair = active ? { source: current.source + current.sourceStash, target: current.target + current.targetStash } : lines.value[lines.value.length - 1];
+  updateOverlay({ ...settings.sub, source: pair?.source ?? "", target: pair?.target ?? "",
+    empty: emptyText.value, close: t("subHide"), resize: t("overlayWidth"),
+    notification: t("captureNotification"), captureEnded: t("captureEnded") });
+}
+watch([() => settings.sub, current, lines, locale], syncOverlay, { deep: true });
 function toggleFace() {
   mode.value = mode.value === "face" ? "normal" : "face";
   // Face-to-face only makes sense where the protocol speaks both ways; entering it turns
@@ -270,7 +322,8 @@ async function askFromCenter() {
             {{ fileProgress.total ? `${Math.round((fileProgress.sent / fileProgress.total) * 100)}%` : "…" }}
           </span>
           <span class="spacer" />
-          <button v-if="lines.length" class="exp" @click="saveAs('srt', lines)">{{ t("exportSrt") }}</button>
+          <button v-if="lines.length" class="exp" @click="exportRows('txt')">{{ t("exportTxt") }}</button>
+          <button v-if="lines.length" class="exp" @click="exportRows('srt')">{{ t("exportSrt") }}</button>
           <button class="exp" @click="lines = []">{{ t("clear") }}</button>
         </div>
         <div class="stream-half top">
@@ -290,7 +343,7 @@ async function askFromCenter() {
 
       <!-- dock -->
       <footer class="dock">
-        <button class="icobtn" :class="{ on: mode === 'big' }" :aria-label="t('fullscreenSub')" @click="toggleSub">
+        <button class="icobtn" :class="{ on: native.visible }" :aria-label="t('subTitle')" @click="toggleSub">
           <svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="1.5" y="3" width="13" height="10" rx="2.4"/><path d="M4.5 9.4h4M4.5 6.8h7"/></svg>
         </button>
         <button v-if="PROTOCOLS[settings.protocol].twoWay" class="icobtn" :class="{ on: mode === 'face' }" :aria-label="t('faceMode')" :title="t('faceModeHint')" @click="toggleFace">
@@ -348,6 +401,12 @@ async function askFromCenter() {
               <input v-model.trim="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="running" />
               <small>{{ keyringOk ? t("apiKeyHint") : t("apiKeyPlain") }}</small>
             </label>
+            <label v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="connection-field">
+              <b>{{ t("region") }}</b><select v-model="settings.region" :disabled="running"><option value="beijing">{{ t("regionBJ") }}</option><option value="singapore">{{ t("regionSG") }}</option></select>
+            </label>
+            <label v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="connection-field">
+              <b>{{ t("workspace") }}</b><input v-model.trim="settings.workspaceId" :disabled="running" spellcheck="false" autocapitalize="off" /><small>{{ t("workspaceHint") }}</small>
+            </label>
             <label class="connection-field">
               <b>{{ t("url") }}</b>
               <input v-model.trim="settings.url" type="url" placeholder="wss://…" autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="running" />
@@ -375,6 +434,13 @@ async function askFromCenter() {
         <section>
           <span class="glabel">{{ t("groupTranslate") }}</span>
           <div class="rows">
+            <div v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="connection-field"><Hotwords /></div>
+            <label class="rowbtn"><span class="rt"><b>{{ t("speak") }}</b></span><button class="sw" :class="{ on: settings.speak }" :disabled="running" @click.prevent="toggleSpeak" /></label>
+            <label v-if="session.voiceList.value" class="connection-field"><b>{{ t("voice") }}</b><select v-model="settings.voice" :disabled="running"><option v-for="v in session.voiceOptions.value" :key="v.value" :value="v.value">{{ v.label }}</option></select></label>
+            <small v-else>{{ t("voiceServer") }}</small>
+            <button class="rowbtn" @click="drawer = 'overlay'"><span class="rt"><b>{{ t("subTitle") }}</b></span></button>
+            <label class="connection-field"><b>{{ t("subSrcSize") }} · {{ settings.stream.srcSize }}</b><input v-model.number="settings.stream.srcSize" type="range" min="12" max="48" /></label>
+            <label class="connection-field"><b>{{ t("subTgtSize") }} · {{ settings.stream.tgtSize }}</b><input v-model.number="settings.stream.tgtSize" type="range" min="12" max="64" /></label>
             <label v-if="PROTOCOLS[settings.protocol].twoWay" class="rowbtn noscroll">
               <span class="rt"><b>{{ t("twoWay") }}</b><small>{{ t("twoWayHint") }}</small></span>
               <button class="sw" :class="{ on: settings.twoWay }" :disabled="running" @click.prevent="settings.twoWay = !settings.twoWay" />
@@ -389,6 +455,7 @@ async function askFromCenter() {
               <span class="rt"><b>{{ t("history") }}</b><small>{{ t("historyHint") }}</small></span>
               <button class="sw" :class="{ on: settings.history }" @click.prevent="settings.history = !settings.history" />
             </label>
+            <button class="rowbtn" @click="drawer = 'history'"><span class="rt"><b>{{ t("history") }}</b></span></button>
             <button class="rowbtn" @click="drawer = 'uilang'">
               <span class="rt"><b>{{ t("uiLang") }}</b></span>
               <span class="rv">{{ settings.uiLang === "system" ? t("uiSystem") : settings.uiLang === "zh" ? "简体中文" : "English" }}</span>
@@ -454,11 +521,17 @@ async function askFromCenter() {
           <span v-else class="statpill g">{{ t("pmOn") }}</span>
         </div>
 
+        <div class="card flat">
+          <span class="tx"><b>{{ t("subTitle") }}</b><small>{{ t("overlayHint") }}</small></span>
+          <button class="chipm warn" @click="drawer = 'overlay'">{{ native.granted ? t("subTitle") : t("overlayAuthorize") }}</button>
+        </div>
         <p class="hintx center">{{ t("permRecheck") }}</p>
       </div>
     </div>
 
     <!-- ══ drawers ══ -->
+    <History v-if="drawer === 'history'" @close="drawer = null" />
+    <OverlaySheet v-if="drawer === 'overlay'" @close="drawer = null" @toggle="toggleOverlay" @fullscreen="drawer = null; mode = 'big'" />
     <SourceSheet v-if="drawer === 'src'" @close="drawer = null" />
     <LangSheet v-if="drawer === 'lang'" @close="drawer = null" />
     <ModelSheet v-if="drawer === 'model'" :running="running" @close="drawer = null" @restart="restartNow" />
@@ -589,6 +662,7 @@ section { display: flex; flex-direction: column; }
 .rows { border-radius: 18px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--hairline); padding: 0 15px; }
 .connection-field { display: flex; flex-direction: column; gap: 8px; padding: 13px 0; border-top: 1px solid var(--hairline); }
 .connection-field b { font-size: 14.5px; font-weight: 560; }
+.connection-field select { padding: 10px; border-radius: 10px; background: var(--shade); color: var(--ink); font: inherit; }
 .connection-field input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 11px; background: var(--shade); color: var(--ink); font: inherit; font-size: 16px; }
 .connection-field small { color: var(--ink-3); font-size: 11.5px; line-height: 1.45; }
 .rowbtn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 0; text-align: left; color: var(--ink); }

@@ -56,6 +56,17 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     throw new Error(`phone UI did not render ${labels.join(' / ')}`);
   };
   const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
+  const scrollTo = async (labels) => {
+    const size = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/);
+    const width = Number(size?.[1] ?? 1080), height = Number(size?.[2] ?? 1920);
+    for (let i = 0; i < 8; i++) {
+      const bounds = targetBounds(ui(), labels);
+      if (bounds) return bounds;
+      adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * .78), Math.round(width / 2), Math.round(height * .35), 350);
+      await sleep(400);
+    }
+    throw new Error(`Could not scroll to ${labels.join(' / ')}`);
+  };
   const screenshot = (name) => writeFileSync(join(output, `${name}.png`),
     execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000 }));
   const saveLog = (name, args) => {
@@ -87,7 +98,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     screenshot('about');
     await tap(['Close', '关闭']);
     await tap(['Settings', '设置']);
-    await waitFor(['Permission center', '权限中心']);
+    await scrollTo(['Permission center', '权限中心']);
     screenshot('settings');
     await tap(['Permission center', '权限中心']);
     await waitFor(['Back', '返回']);
@@ -110,12 +121,39 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await waitFor(['Microphone ready: audio received', '麦克风可用，已读取到音频']);
     screenshot('microphone-capture');
     await tap(['Close', '关闭']);
+    await tap(['Subtitle overlay', '字幕窗']);
+    await tap(['Authorize overlay', '授权悬浮窗']);
+    await sleep(1000);
+    assert.match(adb('shell', 'dumpsys', 'activity', 'activities'), /Settings|settings/, 'overlay authorization opens Android settings');
+    adb('shell', 'appops', 'set', packageId, 'SYSTEM_ALERT_WINDOW', 'allow');
+    adb('shell', 'am', 'start', '-W', '-n', component);
+    await tap(['Show overlay', '显示字幕窗']);
+    await waitFor(['⠿  ReaLingo']);
+    screenshot('floating-subtitles');
+    adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+    const [ox, oy] = await waitFor(['⠿  ReaLingo']);
+    adb('shell', 'input', 'swipe', ox, oy, ox, Math.max(100, oy - 150), 500);
+    await waitFor(['⠿  ReaLingo']);
+    screenshot('floating-on-home');
+    await tap(['Hide subtitles', '隐藏字幕窗']);
+    adb('shell', 'am', 'start', '-W', '-n', component);
+    await tap(['Close', '关闭']);
+    await tap(['Audio source', '音频来源']);
+    await tap(['System audio', '系统声音']);
+    await tap(['Test system audio', '测试系统声音']);
+    await tap(['Cancel', '取消']);
+    await waitFor(['Test system audio', '测试系统声音']);
+    await tap(['Test system audio', '测试系统声音']);
+    await tap(['Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
+    await waitFor(['System audio ready: audio received', '系统声音可用，已读取到音频']);
+    screenshot('system-audio-capture');
+    await tap(['Close', '关闭']);
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await waitFor(['Start', '开始翻译']);
     const crashes = adb('logcat', '-v', 'threadtime', '-b', 'crash', '-d');
     assert.doesNotMatch(appCrashLines(crashes, appPids), /FATAL EXCEPTION|Fatal signal|Abort message/);
-    console.log('Android smoke passed: cold launches, rendered UI, navigation, resume, microphone grant/revoke');
+    console.log('Android smoke passed: launches, navigation, microphone capture, native floating subtitles on Home, system capture consent/cancellation, permission revocation');
   } finally {
     writeFileSync(join(output, 'last-ui.xml'), lastXml);
     // Diagnostics must not exhaust Node's buffered subprocess output or mask the

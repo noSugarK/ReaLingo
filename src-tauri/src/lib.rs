@@ -1,4 +1,6 @@
 mod audio;
+#[cfg(any(target_os = "android", test))]
+mod android_audio;
 pub mod config;
 pub mod decode;
 mod history;
@@ -89,7 +91,7 @@ fn input_level(state: State<AppState>) -> f32 {
 }
 
 #[tauri::command]
-async fn probe_microphone(state: State<'_, AppState>, id: String) -> Result<usize, String> {
+async fn probe_audio(state: State<'_, AppState>, id: String) -> Result<usize, String> {
     if state.running.lock().map_err(|e| e.to_string())?.as_ref().is_some_and(|s| !s.load(Ordering::Relaxed)) {
         return Err("stop the current session before testing the microphone".into());
     }
@@ -237,7 +239,7 @@ pub fn run() {
             set_api_key,
             default_device,
             input_level,
-            probe_microphone,
+            probe_audio,
             endpoint_url,
             start_stream,
             stop_stream,

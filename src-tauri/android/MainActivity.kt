@@ -15,6 +15,8 @@ import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.media.projection.MediaProjectionConfig
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -32,12 +34,15 @@ import androidx.core.view.WindowInsetsCompat
 class MainActivity : TauriActivity() {
     @Volatile private var keepFlag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
     @Volatile private var micRequesting = false
+    private var systemRequestPending = false
 
     // One-slot result for the file picker: busy while the dialog/copy lives, then a
     // terminal JSON the frontend reads and resets. "picked" carries a real path the
     // decode pipeline can open (the SAF content:// uri is copied into cache first).
     private val pick = AtomicReference("""{"state":"idle"}""")
     private val pickThread = AtomicReference<Thread?>(null)
+    private val exportState = AtomicReference("""{"state":"idle"}""")
+    private var exportContents: String? = null
 
     // WebView resolves these names through reflection, outside R8's call graph.
     @Keep
@@ -109,6 +114,60 @@ class MainActivity : TauriActivity() {
             }
         }
 
+        @JavascriptInterface fun overlayStatus(): String = SubtitleService.state(this@MainActivity)
+        @JavascriptInterface fun systemAudioSupported(): Boolean = Build.VERSION.SDK_INT >= 29
+        @JavascriptInterface fun requestOverlay() {
+            runOnUiThread {
+                try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
+                catch (_: ActivityNotFoundException) { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+            }
+        }
+        @JavascriptInterface fun showOverlay(show: Boolean) {
+            runOnUiThread {
+                if (!show || Settings.canDrawOverlays(this@MainActivity)) SubtitleService.setVisible(this@MainActivity, show)
+            }
+        }
+        @JavascriptInterface fun updateOverlay(json: String) { runOnUiThread { SubtitleService.update(json) } }
+        @JavascriptInterface fun resetOverlayPosition() { runOnUiThread { SubtitleService.resetPosition() } }
+        @JavascriptInterface fun startCapture(kind: String) {
+            if (kind != "mic" && kind != "file") return
+            runOnUiThread { SubtitleService.begin(this@MainActivity, kind) }
+        }
+        @JavascriptInterface fun stopCapture() { runOnUiThread { systemRequestPending = false; SubtitleService.endCapture(this@MainActivity) } }
+        @JavascriptInterface fun requestSystemAudio() {
+            runOnUiThread {
+                if (Build.VERSION.SDK_INT < 29) { SubtitleService.lastError = "System audio requires Android 10+"; SubtitleService.systemState = "error"; return@runOnUiThread }
+                SubtitleService.systemState = "asking"
+                systemRequestPending = true
+                SubtitleService.lastError = ""
+                try {
+                    val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                    val intent = if (Build.VERSION.SDK_INT >= 34) manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+                        else manager.createScreenCaptureIntent()
+                    startActivityForResult(intent, REQUEST_SYSTEM_AUDIO)
+                } catch (e: RuntimeException) { SubtitleService.lastError = e.message ?: "Cannot request system audio"; SubtitleService.systemState = "error" }
+            }
+        }
+
+        @JavascriptInterface fun saveText(name: String, contents: String) {
+            if (contents.length > 5_000_000) { exportState.set("""{"state":"error","error":"Export exceeds 5 MB"}"""); return }
+            exportState.set("""{"state":"busy"}""")
+            runOnUiThread {
+                exportContents = contents
+                try {
+                    startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TITLE, name.substringAfterLast('/').substringAfterLast('\\').take(160))
+                    }, REQUEST_EXPORT)
+                } catch (e: RuntimeException) {
+                    exportContents = null
+                    exportState.set(JSONObject().put("state", "error").put("error", e.message).toString())
+                }
+            }
+        }
+        @JavascriptInterface fun saveTextResult(): String = exportState.get()
+
         // Device identity must not query Wi-Fi/location services without permissions.
         @JavascriptInterface
         fun deviceName(): String {
@@ -152,6 +211,28 @@ class MainActivity : TauriActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_EXPORT) {
+            val contents = exportContents
+            exportContents = null
+            val uri = data?.data
+            if (resultCode != RESULT_OK || uri == null || contents == null) {
+                exportState.set("""{"state":"cancelled"}""")
+            } else Thread {
+                try {
+                    val output = contentResolver.openOutputStream(uri, "wt") ?: error("Cannot open export destination")
+                    output.bufferedWriter(Charsets.UTF_8).use { it.write(contents) }
+                    exportState.set("""{"state":"saved"}""")
+                } catch (e: Exception) { exportState.set(JSONObject().put("state", "error").put("error", e.message).toString()) }
+            }.start()
+            return
+        }
+        if (requestCode == REQUEST_SYSTEM_AUDIO) {
+            if (!systemRequestPending) return
+            systemRequestPending = false
+            if (resultCode == RESULT_OK && data != null) SubtitleService.begin(this, "system", data)
+            else SubtitleService.systemState = "cancelled"
+            return
+        }
         if (requestCode != PICK_AUDIO) return
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) {
@@ -224,5 +305,7 @@ class MainActivity : TauriActivity() {
     companion object {
         private const val PICK_AUDIO = 42
         private const val REQUEST_MIC = 43
+        private const val REQUEST_SYSTEM_AUDIO = 44
+        private const val REQUEST_EXPORT = 45
     }
 }

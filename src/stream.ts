@@ -392,6 +392,19 @@ export function exportSrt(rows: Line[] = lines.value): string {
 
 /** Save an export through the user's own file dialog. Shared by the stream and the history panel. */
 export async function saveAs(kind: "txt" | "srt", rows: Line[], stem = "translation") {
+  const bridge = typeof window === "undefined" ? undefined : (window as {
+    ReaLingoAndroid?: { saveText(name: string, contents: string): void; saveTextResult(): string }
+  }).ReaLingoAndroid;
+  if (bridge?.saveText) {
+    bridge.saveText(`${stem}.${kind}`, kind === "txt" ? exportTxt(rows) : exportSrt(rows));
+    // The system document picker owns the destination; content:// is not a Rust path.
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const result = JSON.parse(bridge.saveTextResult());
+      if (result.state === "saved" || result.state === "cancelled") return;
+      if (result.state === "error") throw new Error(result.error);
+    }
+  }
   const path = await saveDialog({
     defaultPath: `${stem}.${kind}`,
     filters: [{ name: kind.toUpperCase(), extensions: [kind] }],

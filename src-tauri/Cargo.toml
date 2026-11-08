@@ -38,10 +38,10 @@ tokio-tungstenite = { version = "0.29.0", features = ["native-tls"] }
 keyring = { version = "4.2.0", features = ["apple-native-keyring-store"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
 # cpal's AAudio backend is selected by target_os, not a feature (0.17 has no `aaudio`).
 tokio-tungstenite = { version = "0.29.0", features = ["rustls-tls-webpki-roots"] }
-# No JNI glue here anymore: the phone surface lives in src-tauri/android/MainActivity.kt
-# (window.ReaLingoAndroid), like LittleLobby's.
+# The existing JNI version is shared with Tauri; only PCM crosses this native boundary.
 
 [target.'cfg(windows)'.dependencies]
 # Same major as cpal's, so it is not built twice. Process loopback is not in cpal.

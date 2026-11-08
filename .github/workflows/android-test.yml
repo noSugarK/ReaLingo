@@ -29,6 +29,11 @@ jobs:
         target: [x86_64, aarch64]
     env:
       ANDROID_NDK_VERSION: '28.2.13676358'
+      ANDROID_REQUIRE_SIGNING: ${{ github.event_name != 'pull_request' }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -39,6 +44,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Configure persistent Android signing
+        id: signing
+        run: node .github/scripts/configure-android-signing.mjs
       - uses: android-actions/setup-android@v4
         with:
           packages: platform-tools
@@ -64,19 +72,28 @@ jobs:
           node .github/scripts/prepare-android.mjs
           npm run tauri -- android build --ci --apk --target ${{ matrix.target }}
       - name: Verify signature and 16 KB ZIP alignment
+        env:
+          SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
           mapfile -d '' apks < <(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' ! -name '*unsigned*' -print0)
           test "${#apks[@]}" -eq 1
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "${apks[0]}"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "${apks[0]}"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 "${apks[0]}"
           python3 .github/scripts/check-android-apk.py "${apks[0]}"
           mkdir -p smoke-apk
           cp "${apks[0]}" smoke-apk/realingo.apk
+          expected_id='com.nosugark.realingo'
+          if [[ "$SIGNED" != true ]]; then expected_id+='.debug'; fi
+          node .github/scripts/verify-android-package.mjs "${apks[0]}" "$expected_id" "$ANDROID_HOME/build-tools/36.0.0/aapt" > smoke-apk/metadata.json
+          printf '%s\n' "$expected_id" > smoke-apk/package-id.txt
       - uses: actions/upload-artifact@v6
         with:
           name: android-${{ matrix.target }}-apk
-          path: smoke-apk/realingo.apk
+          path: smoke-apk/
           if-no-files-found: error
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/realingo-upload.jks"
 
   launch:
     needs: apk
@@ -120,7 +137,7 @@ jobs:
           disable-animations: true
           script: |
             bash .github/scripts/check-android-pages.sh '${{ matrix.page-size }}'
-            node .github/scripts/smoke-android.mjs smoke-apk/realingo.apk
+            node .github/scripts/smoke-android.mjs smoke-apk/realingo.apk "$(cat smoke-apk/package-id.txt)"
       - uses: actions/upload-artifact@v6
         if: always()
         with:

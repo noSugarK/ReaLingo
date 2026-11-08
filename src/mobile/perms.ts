@@ -30,6 +30,17 @@ interface Droid {
   deviceName(): string;
   pickAudioFile(): void;
   pickResult(): string;
+  overlayStatus(): string;
+  systemAudioSupported(): boolean;
+  requestOverlay(): void;
+  showOverlay(show: boolean): void;
+  updateOverlay(json: string): void;
+  resetOverlayPosition(): void;
+  startCapture(kind: string): void;
+  stopCapture(): void;
+  requestSystemAudio(): void;
+  saveText(name: string, contents: string): void;
+  saveTextResult(): string;
 }
 
 /** Null on the desktop, and on an Android APK built before the bridge existed. */

@@ -5,6 +5,7 @@ import { langName } from "../languages";
 import { locale, t } from "../i18n";
 import { saveAs, type Line } from "../stream";
 import { settings } from "../store";
+import { caps } from "../platform";
 import Sheet from "./Sheet.vue";
 
 defineEmits<{ close: [] }>();
@@ -104,6 +105,9 @@ const openDir = async () => {
   if (dir) await call("plugin:opener|reveal_item_in_dir", { paths: [dir] });
 };
 
+async function saveRows(kind: "txt" | "srt") {
+  try { await saveAs(kind, shown.value, openId.value); } catch (e) { err.value = String(e); }
+}
 async function remove(id: string) {
   if (!armedFor(id)) return;
   await call("history_delete", { id });
@@ -137,7 +141,7 @@ async function remove(id: string) {
       </div>
 
       <div class="list-foot">
-        <button class="chip" @click="openDir">{{ t("historyDir") }}</button>
+        <button v-if="caps.os !== 'android'" class="chip" @click="openDir">{{ t("historyDir") }}</button>
         <button class="chip danger" @click="clearAll">
           {{ armed === "*" ? t("historyConfirm") : t("historyClear") }}
         </button>
@@ -146,10 +150,10 @@ async function remove(id: string) {
       <div class="right">
         <div class="tools">
           <input v-model="q" type="search" :placeholder="t('historySearch')" spellcheck="false" />
-          <button class="chip" :disabled="!shown.length" @click="saveAs('txt', shown, openId)">
+          <button class="chip" :disabled="!shown.length" @click="saveRows('txt')">
             {{ t("exportTxt") }}
           </button>
-          <button class="chip" :disabled="!shown.length" @click="saveAs('srt', shown, openId)">
+          <button class="chip" :disabled="!shown.length" @click="saveRows('srt')">
             {{ t("exportSrt") }}
           </button>
           <button class="chip danger" @click="remove(openId)">
@@ -234,5 +238,12 @@ async function remove(id: string) {
   gap: 10px;
   color: var(--ink-3);
   font-size: 13px;
+}
+@media (max-width: 600px) {
+  .panes { display: flex; flex-direction: column; height: auto; }
+  .list { max-height: 160px; flex-shrink: 0; }
+  .right { min-height: 240px; }
+  .tools { flex-wrap: wrap; }
+  .tools input { width: 100%; }
 }
 </style>

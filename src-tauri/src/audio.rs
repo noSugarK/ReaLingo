@@ -52,9 +52,9 @@ pub fn loopback_supported() -> bool {
     {
         crate::pulse::available()
     }
-    // Android shares target_os = "linux" but has no sound server to shell out to;
-    // system-audio capture (AudioPlaybackCapture) would need platform APIs cpal lacks.
-    #[cfg(any(target_os = "android", not(target_os = "linux")))]
+    #[cfg(target_os = "android")]
+    { true } // The native bridge further gates AudioPlaybackCapture on Android 10+.
+    #[cfg(all(not(target_os = "android"), not(target_os = "linux")))]
     {
         cfg!(any(target_os = "windows", target_os = "macos"))
     }
@@ -77,6 +77,11 @@ pub fn list_devices() -> Vec<DeviceInfo> {
     if let Ok(devices) = host.input_devices() {
         out.extend(devices.filter_map(|d| describe(&d, MIC)));
     }
+    if let Some(default) = host.default_input_device().and_then(|d| describe(&d, MIC)) {
+        if !out.iter().any(|d| d.id == default.id) { out.insert(0, default); }
+    }
+    #[cfg(target_os = "android")]
+    out.push(DeviceInfo { id: "sys|android".into(), name: "Android playback audio".into(), loopback: true });
     // Listing output devices where loopback is impossible would only offer the user streams
     // that fail to build.
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
@@ -85,7 +90,7 @@ pub fn list_devices() -> Vec<DeviceInfo> {
         name: m.label,
         loopback: true,
     }));
-    #[cfg(any(target_os = "android", not(target_os = "linux")))]
+    #[cfg(all(not(target_os = "android"), not(target_os = "linux")))]
     if loopback_supported() {
         if let Ok(devices) = host.output_devices() {
             out.extend(devices.filter_map(|d| describe(&d, SYS)));
@@ -96,6 +101,8 @@ pub fn list_devices() -> Vec<DeviceInfo> {
 
 /// Best guess for the initial UI selection: default mic, else default output (loopback).
 pub fn default_device_id(loopback: bool) -> Option<String> {
+    #[cfg(target_os = "android")]
+    if loopback { return Some("sys|android".into()); }
     let host = cpal::default_host();
     if !loopback {
         return host.default_input_device().and_then(|d| describe(&d, MIC)).map(|d| d.id);
@@ -156,6 +163,8 @@ pub fn start(
     stop: Arc<AtomicBool>,
     exclude_self: bool,
 ) -> Result<()> {
+    #[cfg(target_os = "android")]
+    if id == "sys|android" { return crate::android_audio::start(rate, tx, level, stop); }
     // Linux system audio never reaches cpal — it is a `parec` pipe, which owns its own
     // thread and reports failure synchronously already.
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
@@ -318,7 +327,7 @@ pub fn read_level(level: &AtomicU32) -> f32 {
     f32::from_bits(level.load(Ordering::Relaxed))
 }
 
-/// Read real microphone frames without opening a network session or needing an API key.
+/// Read real capture frames without opening a network session or needing an API key.
 pub async fn probe(id: String) -> Result<usize> {
     let stop = Arc::new(AtomicBool::new(false));
     let (tx, mut rx) = tokio::sync::mpsc::channel(8);
@@ -329,8 +338,8 @@ pub async fn probe(id: String) -> Result<usize> {
     let result = match started {
         Ok(Ok(())) => {
             tokio::time::timeout(Duration::from_secs(3), rx.recv()).await
-                .map_err(|_| anyhow!("microphone did not deliver audio within 3s"))
-                .and_then(|samples| samples.map(|s| s.len()).ok_or_else(|| anyhow!("microphone capture stopped")))
+                .map_err(|_| anyhow!("audio source did not deliver frames within 3s"))
+                .and_then(|samples| samples.map(|s| s.len()).ok_or_else(|| anyhow!("audio capture stopped")))
         }
         Ok(Err(e)) => Err(e),
         Err(e) => Err(anyhow!(e)),

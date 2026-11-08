@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
+import { androidVersionCode } from '../.github/scripts/prepare-android.mjs';
 
 const repo = new URL('..', import.meta.url);
 const read = (file) => readFileSync(file, 'utf8');
@@ -22,11 +23,13 @@ function fakeTree(t) {
   mkdirSync(join(root, '.github/scripts'), { recursive: true });
   cpSync(new URL('.github/scripts/prepare-android.mjs', repo), join(root, '.github/scripts/prepare-android.mjs'));
   mkdirSync(join(root, 'src-tauri'), { recursive: true });
+  cpSync(new URL('src-tauri/Cargo.toml', repo), join(root, 'src-tauri/Cargo.toml'));
   cpSync(new URL('src-tauri/tauri.conf.json', repo), join(root, 'src-tauri/tauri.conf.json'));
   cpSync(new URL('src-tauri/tauri.android.conf.json', repo), join(root, 'src-tauri/tauri.android.conf.json'));
   cpSync(new URL('src-tauri/icons/android', repo), join(root, 'src-tauri/icons/android'), { recursive: true });
   mkdirSync(join(root, 'src-tauri/android'), { recursive: true });
   cpSync(new URL('src-tauri/android/MainActivity.kt', repo), join(root, 'src-tauri/android/MainActivity.kt'));
+  cpSync(new URL('src-tauri/android/SubtitleService.kt', repo), join(root, 'src-tauri/android/SubtitleService.kt'));
 
   const app = join(root, 'src-tauri/gen/android/app');
   mkdirSync(join(app, 'src/main/java'), { recursive: true });
@@ -64,6 +67,10 @@ test('prepare-android keeps desktop config intact and packages one Android windo
   const labels = config.app.windows.map((w) => w.label);
   assert.ok(!labels.includes('subtitle'), `subtitle survived into the mobile build: ${labels}`);
   assert.ok(labels.includes('main'), 'the main window must stay');
+  const version = read(new URL('src-tauri/Cargo.toml', repo)).match(/^version = "([^"]+)"/m)[1];
+  assert.equal(config.version, version);
+  assert.equal(config.bundle.android.versionCode, androidVersionCode(version));
+  assert.match(read(join(app, 'tauri.properties')), new RegExp(`tauri.android.versionName=${version}`));
   // The rest of the config is not collateral damage.
   assert.equal(JSON.parse(before).bundle.android.minSdkVersion, 26);
 
@@ -77,6 +84,10 @@ test('prepare-android keeps desktop config intact and packages one Android windo
   const manifest = read(join(app, 'src/main/AndroidManifest.xml'));
   assert.ok(manifest.includes('android.permission.RECORD_AUDIO'), 'mic permission must reach the manifest');
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
+  assert.match(manifest, /android.permission.SYSTEM_ALERT_WINDOW/);
+  assert.match(manifest, /android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION/);
+  assert.match(manifest, /android:foregroundServiceType="microphone\|mediaProjection\|specialUse"/);
+  assert.equal(read(join(app, 'src/main/java/com/nosugark/realingo/SubtitleService.kt')), read(new URL('src-tauri/android/SubtitleService.kt', repo)));
   for (const density of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
     for (const icon of ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']) {
       assert.deepEqual(readFileSync(join(app, 'src/main/res', `mipmap-${density}`, icon)),
@@ -86,6 +97,12 @@ test('prepare-android keeps desktop config intact and packages one Android windo
 
   const copied = read(join(app, 'src/main/java/com/nosugark/realingo/MainActivity.kt'));
   assert.equal(copied, read(new URL('src-tauri/android/MainActivity.kt', repo)), 'the bridge must be copied verbatim');
+});
+
+test('Android update codes advance past the old template and increase with each patch', () => {
+  assert.ok(androidVersionCode('0.7.2') > 1_000_000);
+  assert.ok(androidVersionCode('0.7.3') > androidVersionCode('0.7.2'));
+  assert.throws(() => androidVersionCode('bad'), /numeric/);
 });
 
 test('prepare-android is idempotent (safe to re-run)', async (t) => {

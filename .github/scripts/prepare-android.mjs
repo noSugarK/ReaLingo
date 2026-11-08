@@ -47,6 +47,15 @@ if (System.getenv("ANDROID_KEYSTORE_PATH") != null) {
 `;
 const SIGNING_MARKER = '// ReaLingo CI signing';
 
+export function androidVersionCode(version) {
+  const parts = version.match(/^(\d+)\.(\d+)\.(\d+)$/)?.slice(1).map(Number);
+  if (!parts || parts[1] >= 1000 || parts[2] >= 1000) throw new Error('Android requires a numeric major.minor.patch version');
+  // Earlier projects advertised the template's 1.0 / 1000000. Keep updates above it.
+  const code = 1_000_000 + parts[0] * 1_000_000 + parts[1] * 1000 + parts[2];
+  if (!Number.isSafeInteger(code) || code > 2_100_000_000) throw new Error('Android versionCode exceeds the platform limit');
+  return code;
+}
+
 export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   // A hand-maintained activity override lives in the repo next to the template; without
   // one, Tauri's generated MainActivity stands (it needs no changes to boot the app).
@@ -57,6 +66,11 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
     mkdirSync(dirname(activity), { recursive: true });
     copyFileSync(custom, activity);
   }
+  const service = join(tauri, 'android/SubtitleService.kt');
+  if (!existsSync(service)) throw new Error('prepare-android: SubtitleService.kt is missing');
+  const serviceTarget = join(app, 'src/main/java/com/nosugark/realingo/SubtitleService.kt');
+  mkdirSync(dirname(serviceTarget), { recursive: true });
+  copyFileSync(service, serviceTarget);
 
   // Fail the build rather than silently shipping the template's launcher artwork.
   const icons = join(tauri, 'icons/android');
@@ -74,12 +88,20 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   let xml = read(manifest);
   // INTERNET ships in the template; RECORD_AUDIO is ours to add — without it the
   // permission is never even promptable and cpal/AAudio enumerates nothing.
-  for (const name of ['android.permission.INTERNET', 'android.permission.RECORD_AUDIO']) {
+  for (const name of ['android.permission.INTERNET', 'android.permission.RECORD_AUDIO',
+    'android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.FOREGROUND_SERVICE',
+    'android.permission.FOREGROUND_SERVICE_MICROPHONE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
+    'android.permission.FOREGROUND_SERVICE_SPECIAL_USE', 'android.permission.POST_NOTIFICATIONS']) {
     if (!xml.includes(`<uses-permission android:name="${name}"`)) xml = xml.replace(/<application\b/, `<uses-permission android:name="${name}" />\n    $&`);
   }
   xml = setAttr(xml, 'application', 'android:icon', '@mipmap/ic_launcher');
   xml = setAttr(xml, 'application', 'android:roundIcon', '@mipmap/ic_launcher_round');
   xml = setAttr(xml, 'application', 'android:label', '@string/app_name');
+  if (!xml.includes('android:name="com.nosugark.realingo.SubtitleService"')) {
+    xml = xml.replace('</application>', `<service android:name="com.nosugark.realingo.SubtitleService" android:exported="false" android:stopWithTask="true" android:foregroundServiceType="microphone|mediaProjection|specialUse">
+        <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-initiated live speech translation with floating subtitles" />
+      </service>\n    </application>`);
+  }
   writeFileSync(manifest, xml);
 
   for (const [folder, title] of Object.entries({ values: 'ReaLingo', 'values-zh': 'ReaLingo' })) {
@@ -120,6 +142,16 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   if (android.app?.windows?.length !== 1 || android.app.windows[0].label !== 'main') {
     throw new Error('prepare-android: Android must declare exactly one main window');
   }
+  const version = read(join(tauri, 'Cargo.toml')).match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+  if (!version) throw new Error('prepare-android: Cargo package version is missing');
+  android.version = version;
+  android.bundle = { ...android.bundle, android: { ...android.bundle?.android, versionCode: androidVersionCode(version) } };
+  writeFileSync(join(tauri, 'tauri.android.conf.json'), `${JSON.stringify(android, null, 2)}\n`);
+  const versionProps = join(app, 'tauri.properties');
+  const otherProps = (existsSync(versionProps) ? read(versionProps) : '').split(/\r?\n/)
+    .filter((line) => line && !/^tauri\.android\.version(?:Name|Code)\s*=/.test(line));
+  writeFileSync(versionProps, [...otherProps, `tauri.android.versionName=${version}`,
+    `tauri.android.versionCode=${androidVersionCode(version)}`, ''].join('\n'));
 
   const sites = [
     // build.gradle.kts: a literal `minSdk = 24`.

@@ -9,6 +9,7 @@ import { isRunning } from "../stream";
 import { toast } from "./toasts";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
+import { native, beginCapture, stopCapture } from "./native";
 
 defineEmits<{ close: [] }>();
 
@@ -22,19 +23,17 @@ async function testMic() {
   try {
     if (perms.mic !== "granted" && await askMic() !== "granted") return;
     await session.refreshDevices();
-    const id = await invoke<string | null>("default_device", { loopback: false });
+    const system = source.value === "system";
+    if (!await beginCapture(system ? "system" : "mic")) return;
+    const id = await invoke<string | null>("default_device", { loopback: system });
     if (!id) throw new Error(t("noDevice"));
-    const samples = await invoke<number>("probe_microphone", { id });
-    toast(samples > 0 ? t("micTestOk") : t("micTestEmpty"));
+    const samples = await invoke<number>("probe_audio", { id });
+    toast(samples > 0 ? t(system ? "systemTestOk" : "micTestOk") : t("micTestEmpty"));
   } catch (e) { toast(String(e)); }
-  finally { testing.value = false; }
+  finally { stopCapture(); testing.value = false; }
 }
 
-// `loopback` is false exactly where capture cannot happen: Android (MediaProjection is
-// phase 2 — Rust's loopback_supported folds to cfg!(windows|macos)) and a Linux box with no
-// sound server answering. Visible but disabled, with the reason: hiding a source the
-// desktop supports would make the two builds diverge silently.
-const canSystem = computed(() => caps.value.loopback);
+const canSystem = computed(() => caps.value.loopback && native.systemSupported);
 
 const micBadge = computed(() =>
   perms.mic === "granted"
@@ -66,7 +65,7 @@ const micBadge = computed(() =>
         </span>
         <span class="tx">
           <b>{{ t('srcSystem') }} <em v-if="!canSystem" class="badge y">{{ t('needAuth') }}</em></b>
-          <small>{{ canSystem ? t('srcSysSub') : t('projUnsupported') }}</small>
+          <small>{{ canSystem ? t('systemAudioHint') : t('systemAudioAndroid10') }}</small>
         </span>
       </button>
 
@@ -81,7 +80,7 @@ const micBadge = computed(() =>
       </button>
     </div>
 
-    <button class="test-mic" :disabled="testing || isRunning()" @click="testMic">{{ testing ? t("micTesting") : t("micTest") }}</button>
+    <button v-if="source !== 'file'" class="test-mic" :disabled="testing || isRunning()" @click="testMic">{{ testing ? t("micTesting") : t(source === 'system' ? "systemTest" : "micTest") }}</button>
 
     <div class="grp">
       <span class="glabel">{{ t('level') }}</span>

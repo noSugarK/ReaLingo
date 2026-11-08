@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
+import { settings } from "../store";
 import type { Line } from "../stream";
 import { current } from "../session";
 
@@ -29,7 +30,7 @@ watch([() => current.target, () => current.targetStash, () => props.lines.length
 </script>
 
 <template>
-  <div ref="el" class="stream" :class="{ big }" @scroll.passive="onScroll">
+  <div ref="el" class="stream" :class="{ big }" :style="{ '--mobile-src-size': settings.stream.srcSize + 'px', '--mobile-tgt-size': settings.stream.tgtSize + 'px' }" @scroll.passive="onScroll">
     <button v-if="!pinned" class="jump" @click="backToBottom">↓</button>
     <p v-if="!lines.length && !current.target && !current.source" class="empty">{{ empty }}</p>
 
@@ -89,10 +90,10 @@ watch([() => current.target, () => current.targetStash, () => props.lines.length
 }
 .line-item { animation: slidein 0.35s var(--ease); }
 @keyframes slidein { from { opacity: 0; transform: translateY(8px); } }
-.src { margin: 0 0 4px; font-size: 13px; line-height: 1.55; color: var(--ink-3); user-select: text; }
+.src { margin: 0 0 4px; font-size: var(--mobile-src-size, 13px); line-height: 1.55; color: var(--ink-3); user-select: text; }
 .tgt {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--mobile-tgt-size, 20px);
   line-height: 1.5;
   font-weight: 620;
   letter-spacing: -0.012em;

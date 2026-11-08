@@ -36,6 +36,8 @@ export const STREAM_SIZE = { min: 10, max: 32 } as const;
 export const SUB_SIZE = { min: 12, max: 72 } as const;
 
 export interface SubtitleStyle {
+  /** Phone overlay width as a percentage of the display. */
+  mobileWidth: number;
   show: boolean;
   mode: SubMode;
   opacity: number; // background alpha, 0..1
@@ -124,6 +126,7 @@ export const settings = reactive<Settings>({
   uiLang: "system",
   keepScreenOn: true,
   sub: {
+    mobileWidth: 88,
     show: false,
     mode: "both",
     opacity: 0.5,
