@@ -52,6 +52,13 @@ export function overlayFrame(dump) {
   return x2 > x1 && y2 > y1 ? [x1, y1, x2, y2] : null;
 }
 
+export function keyboardVisible(dump) {
+  const keyboard = dump.split(/(?=Window #\d+ Window\{)/).find(section =>
+    /^Window #\d+ Window\{[^\n]*\bInputMethod\}/.test(section));
+  return !!keyboard && /\bmViewVisibility=0x0\b/.test(keyboard) &&
+    /\bmHasSurface=true\b/.test(keyboard) && /\bisOnScreen=true\b/.test(keyboard);
+}
+
 export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug') {
   assert.ok(apk, 'usage: node .github/scripts/smoke-android.mjs APK [package-id]');
   const output = process.env.ANDROID_SMOKE_OUTPUT ?? 'android-smoke';
@@ -63,7 +70,10 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   let lastXml = '';
   const appPids = new Set();
   const ui = () => {
-    adb('shell', 'uiautomator', 'dump', '/sdcard/realingo-smoke.xml');
+    const result = adb('shell', 'uiautomator', 'dump', '/sdcard/realingo-smoke.xml');
+    // A null root can return exit code 0 and leave the preceding XML on disk.
+    // Never navigate using coordinates from that stale page.
+    assert.match(result, /dumped to:/, 'UIAutomator must produce a fresh snapshot');
     lastXml = adb('shell', 'cat', '/sdcard/realingo-smoke.xml');
     return lastXml;
   };
@@ -96,7 +106,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     const size = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/);
     const width = Number(size?.[1] ?? 1080), height = Number(size?.[2] ?? 1920);
     for (let i = 0; i < 8; i++) {
-      const bounds = targetBounds(ui(), labels, className);
+      let snapshot;
+      try { snapshot = ui(); } catch { await sleep(500); continue; }
+      const bounds = targetBounds(snapshot, labels, className);
       if (bounds) return bounds;
       adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * (direction === 'down' ? .78 : .35)), Math.round(width / 2), Math.round(height * (direction === 'down' ? .35 : .78)), 350);
       await sleep(400);
@@ -106,7 +118,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const screenshot = (name) => writeFileSync(join(output, `${name}.png`),
     execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }));
   const hideKeyboard = async () => {
-    if (/mInputShown=true|isInputViewShown=true|mIsInputViewShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
+    if (keyboardVisible(adb('shell', 'dumpsys', 'window', 'windows'))) {
       adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
       await sleep(400);
     }
@@ -217,12 +229,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     adb('shell', 'input', 'tap', ...await scrollTo(['Hotwords', '热词'], 'android.widget.EditText'));
     await sleep(1000);
     adb('shell', 'input', 'text', 'AI=Artificial%sIntelligence');
-    assert.match(ui(), /AI=Artificial Intelligence/, 'phone hotwords remain editable');
-    // Sending Back before a slow IME opens exits the Activity instead of hiding it.
-    if (/mInputShown=true|isInputViewShown=true|mIsInputViewShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
-      adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
-      await sleep(400);
-    }
+    await waitFor(['AI=Artificial Intelligence']);
+    assert.match(lastXml, /AI=Artificial Intelligence/, 'phone hotwords remain editable');
+    await hideKeyboard();
     screenshot('hotwords-settings');
     await tap(['Back', '返回']);
     // The capture probes alone do not prove translation works. Exercise the real

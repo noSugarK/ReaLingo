@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds, appCrashLines, overlayFrame } from '../.github/scripts/smoke-android.mjs';
+import { targetBounds, appCrashLines, overlayFrame, keyboardVisible } from '../.github/scripts/smoke-android.mjs';
 import { decode } from '../tools/png.mjs';
 
 test('native overlay checks select its own surfaced window and support Android frame formats', () => {
@@ -10,6 +10,16 @@ test('native overlay checks select its own surfaced window and support Android f
   assert.deepEqual(overlayFrame(dump.replace('frame=[64', 'mFrame=[64')), [64, 1200, 1016, 1600]);
   assert.equal(overlayFrame(dump.replaceAll('mHasSurface=true', 'mHasSurface=false')), null);
   assert.equal(overlayFrame('Window #0 Window{a u0 Other}: mHasSurface=true mFrame=[0,0][1080,1920]'), null);
+});
+
+test('keyboard dismissal requires the current visible IME window, not stale input-method history', () => {
+  const visible = 'Window #0 Window{a u0 Other}:\n mHasSurface=true isOnScreen=true\n' +
+    'Window #1 Window{b u0 InputMethod}:\n mViewVisibility=0x0\n mHasSurface=true\n isOnScreen=true\n';
+  assert.equal(keyboardVisible(visible), true);
+  assert.equal(keyboardVisible(visible.replace('mViewVisibility=0x0', 'mViewVisibility=0x8')), false);
+  assert.equal(keyboardVisible(visible.replaceAll('isOnScreen=true', 'isOnScreen=false')), false);
+  assert.equal(keyboardVisible(visible.replaceAll('mHasSurface=true', 'mHasSurface=false')), false);
+  assert.equal(keyboardVisible('mInputShown=true isInputViewShown=true'), false);
 });
 
 test('UI navigation locates visible English and Chinese controls by text or accessibility label', () => {
