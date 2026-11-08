@@ -3282,6 +3282,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-store",
  "tokio",
+ "tokio-rustls",
  "tokio-tungstenite",
  "windows 0.61.3",
  "windows-core 0.61.2",

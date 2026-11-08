@@ -85,7 +85,7 @@ mod session_health_tests {
     fn android_tls_configuration_has_a_crypto_provider() {
         // Use the same provider/features selected by the Android target. The old
         // dependency only enabled root certificates and panicked at builder().
-        assert!(rustls::crypto::ring::default_provider().install_default().is_ok());
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let _ = rustls::ClientConfig::builder()
             .with_root_certificates(rustls::RootCertStore::empty()).with_no_client_auth();
     }

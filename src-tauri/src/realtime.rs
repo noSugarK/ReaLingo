@@ -106,7 +106,7 @@ pub async fn run(
     note(&app, "status", "connecting");
     let events = app.clone();
     let frames = app.clone();
-    let outcome = std::panic::AssertUnwindSafe(connect_and_pump(&settings, audio_rx, &stop, player,
+    let outcome = std::panic::AssertUnwindSafe(connect_and_pump(&settings, audio_rx, &stop, player, None,
         move |ev| emit(&events, ev), move |value| {
             if let Some(state) = frames.try_state::<crate::AppState>() {
                 if let Ok(mut health) = state.health.lock() {
@@ -138,6 +138,7 @@ async fn connect_and_pump(
     mut audio_rx: Receiver<Vec<i16>>,
     stop: &Arc<AtomicBool>,
     mut player: Option<Player>,
+    connector: Option<tokio_tungstenite::Connector>,
     report: impl Fn(Event) + Clone + Send + Sync + 'static,
     raw: impl Fn(&Value),
 ) -> Result<()> {
@@ -145,7 +146,7 @@ async fn connect_and_pump(
     report(Event { kind: "phase", text: "network".into(), ..Default::default() });
     let (ws, _) = tokio::select! {
         _ = stopped(stop) => return Ok(()),
-        result = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async(settings.client_request()?)) =>
+        result = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async_tls_with_config(settings.client_request()?, None, false, connector)) =>
             result.map_err(|_| anyhow!("connection timed out after 15s"))?.map_err(|e| anyhow!("connect failed: {e}"))?,
     };
     let (mut write, mut read) = ws.split();
@@ -606,6 +607,93 @@ mod tests {
         (listener, url)
     }
 
+    fn local_tls(trust_test_ca: bool) -> (tokio_rustls::TlsAcceptor, tokio_tungstenite::Connector) {
+        // Self-signed localhost fixtures only; production still uses its normal CA roots.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let certificate = rustls::pki_types::CertificateDer::from(include_bytes!("../tests/fixtures/tls/server.der").to_vec());
+        let key = rustls::pki_types::PrivatePkcs8KeyDer::from(include_bytes!("../tests/fixtures/tls/server-key.der").to_vec());
+        let server = rustls::ServerConfig::builder().with_no_client_auth()
+            .with_single_cert(vec![certificate], key.into()).unwrap();
+        let mut roots = rustls::RootCertStore::empty();
+        if trust_test_ca {
+            roots.add(rustls::pki_types::CertificateDer::from(include_bytes!("../tests/fixtures/tls/ca.der").to_vec())).unwrap();
+        }
+        let client = rustls::ClientConfig::builder().with_root_certificates(roots).with_no_client_auth();
+        (tokio_rustls::TlsAcceptor::from(Arc::new(server)), tokio_tungstenite::Connector::Rustls(Arc::new(client)))
+    }
+
+    #[tokio::test]
+    async fn verified_tls_uploads_pcm_receives_text_and_finishes_on_stop() {
+        let (listener, url) = local_endpoint().await;
+        let (tls, connector) = local_tls(true);
+        let stop = Arc::new(AtomicBool::new(false));
+        let end = stop.clone();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let tls = tls.accept(socket).await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(tls).await.unwrap();
+            assert!(socket.next().await.unwrap().unwrap().to_text().unwrap().contains("session.update"));
+            socket.send(Message::Text(json!({"type":"session.updated"}).to_string().into())).await.unwrap();
+            let frame: Value = serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+            let pcm = BASE64_STANDARD.decode(frame["audio"].as_str().unwrap()).unwrap();
+            assert_eq!(pcm.len(), 3200);
+            assert_eq!(&pcm[..2], &8192i16.to_le_bytes());
+            socket.send(Message::Text(json!({"type":"response.text.done","item_id":"tls-answer","text":"TLS session works"}).to_string().into())).await.unwrap();
+            end.store(true, Ordering::Relaxed);
+            assert!(socket.next().await.unwrap().unwrap().to_text().unwrap().contains("session.finish"));
+            socket.send(Message::Text(json!({"type":"session.finished"}).to_string().into())).await.unwrap();
+        });
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+        tx.send(vec![8192; 1600]).await.unwrap();
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let out = events.clone();
+        tokio::time::timeout(Duration::from_secs(3), connect_and_pump(&network_settings(url.replacen("ws:", "wss:", 1)),
+            rx, &stop, None, Some(connector), move |event| out.lock().unwrap().push(event), |_| {})).await.unwrap().unwrap();
+        server.await.unwrap();
+        let events = events.lock().unwrap();
+        assert!(events.iter().any(|event| event.kind == "status" && event.text == "connected"));
+        assert!(events.iter().any(|event| event.kind == "audio" && event.text == "100"));
+        assert!(events.iter().any(|event| event.kind == "target" && event.text == "TLS session works"));
+    }
+
+    #[tokio::test]
+    async fn stop_cancels_a_tls_handshake_after_client_hello() {
+        use tokio::io::AsyncReadExt;
+        let (listener, url) = local_endpoint().await;
+        let (_, connector) = local_tls(true);
+        let stop = Arc::new(AtomicBool::new(false));
+        let cancel = stop.clone();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut record = [0u8; 5];
+            socket.read_exact(&mut record).await.unwrap();
+            assert_eq!(record[0], 22, "the client must actually begin TLS negotiation");
+            cancel.store(true, Ordering::Relaxed);
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        });
+        let (_tx, rx) = tokio::sync::mpsc::channel(2);
+        tokio::time::timeout(Duration::from_secs(1), connect_and_pump(&network_settings(url.replacen("ws:", "wss:", 1)),
+            rx, &stop, None, Some(connector), |_| {}, |_| {})).await.unwrap().unwrap();
+        assert!(stop.load(Ordering::Relaxed));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn tls_rejects_an_untrusted_certificate_instead_of_bypassing_verification() {
+        let (listener, url) = local_endpoint().await;
+        let (tls, connector) = local_tls(false);
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            assert!(tls.accept(socket).await.is_err());
+        });
+        let (_tx, rx) = tokio::sync::mpsc::channel(2);
+        let result = tokio::time::timeout(Duration::from_secs(3), connect_and_pump(
+            &network_settings(url.replacen("ws:", "wss:", 1)), rx, &Arc::new(AtomicBool::new(false)),
+            None, Some(connector), |_| {}, |_| {})).await.unwrap();
+        assert!(result.unwrap_err().to_string().contains("UnknownIssuer"));
+        server.await.unwrap();
+    }
+
     #[tokio::test]
     async fn a_real_socket_waits_for_setup_sends_pcm_translates_and_finishes_on_stop() {
         let (listener, url) = local_endpoint().await;
@@ -631,7 +719,7 @@ mod tests {
         tx.send(vec![8192; 1600]).await.unwrap();
         let events = Arc::new(std::sync::Mutex::new(Vec::new()));
         let out = events.clone();
-        tokio::time::timeout(Duration::from_secs(3), connect_and_pump(&network_settings(url), rx, &stop, None,
+        tokio::time::timeout(Duration::from_secs(3), connect_and_pump(&network_settings(url), rx, &stop, None, None,
             move |event| out.lock().unwrap().push(event), |_| {})).await.unwrap().unwrap();
         server.await.unwrap();
         let events = events.lock().unwrap();
@@ -650,7 +738,7 @@ mod tests {
             tokio::time::sleep(Duration::from_secs(2)).await;
         });
         let (_tx, rx) = tokio::sync::mpsc::channel(2);
-        tokio::time::timeout(Duration::from_secs(1), connect_and_pump(&network_settings(url), rx, &stop, None, |_| {}, |_| {}))
+        tokio::time::timeout(Duration::from_secs(1), connect_and_pump(&network_settings(url), rx, &stop, None, None, |_| {}, |_| {}))
             .await.unwrap().unwrap();
         server.abort();
     }
@@ -669,7 +757,7 @@ mod tests {
             socket.next().await
         });
         let (_tx, rx) = tokio::sync::mpsc::channel(2);
-        tokio::time::timeout(Duration::from_secs(1), connect_and_pump(&network_settings(url), rx, &stop, None, |_| {}, |_| {}))
+        tokio::time::timeout(Duration::from_secs(1), connect_and_pump(&network_settings(url), rx, &stop, None, None, |_| {}, |_| {}))
             .await.unwrap().unwrap();
         tokio::time::timeout(Duration::from_secs(1), server).await.unwrap().unwrap();
     }
@@ -685,7 +773,7 @@ mod tests {
             socket.next().await
         });
         let (_tx, rx) = tokio::sync::mpsc::channel(2);
-        let err = connect_and_pump(&network_settings(url), rx, &Arc::new(AtomicBool::new(false)), None, |_| {}, |_| {}).await.unwrap_err();
+        let err = connect_and_pump(&network_settings(url), rx, &Arc::new(AtomicBool::new(false)), None, None, |_| {}, |_| {}).await.unwrap_err();
         assert!(err.to_string().contains("setup rejected"));
         tokio::time::timeout(Duration::from_secs(1), server).await.unwrap().unwrap();
     }
@@ -707,7 +795,7 @@ mod tests {
         let (tx, rx) = tokio::sync::mpsc::channel(2);
         tx.send(vec![0; 1600]).await.unwrap();
         let started = Instant::now();
-        tokio::time::timeout(Duration::from_secs(7), connect_and_pump(&network_settings(url), rx, &stop, None, |_| {}, |_| {}))
+        tokio::time::timeout(Duration::from_secs(7), connect_and_pump(&network_settings(url), rx, &stop, None, None, |_| {}, |_| {}))
             .await.unwrap().unwrap();
         assert!(started.elapsed() < Duration::from_secs(7));
         server.abort();
@@ -724,7 +812,7 @@ mod tests {
         });
         let (_tx, rx) = tokio::sync::mpsc::channel(2);
         let result = tokio::time::timeout(Duration::from_secs(12), connect_and_pump(&network_settings(url), rx,
-            &Arc::new(AtomicBool::new(false)), None, |_| {}, |_| {})).await.unwrap();
+            &Arc::new(AtomicBool::new(false)), None, None, |_| {}, |_| {})).await.unwrap();
         assert!(result.unwrap_err().to_string().contains("confirm session setup"));
         server.abort();
     }
