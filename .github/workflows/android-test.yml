@@ -95,10 +95,13 @@ jobs:
       - run: python3 -m unittest discover -s tests -p 'test_*.py'
       - run: npm run build
       - name: Build the release APK (including the Kotlin bridge)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           npm run tauri -- android init --ci --skip-targets-install
           chmod +x src-tauri/gen/android/gradlew
           node .github/scripts/prepare-android.mjs
+          node .github/scripts/fetch-gradle.mjs
           npm run tauri -- android build --ci --apk --target ${{ matrix.target }}
       - name: Verify signature and 16 KB ZIP alignment
         env:
