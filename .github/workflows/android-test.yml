@@ -37,7 +37,7 @@ jobs:
         run: |
           run_id="$APK_RUN_ID"
           if [[ -z "$run_id" && "$GITHUB_EVENT_NAME" == push ]] && git rev-parse HEAD^ >/dev/null 2>&1; then
-            if git diff --quiet HEAD^ HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs'; then
+            if git diff --quiet HEAD^ HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs' ':!.github/scripts/session-server.mjs'; then
               previous=$(git rev-parse HEAD^)
               run_id=$(gh run list --workflow android-test.yml --commit "$previous" --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
               if [[ -n "$run_id" ]]; then

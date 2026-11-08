@@ -68,6 +68,21 @@ The microphone default is AAudio's routing sentinel (`AAudio:-1`), which is vali
 even when it is absent from the hardware list. Always check the default before
 enumerated devices. The source drawer's test buttons open real capture without an API key.
 
+The APK smoke runner also runs a localhost WebSocket peer through `adb reverse`.
+It enters a fake key and local URL on the disposable emulator, starts real microphone
+and playback sessions, checks that PCM reaches the peer and translated events reach
+the screen, and stops each session. Other scenarios withhold setup confirmation,
+reject setup, or keep sending pings after finish. This covers the full app session
+path without spending a provider API quota; it does not verify the live provider.
+The peer records only frame counts and status in `session-peer.json`, never PCM.
+
+Qwen 3.8 now waits for `session.updated` before sending audio. Socket waits can be
+cancelled, setup must be acknowledged within ten seconds, and draining after Stop
+has an absolute deadline even if the server keeps sending heartbeats. Phone status
+must reflect connecting/connected/stopping rather than displaying Listening for all
+three. Settings → Session diagnostics shows actual audio-upload time, input level
+and the latest server event/error when a particular device or live API still fails.
+
 System audio requires Android 10+, RECORD_AUDIO permission, and fresh MediaProjection
 consent for each session. The system may call this screen sharing, but the service
 only reads audio. Apps must permit playback capture; protected media and calls may

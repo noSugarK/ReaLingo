@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { startSessionServer } from './session-server.mjs';
 
 export function targetBounds(xml, labels, className) {
   for (const partial of [false, true]) {
@@ -58,6 +59,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const adb = (...args) => execFileSync('adb', args.map(String), { encoding: 'utf8', timeout: 30000 });
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const component = `${packageId}/com.nosugark.realingo.MainActivity`;
+  const peer = await startSessionServer(8766);
   let lastXml = '';
   const appPids = new Set();
   const ui = () => {
@@ -79,6 +81,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     throw new Error(`phone UI did not render ${labels.join(' / ')}`);
   };
   const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
+  const grantProjection = () => tap(['Start', '开始', 'Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
   const overlay = async (accept = () => true) => {
     for (let i = 0; i < 30; i++) {
       const frame = overlayFrame(adb('shell', 'dumpsys', 'window', 'windows'));
@@ -87,19 +90,31 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     }
     throw new Error('native subtitle overlay did not acquire a visible surface');
   };
-  const scrollTo = async (labels, className) => {
+  const scrollTo = async (labels, className, direction = 'down') => {
     const size = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/);
     const width = Number(size?.[1] ?? 1080), height = Number(size?.[2] ?? 1920);
     for (let i = 0; i < 8; i++) {
       const bounds = targetBounds(ui(), labels, className);
       if (bounds) return bounds;
-      adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * .78), Math.round(width / 2), Math.round(height * .35), 350);
+      adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * (direction === 'down' ? .78 : .35)), Math.round(width / 2), Math.round(height * (direction === 'down' ? .35 : .78)), 350);
       await sleep(400);
     }
     throw new Error(`Could not scroll to ${labels.join(' / ')}`);
   };
   const screenshot = (name) => writeFileSync(join(output, `${name}.png`),
     execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }));
+  const hideKeyboard = async () => {
+    if (/mInputShown=true|isInputViewShown=true|mIsInputViewShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
+      adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+      await sleep(400);
+    }
+  };
+  const fill = async (labels, text, direction = 'down') => {
+    adb('shell', 'input', 'tap', ...await scrollTo(labels, 'android.widget.EditText', direction));
+    await sleep(500);
+    adb('shell', 'input', 'text', text);
+    await hideKeyboard();
+  };
   const saveLog = (name, args) => {
     const fd = openSync(join(output, name), 'w');
     try {
@@ -110,6 +125,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   };
   try {
     adb('wait-for-device');
+    adb('reverse', 'tcp:8766', 'tcp:8766');
     adb('install', '-r', apk);
     adb('shell', 'pm', 'clear', packageId);
     // Some old system images cannot clear all buffers. Failure to clear diagnostics
@@ -158,7 +174,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await tap(['Cancel', '取消']);
     await waitFor(['Test system audio', '测试系统声音']);
     await tap(['Test system audio', '测试系统声音']);
-    await tap(['Start', '开始', 'Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
+    await grantProjection();
     await waitFor(['System audio ready: audio received', '系统声音可用，已读取到音频']);
     screenshot('system-audio-capture');
     await tap(['Close', '关闭']);
@@ -203,6 +219,54 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     }
     screenshot('hotwords-settings');
     await tap(['Back', '返回']);
+    // The capture probes alone do not prove translation works. Exercise the real
+    // APK command, PCM uplink, server-event rendering and Stop against a local peer.
+    await tap(['Audio source', '音频来源']);
+    await tap(['Microphone', '麦克风']);
+    await tap(['Close', '关闭']);
+    await tap(['Settings', '设置']);
+    await fill(['API Key'], 'android-ci-key', 'up');
+    await fill(['Custom URL', '自定义地址'], peer.url);
+    await tap(['Back', '返回']);
+    await tap(['Start', '开始翻译']);
+    await waitFor(['Android session verified.']);
+    assert.ok(peer.snapshot().at(-1).audioBytes > 0, 'the Android microphone reaches the socket');
+    screenshot('session-translated');
+    await tap(['Stop', '停止']);
+    await waitFor(['Start', '开始翻译']);
+    assert.equal(peer.snapshot().at(-1).finished, true, 'Stop sends the protocol finish frame');
+    await tap(['Audio source', '音频来源']);
+    await tap(['System audio', '系统声音']);
+    await tap(['Close', '关闭']);
+    await tap(['Start', '开始翻译']);
+    await grantProjection();
+    await waitFor(['Android session verified.']);
+    assert.ok(peer.snapshot().at(-1).audioBytes > 0, 'authorized playback PCM reaches the socket');
+    screenshot('system-session-translated');
+    await tap(['Stop', '停止']);
+    await waitFor(['Start', '开始翻译']);
+    await tap(['Audio source', '音频来源']);
+    await tap(['Microphone', '麦克风']);
+    await tap(['Close', '关闭']);
+    peer.setMode('stall');
+    await tap(['Start', '开始翻译']);
+    await waitFor(['Connecting…', '连接中…']);
+    assert.doesNotMatch(ui(), /text="Listening…"/, 'pending setup must not masquerade as listening');
+    await tap(['Stop', '停止']);
+    await waitFor(['Start', '开始翻译']);
+    screenshot('session-cancelled');
+    peer.setMode('reject');
+    await tap(['Start', '开始翻译']);
+    await waitFor(['CI setup rejection']);
+    await waitFor(['Start', '开始翻译']);
+    screenshot('session-error');
+    peer.setMode('linger');
+    await tap(['Start', '开始翻译']);
+    await waitFor(['Android session verified.']);
+    await tap(['Stop', '停止']);
+    await waitFor(['Start', '开始翻译']);
+    assert.equal(peer.snapshot().at(-1).finished, true);
+    screenshot('session-stop-deadline');
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await waitFor(['Start', '开始翻译']);
@@ -210,6 +274,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     assert.doesNotMatch(appCrashLines(crashes, appPids), /FATAL EXCEPTION|Fatal signal|Abort message/);
     console.log('Android smoke passed: launches, navigation, microphone capture, native floating subtitles on Home, system capture consent/cancellation, permission revocation');
   } finally {
+    writeFileSync(join(output, 'session-peer.json'), JSON.stringify(peer.snapshot(), null, 2));
+    await peer.close();
+    try { adb('reverse', '--remove', 'tcp:8766'); } catch {}
     writeFileSync(join(output, 'last-ui.xml'), lastXml);
     // Diagnostics must not exhaust Node's buffered subprocess output or mask the
     // original assertion. Save crash evidence first, then the unbounded full log.
