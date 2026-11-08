@@ -23,7 +23,7 @@ import { settings, STREAM_SIZE, activeKey, setActiveKey, keyringOk, initSettings
 import { PRESETS, PROTOCOLS, langName, modelName } from "../languages";
 import { locale, t, tf } from "../i18n";
 import { checkUpdateAtStartup } from "../update";
-import { isRunning, lines, current, status, errorMsg, warnMsg, fileProgress, saveAs } from "../stream";
+import { isRunning, lines, current, status, errorMsg, warnMsg, fileProgress, saveAs, pollHealth } from "../stream";
 import { perms, droid, refreshPerms, askMic, openAppSettings, openBatterySettings, pendingList, setKeepScreenOn, pickAudio } from "./perms";
 import { toast } from "./toasts";
 
@@ -67,6 +67,7 @@ onMounted(async () => {
     settings.sub.show = native.visible;
     syncOverlay();
     nativeTimer = window.setInterval(() => {
+      void pollHealth().catch((e) => { errorMsg.value = String(e); });
       refreshNative();
       settings.sub.show = native.visible;
       if (native.visible && native.width >= 40 && native.width <= 100) settings.sub.mobileWidth = native.width;

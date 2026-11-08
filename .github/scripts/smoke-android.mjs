@@ -111,9 +111,13 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
       await sleep(400);
     }
   };
-  const fill = async (labels, text, direction = 'down') => {
+  const fill = async (labels, text, direction = 'down', replace = false) => {
     adb('shell', 'input', 'tap', ...await scrollTo(labels, 'android.widget.EditText', direction));
     await sleep(500);
+    if (replace) {
+      adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A');
+      adb('shell', 'input', 'keyevent', 'KEYCODE_DEL');
+    }
     adb('shell', 'input', 'text', text);
     await hideKeyboard();
   };
@@ -287,6 +291,22 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await waitFor(['Start', '开始翻译']);
     assert.equal((await peer.snapshot()).at(-1).finished, true);
     screenshot('session-stop-deadline');
+    // Plain ws:// cannot exercise Android's rustls provider. Dial the same local
+    // HTTP peer via wss://: it must report a TLS protocol error, never panic and
+    // leave the phone connecting forever. No trust checks are bypassed.
+    await tap(['Settings', '设置']);
+    await fill(['Custom URL', '自定义地址'], peer.url.replace('ws:', 'wss:'), 'up', true);
+    await tap(['Back', '返回']);
+    await tap(['Start', '开始翻译']);
+    await waitFor(['Start', '开始翻译']);
+    await tap(['Settings', '设置']);
+    await scrollTo(['Session diagnostics', '会话诊断']);
+    await tap(['Session diagnostics', '会话诊断']);
+    await waitFor(['connect failed:']);
+    assert.doesNotMatch(lastXml, /connection task panicked/);
+    screenshot('session-tls-error');
+    await tap(['Close', '关闭']);
+    await tap(['Back', '返回']);
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await waitFor(['Start', '开始翻译']);

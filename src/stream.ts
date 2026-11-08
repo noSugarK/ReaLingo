@@ -45,6 +45,23 @@ export const rawLog = ref<unknown[]>([]);
 export const audioMs = ref(0);
 export const lastServerEvent = ref("");
 export const lastServerError = ref("");
+export const connectionPhase = ref("");
+let runGeneration = 0;
+
+/** Recover lifecycle/diagnostics when a mobile WebView misses an event after resume. */
+export async function pollHealth() {
+  if (!isRunning()) return;
+  const generation = runGeneration;
+  const health = await invoke<{ status: Status; phase: string; audioMs: number; serverEvent: string; error: string }>("session_health");
+  if (generation !== runGeneration || !health?.status || !isRunning()) return;
+  connectionPhase.value = health.phase;
+  audioMs.value = health.audioMs;
+  lastServerEvent.value = health.serverEvent;
+  if (health.error) { lastServerError.value = health.error; errorMsg.value = health.error; }
+  if (status.value === "stopping" && (health.status === "connecting" || health.status === "connected")) return;
+  status.value = health.status;
+  if (!isRunning()) { flush(); speaking.value = false; }
+}
 
 let nextId = 1;
 
@@ -214,7 +231,7 @@ function resetTurns() {
 }
 
 interface RtEvent {
-  kind: "status" | "target" | "source" | "link" | "speech" | "error" | "warn" | "progress" | "audio";
+  kind: "status" | "target" | "source" | "link" | "speech" | "error" | "warn" | "progress" | "audio" | "phase";
   text: string;
   stash: string;
   lang: string;
@@ -226,8 +243,9 @@ interface RtEvent {
   atMs?: number;
 }
 
-void listen<RtEvent>("rt://event", ({ payload: e }) => {
+const eventsReady = listen<RtEvent>("rt://event", ({ payload: e }) => {
   switch (e.kind) {
+    case "phase": connectionPhase.value = e.text; break;
     case "audio": {
       const sent = Number(e.text);
       if (Number.isFinite(sent) && sent >= 0) audioMs.value = sent;
@@ -320,7 +338,7 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
   }
 });
 
-void listen("rt://raw", ({ payload }) => {
+const rawReady = listen("rt://raw", ({ payload }) => {
   if (payload && typeof payload === "object" && "type" in payload && typeof payload.type === "string") lastServerEvent.value = payload.type;
   rawLog.value.push(payload);
   if (rawLog.value.length > 300) rawLog.value.splice(0, rawLog.value.length - 300);
@@ -330,6 +348,8 @@ export type Source = { kind: "device"; id: string } | { kind: "file"; path: stri
 
 /** `speak` is decided by the caller: whether the setting may take effect for this source. */
 export async function start(source: Source, speak: boolean) {
+  runGeneration++;
+  connectionPhase.value = "capture";
   errorMsg.value = "";
   warnMsg.value = "";
   lines.value = [];
@@ -355,9 +375,11 @@ export async function start(source: Source, speak: boolean) {
     },
   });
   try {
+    await Promise.all([eventsReady, rawReady]);
     await invoke("start_stream", { settings: { ...toRaw(settings), speak }, source });
   } catch (e) {
     errorMsg.value = String(e);
+    lastServerError.value = String(e);
     status.value = "error";
   }
 }
@@ -370,6 +392,7 @@ export async function start(source: Source, speak: boolean) {
 export async function stop() {
   if (status.value !== "error") status.value = "stopping";
   await invoke("stop_stream");
+  await pollHealth();
 }
 
 export const isRunning = () =>

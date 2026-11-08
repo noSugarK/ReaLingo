@@ -6,14 +6,14 @@
 
 use anyhow::{anyhow, Result};
 use base64::prelude::{Engine, BASE64_STANDARD};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{FutureExt, SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
@@ -85,6 +85,9 @@ impl Span {
 }
 
 pub fn emit(app: &AppHandle, ev: Event) {
+    if let Some(state) = app.try_state::<crate::AppState>() {
+        if let Ok(mut health) = state.health.lock() { health.event(ev.kind, &ev.text); }
+    }
     let _ = app.emit(EVENT, ev);
 }
 
@@ -103,8 +106,17 @@ pub async fn run(
     note(&app, "status", "connecting");
     let events = app.clone();
     let frames = app.clone();
-    if let Err(e) = connect_and_pump(&settings, audio_rx, &stop, player,
-        move |ev| emit(&events, ev), move |value| { let _ = frames.emit(RAW_EVENT, value); }).await {
+    let outcome = std::panic::AssertUnwindSafe(connect_and_pump(&settings, audio_rx, &stop, player,
+        move |ev| emit(&events, ev), move |value| {
+            if let Some(state) = frames.try_state::<crate::AppState>() {
+                if let Ok(mut health) = state.health.lock() {
+                    health.server_event = value.get("type").and_then(Value::as_str).unwrap_or_default().into();
+                }
+            }
+            let _ = frames.emit(RAW_EVENT, value);
+        })).catch_unwind().await;
+    let outcome = outcome.unwrap_or_else(|_| Err(anyhow!("connection task panicked; please report the connection phase")));
+    if let Err(e) = outcome {
         let reason = e.to_string();
         note(&app, "error", if settings.key().is_empty() { reason } else { reason.replace(settings.key(), "[redacted]") });
     }
@@ -130,12 +142,14 @@ async fn connect_and_pump(
     raw: impl Fn(&Value),
 ) -> Result<()> {
     if settings.key().trim().is_empty() { return Err(anyhow!("API key is empty")); }
+    report(Event { kind: "phase", text: "network".into(), ..Default::default() });
     let (ws, _) = tokio::select! {
         _ = stopped(stop) => return Ok(()),
         result = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async(settings.client_request()?)) =>
             result.map_err(|_| anyhow!("connection timed out after 15s"))?.map_err(|e| anyhow!("connect failed: {e}"))?,
     };
     let (mut write, mut read) = ws.split();
+    report(Event { kind: "phase", text: "setup".into(), ..Default::default() });
     let mut text_stream = TextStream::default();
     let session = format!("realingo-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos());
     tokio::select! {

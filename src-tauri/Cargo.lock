@@ -3272,6 +3272,7 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-foundation",
  "prost",
+ "rustls",
  "serde",
  "serde_json",
  "symphonia",
@@ -3482,6 +3483,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6725596c3f2c3a0aef021139e145d4eafe314a6623e4680ca83852b2c67ab2ba"
 dependencies = [
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",

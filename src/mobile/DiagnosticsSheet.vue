@@ -2,7 +2,7 @@
 import Sheet from "./Sheet.vue";
 import { session } from "../session";
 import { settings } from "../store";
-import { audioMs, lastServerEvent, lastServerError } from "../stream";
+import { audioMs, lastServerEvent, lastServerError, connectionPhase } from "../stream";
 import { t } from "../i18n";
 defineEmits<{ close: [] }>();
 </script>
@@ -10,6 +10,7 @@ defineEmits<{ close: [] }>();
   <Sheet :title="t('diagnostics')" @close="$emit('close')">
     <dl>
       <dt>{{ t('sessionState') }}</dt><dd>{{ t(session.statusKey.value) }}</dd>
+      <dt>{{ t('connectionPhase') }}</dt><dd>{{ connectionPhase ? t(({ capture: 'phaseCapture', network: 'phaseNetwork', setup: 'phaseSetup' } as const)[connectionPhase as 'capture' | 'network' | 'setup']) : '—' }}</dd>
       <dt>{{ t('protocol') }}</dt><dd>{{ settings.protocol }}</dd>
       <dt>{{ t('model') }}</dt><dd>{{ settings.model }}</dd>
       <dt>{{ t('inputLevel') }}</dt><dd>{{ Math.round(session.level.value * 100) }}%</dd>

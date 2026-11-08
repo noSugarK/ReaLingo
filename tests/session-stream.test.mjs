@@ -98,6 +98,35 @@ test('Android exports use the system document picker and report destination fail
   } finally { delete window.ReaLingoAndroid; }
 });
 
+test('polling recovers missed backend errors and cancellation without server events', async () => {
+  await stream.start({ kind: 'device', id: 'mic|default' }, false);
+  invokeImpl = async (cmd) => cmd === 'session_health' ? {
+    status: 'error', phase: 'network', audioMs: 0, serverEvent: '', error: 'connect failed: TLS error',
+  } : undefined;
+  await stream.pollHealth();
+  assert.equal(stream.status.value, 'error');
+  assert.equal(stream.lastServerError.value, 'connect failed: TLS error');
+  assert.equal(stream.connectionPhase.value, 'network');
+  await stream.start({ kind: 'device', id: 'mic|default' }, false);
+  invokeImpl = async (cmd) => cmd === 'session_health' ? {
+    status: 'closed', phase: 'network', audioMs: 0, serverEvent: '', error: '',
+  } : undefined;
+  await stream.stop();
+  assert.equal(stream.isRunning(), false);
+});
+
+test('an old health reply cannot override a replacement session', async () => {
+  await stream.start({ kind: 'device', id: 'mic|default' }, false);
+  let reply;
+  invokeImpl = (cmd) => cmd === 'session_health' ? new Promise(resolve => { reply = resolve; }) : Promise.resolve();
+  const pending = stream.pollHealth();
+  await stream.start({ kind: 'device', id: 'mic|new' }, false);
+  reply({ status: 'error', phase: 'network', error: 'old failure', audioMs: 0, serverEvent: '' });
+  await pending;
+  assert.equal(stream.status.value, 'connecting');
+  assert.equal(stream.errorMsg.value, '');
+});
+
 test.beforeEach(async () => {
   key = 'test-key';
   calls = [];

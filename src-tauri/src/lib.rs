@@ -37,6 +37,63 @@ pub struct AppState {
     running: Mutex<Option<Arc<AtomicBool>>>,
     task: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
     level: Arc<AtomicU32>,
+    health: Mutex<SessionHealth>,
+}
+
+#[derive(Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionHealth {
+    status: String,
+    phase: String,
+    audio_ms: u64,
+    server_event: String,
+    error: String,
+}
+
+impl SessionHealth {
+    fn event(&mut self, kind: &str, text: &str) {
+        match kind {
+            "status" if text != "closed" || self.status != "error" => self.status = text.into(),
+            "phase" => self.phase = text.into(),
+            "audio" => self.audio_ms = text.parse().unwrap_or(self.audio_ms),
+            "error" => { self.error = text.into(); self.status = "error".into(); }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod session_health_tests {
+    use super::*;
+
+    #[test]
+    fn polling_retains_errors_after_the_connection_task_closes() {
+        let mut health = SessionHealth::default();
+        health.event("status", "connecting");
+        health.event("phase", "network");
+        health.event("error", "TLS connection failed");
+        health.event("status", "closed");
+        assert_eq!(health.status, "error");
+        assert_eq!(health.phase, "network");
+        assert_eq!(health.error, "TLS connection failed");
+        health.event("audio", "1200");
+        health.event("audio", "invalid");
+        assert_eq!(health.audio_ms, 1200);
+    }
+
+    #[test]
+    fn android_tls_configuration_has_a_crypto_provider() {
+        // Use the same provider/features selected by the Android target. The old
+        // dependency only enabled root certificates and panicked at builder().
+        assert!(rustls::crypto::ring::default_provider().install_default().is_ok());
+        let _ = rustls::ClientConfig::builder()
+            .with_root_certificates(rustls::RootCertStore::empty()).with_no_client_auth();
+    }
+}
+
+#[tauri::command]
+async fn session_health(state: State<'_, AppState>) -> Result<SessionHealth, String> {
+    state.health.lock().map(|health| health.clone()).map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Deserialize)]
@@ -113,6 +170,9 @@ async fn start_stream(
     source: Source,
 ) -> Result<(), String> {
     halt(&state);
+    *state.health.lock().unwrap() = SessionHealth::default();
+    realtime::note(&app, "status", "connecting");
+    realtime::note(&app, "phase", "capture");
 
     // The credential store wins over whatever the webview sent, so on a machine that has
     // one the key never has to travel through the frontend at all.
@@ -179,10 +239,12 @@ async fn start_stream(
             return Ok(());
         }
         result = startup => result.map_err(|error| error.to_string()).and_then(|result| result),
+        _ = tokio::time::sleep(std::time::Duration::from_secs(25)) =>
+            Err("audio initialization timed out after 25s".into()),
     };
     let (rx, player) = match result {
         Ok(capture) => capture,
-        Err(error) => { stop.store(true, Ordering::Relaxed); return Err(error); }
+        Err(error) => { stop.store(true, Ordering::Relaxed); realtime::note(&app, "error", &error); return Err(error); }
     };
     if stop.load(Ordering::Relaxed) { realtime::note(&app, "status", "closed"); return Ok(()); }
     *state.task.lock().unwrap() = Some(tauri::async_runtime::spawn(realtime::run(app, settings, rx, stop, player)));
@@ -197,8 +259,18 @@ fn write_text(path: String, contents: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn stop_stream(state: State<AppState>) {
+async fn stop_stream(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     request_stop(&state);
+    // Cancellation before readiness needs no server drain and no final transcript.
+    // Abort the socket task as well as signalling it, then make the result queryable.
+    let status = state.health.lock().unwrap().status.clone();
+    if status == "connecting" {
+        if let Some(task) = state.task.lock().unwrap().take() { task.abort(); }
+        realtime::note(&app, "status", "closed");
+    } else if status == "connected" {
+        realtime::note(&app, "status", "stopping");
+    }
+    Ok(())
 }
 
 fn request_stop(state: &State<AppState>) {
@@ -222,6 +294,8 @@ fn halt(state: &State<AppState>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "android")]
+    let _ = rustls::crypto::ring::default_provider().install_default();
     // WebKitGTK's DMA-BUF renderer produces nothing on software GL (VMs) and on some
     // proprietary drivers: the window is created and focused but never painted, which with
     // `transparent: true` looks like the app failed to start. Losing the DMA-BUF path costs
@@ -267,6 +341,7 @@ pub fn run() {
             set_api_key,
             default_device,
             input_level,
+            session_health,
             probe_audio,
             endpoint_url,
             start_stream,
