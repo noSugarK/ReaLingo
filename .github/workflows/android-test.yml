@@ -97,12 +97,13 @@ jobs:
       - name: Build the release APK (including the Kotlin bridge)
         env:
           GH_TOKEN: ${{ github.token }}
+          REALINGO_MAVEN_REPO: ${{ runner.temp }}/realingo-maven
         run: |
           npm run tauri -- android init --ci --skip-targets-install
           chmod +x src-tauri/gen/android/gradlew
           node .github/scripts/prepare-android.mjs
           node .github/scripts/fetch-gradle.mjs
-          python3 .github/scripts/cache-gradle-kotlin.py "$RUNNER_TEMP"/realingo-gradle/gradle-*-bin.zip "$HOME/.gradle"
+          python3 .github/scripts/cache-gradle-kotlin.py "$RUNNER_TEMP"/realingo-gradle/gradle-*-bin.zip "$REALINGO_MAVEN_REPO"
           npm run tauri -- android build --ci --apk --target ${{ matrix.target }}
       - name: Verify signature and 16 KB ZIP alignment
         env:

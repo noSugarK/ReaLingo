@@ -86,12 +86,21 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
 
   // Plugin classpaths use settings.pluginManagement, not build.gradle repositories.
   // Resolve Kotlin's Maven artifacts directly before the plugin portal's redirects.
-  const pluginRepositories = '// ReaLingo plugin repositories\npluginManagement {\n    repositories {\n        mavenCentral()\n        google()\n        gradlePluginPortal()\n    }\n}\n\n';
+  const localMaven = process.env.REALINGO_MAVEN_REPO
+    ? `        maven { url = uri("${pathToFileURL(process.env.REALINGO_MAVEN_REPO).href}") }\n` : '';
+  const pluginRepositories = `// ReaLingo plugin repositories\npluginManagement {\n    repositories {\n${localMaven}        mavenCentral()\n        google()\n        gradlePluginPortal()\n    }\n}\n\n`;
   for (const file of [join(app, '../settings.gradle'), join(app, '../buildSrc/settings.gradle.kts')]) {
     const original = existsSync(file) ? read(file) : '';
     if (!original.startsWith(pluginRepositories)) {
       if (/\bpluginManagement\s*\{/.test(original)) throw new Error(`prepare-android: inspect existing pluginManagement in ${file}`);
       write(file, pluginRepositories + original);
+    }
+  }
+  if (localMaven) {
+    for (const file of ['../build.gradle.kts', 'build.gradle.kts', '../buildSrc/build.gradle.kts'].map(name => join(app, name))) {
+      if (!existsSync(file)) continue;
+      const original = read(file);
+      if (!original.includes(localMaven.trim())) writeFileSync(file, original.replace(/\brepositories\s*\{/g, opening => `${opening}\n${localMaven}`));
     }
   }
 

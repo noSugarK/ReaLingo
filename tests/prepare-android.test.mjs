@@ -111,6 +111,28 @@ test('Android update codes advance past the old template and increase with each 
   assert.throws(() => androidVersionCode('bad'), /numeric/);
 });
 
+test('CI local Maven repository is first for plugin and compiler dependencies and stays idempotent', async t => {
+  const { root, app } = fakeTree(t);
+  const previous = process.env.REALINGO_MAVEN_REPO;
+  process.env.REALINGO_MAVEN_REPO = join(root, 'maven');
+  try {
+    mkdirSync(join(app, '../buildSrc'), { recursive: true });
+    writeFileSync(join(app, '../buildSrc/build.gradle.kts'), 'repositories { mavenCentral() }\n');
+    writeFileSync(join(app, 'build.gradle.kts'), read(join(app, 'build.gradle.kts')) + '\nrepositories { google() }\n');
+    await run(root, app);
+    await run(root, app);
+    const url = pathToFileURL(process.env.REALINGO_MAVEN_REPO).href;
+    for (const file of ['../settings.gradle', '../buildSrc/settings.gradle.kts', '../buildSrc/build.gradle.kts', 'build.gradle.kts']) {
+      const text = read(join(app, file));
+      assert.equal(text.split(url).length - 1, 1, 'the local Maven repository is added once');
+      assert.match(text, /repositories\s*\{\s*maven \{ url = uri/);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.REALINGO_MAVEN_REPO;
+    else process.env.REALINGO_MAVEN_REPO = previous;
+  }
+});
+
 test('prepare-android is idempotent (safe to re-run)', async (t) => {
   const { root, app } = fakeTree(t);
   await run(root, app);
