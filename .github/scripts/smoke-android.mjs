@@ -112,10 +112,13 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   };
   const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
   const grantProjection = () => tap(['Start', '开始', 'Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享', 'Share screen', '共享屏幕']);
-  const overlay = async (accept = () => true) => {
+  const overlay = async (accept = () => true, retryGesture) => {
     for (let i = 0; i < 30; i++) {
       const frame = overlayFrame(adb('shell', 'dumpsys', 'window', 'windows'));
       if (frame && accept(frame)) return frame;
+      // The launcher transition can consume an injected gesture while the
+      // overlay's surface is already visible. Reacquire its frame before retrying.
+      if (frame && retryGesture && i % 8 === 7) retryGesture(frame);
       await sleep(250);
     }
     throw new Error('native subtitle overlay did not acquire a visible surface');
@@ -238,11 +241,17 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     const density = Number(adb('shell', 'wm', 'density').match(/(?:Override|Physical) density: (\d+)/)?.[1] ?? 420) / 160;
     const ox = Math.round(x1 + 60 * density), oy = Math.round(y1 + 24 * density);
     adb('shell', 'input', 'swipe', ox, oy, ox, Math.max(100, oy - 150), 500);
-    const moved = await overlay((frame) => frame[1] < y1);
+    const moved = await overlay(frame => frame[1] <= y1 - 100, frame => {
+      const x = Math.round(frame[0] + 60 * density), y = Math.round(frame[1] + 24 * density);
+      adb('shell', 'input', 'swipe', x, y, x, Math.max(100, y - 150), 500);
+    });
     assert.ok(moved[1] < y1, 'the native title bar moves the overlay');
     const gx = Math.round(moved[2] - 30 * density), gy = Math.round(moved[3] - 20 * density);
     adb('shell', 'input', 'swipe', gx, gy, gx - 120, gy, 500);
-    const resized = await overlay((frame) => frame[2] - frame[0] < x2 - x1);
+    const resized = await overlay(frame => frame[2] - frame[0] <= x2 - x1 - 80, frame => {
+      const x = Math.round(frame[2] - 30 * density), y = Math.round(frame[3] - 20 * density);
+      adb('shell', 'input', 'swipe', x, y, x - 120, y, 500);
+    });
     assert.ok(resized[2] - resized[0] < x2 - x1, 'the native resize handle changes the width');
     screenshot('floating-on-home');
     adb('shell', 'input', 'tap', Math.round(resized[2] - 32 * density), Math.round(resized[1] + 24 * density));
