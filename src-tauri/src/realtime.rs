@@ -101,152 +101,161 @@ pub async fn run(
     player: Option<Player>,
 ) {
     note(&app, "status", "connecting");
-    if let Err(e) = connect_and_pump(&app, &settings, audio_rx, &stop, player).await {
-        note(&app, "error", e.to_string());
+    let events = app.clone();
+    let frames = app.clone();
+    if let Err(e) = connect_and_pump(&settings, audio_rx, &stop, player,
+        move |ev| emit(&events, ev), move |value| { let _ = frames.emit(RAW_EVENT, value); }).await {
+        let reason = e.to_string();
+        note(&app, "error", if settings.key().is_empty() { reason } else { reason.replace(settings.key(), "[redacted]") });
     }
     stop.store(true, Ordering::Relaxed);
     note(&app, "status", "closed");
 }
 
+/// Capture also uses this atomic flag; poll it while socket I/O is pending so Stop
+/// never depends on another packet arriving from the server.
+pub(crate) async fn stopped(stop: &AtomicBool) {
+    while !stop.load(Ordering::Relaxed) { tokio::time::sleep(Duration::from_millis(50)).await; }
+}
+const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
+const SETUP_TIMEOUT: Duration = Duration::from_secs(10);
+const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
+
 async fn connect_and_pump(
-    app: &AppHandle,
     settings: &Settings,
     mut audio_rx: Receiver<Vec<i16>>,
     stop: &Arc<AtomicBool>,
     mut player: Option<Player>,
+    report: impl Fn(Event) + Clone + Send + Sync + 'static,
+    raw: impl Fn(&Value),
 ) -> Result<()> {
-    if settings.key().trim().is_empty() {
-        return Err(anyhow!("API key is empty"));
-    }
-
-    let (ws, _) = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async(settings.client_request()?))
-        .await
-        .map_err(|_| anyhow!("connection timed out after 15s"))?
-        .map_err(|e| anyhow!("connect failed: {e}"))?;
-
+    if settings.key().trim().is_empty() { return Err(anyhow!("API key is empty")); }
+    let (ws, _) = tokio::select! {
+        _ = stopped(stop) => return Ok(()),
+        result = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async(settings.client_request()?)) =>
+            result.map_err(|_| anyhow!("connection timed out after 15s"))?.map_err(|e| anyhow!("connect failed: {e}"))?,
+    };
     let (mut write, mut read) = ws.split();
     let mut text_stream = TextStream::default();
-    // Volc names every frame with a session id of our choosing.
     let session = format!("realingo-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos());
-    write.send(settings.setup_message(&session)).await?;
-    note(app, "status", "connected");
-
-    // Released at once, except for Gemini, which drops audio sent before `setupComplete`.
-    let ready = Arc::new(Notify::new());
-    if !settings.waits_for_setup() {
-        ready.notify_one();
+    tokio::select! {
+        _ = stopped(stop) => return Ok(()),
+        result = tokio::time::timeout(WRITE_TIMEOUT, write.send(settings.setup_message(&session))) =>
+            result.map_err(|_| anyhow!("session setup send timed out"))??,
     }
-
-    // Uplink: PCM chunks -> base64 -> the protocol's audio frame, until the user stops or
-    // the source runs out (a file at EOF drops its sender).
-    // Samples sent so far: the audio clock behind `Event::at_ms`.
+    let ready = Arc::new(Notify::new());
+    let mut configured = !settings.waits_for_setup();
+    if configured {
+        ready.notify_one();
+        report(Event { kind: "status", text: "connected".into(), ..Default::default() });
+    }
     let sent = Arc::new(AtomicU64::new(0));
-    let (stop_up, ready_up, wire, sent_up, sid) = (stop.clone(), ready.clone(), settings.clone(), sent.clone(), session.clone());
-    let uplink = tokio::spawn(async move {
-        ready_up.notified().await;
-        while let Some(chunk) = audio_rx.recv().await {
-            if stop_up.load(Ordering::Relaxed) {
-                break;
+    let (stop_up, ready_up, wire, sent_up, sid, progress) =
+        (stop.clone(), ready.clone(), settings.clone(), sent.clone(), session.clone(), report.clone());
+    // JoinSet aborts its owned upload task on every exit, including an early error.
+    // Dropping a bare JoinHandle used to detach a blocked writer indefinitely.
+    let mut uplink = tokio::task::JoinSet::new();
+    uplink.spawn(async move {
+        let result: Result<_> = async {
+            tokio::select! {
+                _ = stopped(&stop_up) => return Ok(write),
+                _ = ready_up.notified() => {},
             }
-            sent_up.fetch_add(chunk.len() as u64, Ordering::Relaxed);
-            let mut bytes = Vec::with_capacity(chunk.len() * 2);
-            for s in &chunk {
-                bytes.extend_from_slice(&s.to_le_bytes());
+            if stop_up.load(Ordering::Relaxed) { return Ok(write); }
+            loop {
+                let chunk = tokio::select! {
+                    _ = stopped(&stop_up) => break,
+                    chunk = audio_rx.recv() => match chunk { Some(chunk) => chunk, None => break },
+                };
+                let mut bytes = Vec::with_capacity(chunk.len() * 2);
+                for sample in &chunk { bytes.extend_from_slice(&sample.to_le_bytes()); }
+                tokio::select! {
+                    _ = stopped(&stop_up) => break,
+                    result = tokio::time::timeout(WRITE_TIMEOUT, write.send(wire.audio_message(&sid, bytes))) =>
+                        result.map_err(|_| anyhow!("audio upload timed out"))??,
+                }
+                let before = sent_up.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+                let after = before + chunk.len() as u64;
+                if before == 0 || before / wire.sample_rate() as u64 != after / wire.sample_rate() as u64 {
+                    progress(Event { kind: "audio", text: (after * 1000 / wire.sample_rate() as u64).to_string(), ..Default::default() });
+                }
             }
-            if write.send(wire.audio_message(&sid, bytes)).await.is_err() {
-                return None;
+            stop_up.store(true, Ordering::Relaxed);
+            let chunk = chunk_samples(wire.sample_rate());
+            for _ in 0..wire.flush_silence() / chunk {
+                tokio::time::timeout(WRITE_TIMEOUT, write.send(wire.audio_message(&sid, vec![0u8; chunk * 2])))
+                    .await.map_err(|_| anyhow!("audio flush timed out"))??;
+                tokio::time::sleep(Duration::from_millis(80)).await;
             }
-        }
-        // Finishing: the reader below switches to the short wait, and capture stops.
+            tokio::time::timeout(WRITE_TIMEOUT, write.send(wire.finish_message(&sid)))
+                .await.map_err(|_| anyhow!("session finish send timed out"))??;
+            Ok(write)
+        }.await;
         stop_up.store(true, Ordering::Relaxed);
-        // A pause for the protocols that need one to let go of the last words, paced like
-        // the file decoder rather than dumped at once.
-        let chunk = chunk_samples(wire.sample_rate());
-        for _ in 0..wire.flush_silence() / chunk {
-            if write.send(wire.audio_message(&sid, vec![0u8; chunk * 2])).await.is_err() {
-                return None;
-            }
-            tokio::time::sleep(Duration::from_millis(80)).await;
-        }
-        let _ = write.send(wire.finish_message(&sid)).await;
-        // Not closed here: a close frame makes the server hang up before the last sentence
-        // is out. The reader closes it once `is_finished` says everything has arrived.
-        Some(write)
+        result
     });
-
-    // Last time the server said something worth having: text, or audio that is not silence.
-    // Only consulted where the server never announces the end (see `signals_finish`).
+    let setup_deadline = Instant::now() + SETUP_TIMEOUT;
+    let mut last_server = Instant::now();
     let mut heard = Instant::now();
+    let mut drain_until = None;
     loop {
-        if stop.load(Ordering::Relaxed) && !settings.signals_finish() && heard.elapsed() > QUIET_END {
-            break;
+        if stop.load(Ordering::Relaxed) && drain_until.is_none() {
+            if !configured { break; }
+            heard = Instant::now();
+            drain_until = Some(Instant::now() + DRAIN_TIMEOUT +
+                Duration::from_millis(settings.flush_silence() as u64 * 1000 / settings.sample_rate() as u64));
         }
-        // After session.finish the server still owes the last sentence, which can take a
-        // few seconds of silence to produce; 15 s bounds a server that never answers.
-        let idle = if stop.load(Ordering::Relaxed) {
-            Duration::from_secs(15)
-        } else {
-            Duration::from_secs(90)
+        if drain_until.is_some() && !settings.signals_finish() && heard.elapsed() >= QUIET_END { break; }
+        let deadline = drain_until.unwrap_or_else(|| if configured { last_server + Duration::from_secs(90) } else { setup_deadline });
+        let packet = tokio::select! {
+            _ = stopped(stop), if drain_until.is_none() => continue,
+            packet = tokio::time::timeout_at(deadline.into(), read.next()) => packet,
         };
-        let msg = match tokio::time::timeout(idle, read.next()).await {
-            Err(_) => break,
-            Ok(None) => break,
-            Ok(Some(m)) => m,
+        let msg = match packet {
+            Err(_) if !configured => return Err(anyhow!("server did not confirm session setup within 10s")),
+            Err(_) if drain_until.is_none() => return Err(anyhow!("server did not respond for 90s")),
+            Err(_) | Ok(None) => break,
+            Ok(Some(msg)) => msg,
         };
         let mut value = match msg {
-            Ok(Message::Text(text)) => match serde_json::from_str::<Value>(text.as_str()) {
-                Ok(v) => v,
-                Err(_) => continue,
-            },
-            // Gemini sends its JSON in binary frames; Volc speaks protobuf. Either way it comes
-            // out as JSON, so everything below is the same for every protocol.
-            Ok(Message::Binary(bytes)) => match settings.decode_binary(&bytes) {
-                Some(v) => v,
-                None => continue,
-            },
-            // Gemini reports a bad key or setup by closing with a reason, not with a frame.
-            Ok(Message::Close(Some(frame))) if frame.code != CloseCode::Normal && !frame.reason.is_empty() => {
-                return Err(anyhow!("closed by server: {}", frame.reason));
-            }
+            Ok(Message::Text(text)) => match serde_json::from_str::<Value>(text.as_str()) { Ok(value) => value, Err(_) => continue },
+            Ok(Message::Binary(bytes)) => match settings.decode_binary(&bytes) { Some(value) => value, None => continue },
+            Ok(Message::Close(Some(frame))) if frame.code != CloseCode::Normal && !frame.reason.is_empty() =>
+                return Err(anyhow!("closed by server: {}", frame.reason)),
             Ok(Message::Close(_)) => break,
             Ok(_) => continue,
             Err(e) => return Err(anyhow!("socket error: {e}")),
         };
-        if settings.is_ready(&value) {
+        last_server = Instant::now();
+        raw(&value);
+        if let Some(reason) = settings.rejection(&value) { return Err(anyhow!(reason)); }
+        if !configured && settings.is_ready(&value) {
+            configured = true;
             ready.notify_one();
+            report(Event { kind: "status", text: "connected".into(), ..Default::default() });
         }
         if let Some(audio) = take_audio(&mut value) {
-            if audio.iter().any(|&b| b != 0) {
-                heard = Instant::now();
-            }
-            if let Some(p) = player.as_mut() {
-                p.push(&audio);
-            }
-        }
-        let _ = app.emit(RAW_EVENT, &value);
-        if let Some(reason) = settings.rejection(&value) {
-            return Err(anyhow!(reason));
+            if audio.iter().any(|&b| b != 0) { heard = Instant::now(); }
+            if let Some(player) = player.as_mut() { player.push(&audio); }
         }
         let now_ms = sent.load(Ordering::Relaxed) * 1000 / settings.sample_rate() as u64;
         for mut ev in text_stream.next(&value) {
-            if !ev.text.is_empty() {
-                heard = Instant::now();
-            }
-            if matches!(ev.kind, "source" | "target") {
-                ev.at_ms = Some(now_ms);
-            }
-            emit(app, ev);
+            if ev.kind == "warn" && !settings.key().is_empty() { ev.text = ev.text.replace(settings.key(), "[redacted]"); }
+            if ev.kind == "warn" && !configured { return Err(anyhow!(ev.text)); }
+            // A transport/session-created notification is not a setup acknowledgement.
+            if ev.kind == "status" && matches!(ev.text.as_str(), "connected" | "closed") { continue; }
+            if !ev.text.is_empty() { heard = Instant::now(); }
+            if matches!(ev.kind, "source" | "target") { ev.at_ms = Some(now_ms); }
+            report(ev);
         }
-        if settings.is_finished(&value) {
-            break;
-        }
+        if settings.is_finished(&value) { break; }
     }
-
     stop.store(true, Ordering::Relaxed);
-    // A setup that never completed would leave the uplink parked forever; let it see `stop`.
     ready.notify_one();
-    if let Ok(Some(mut write)) = uplink.await {
-        let _ = write.close().await;
+    let cleanup = drain_until.unwrap_or_else(|| Instant::now() + WRITE_TIMEOUT);
+    if let Ok(Some(result)) = tokio::time::timeout_at(cleanup.into(), uplink.join_next()).await {
+        let mut write = result.map_err(|e| anyhow!(e))??;
+        let _ = tokio::time::timeout(Duration::from_secs(1), write.close()).await;
     }
     Ok(())
 }
@@ -572,6 +581,139 @@ fn classify(v: &Value) -> Option<Event> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn network_settings(url: String) -> Settings {
+        serde_json::from_value(json!({ "protocol": "qwen38", "apiKey": "test-key", "url": url })).unwrap()
+    }
+
+    async fn local_endpoint() -> (tokio::net::TcpListener, String) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}/", listener.local_addr().unwrap());
+        (listener, url)
+    }
+
+    #[tokio::test]
+    async fn a_real_socket_waits_for_setup_sends_pcm_translates_and_finishes_on_stop() {
+        let (listener, url) = local_endpoint().await;
+        let stop = Arc::new(AtomicBool::new(false));
+        let end = stop.clone();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            let setup = socket.next().await.unwrap().unwrap();
+            assert!(setup.to_text().unwrap().contains("session.update"));
+            socket.send(Message::Text(json!({"type":"session.created"}).to_string().into())).await.unwrap();
+            assert!(tokio::time::timeout(Duration::from_millis(150), socket.next()).await.is_err(), "audio must wait for session.updated");
+            socket.send(Message::Text(json!({"type":"session.updated"}).to_string().into())).await.unwrap();
+            let audio: Value = serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+            assert_eq!(BASE64_STANDARD.decode(audio["audio"].as_str().unwrap()).unwrap().len(), 3200);
+            socket.send(Message::Text(json!({"type":"response.text.done","item_id":"answer","text":"Hello"}).to_string().into())).await.unwrap();
+            end.store(true, Ordering::Relaxed);
+            let finish = socket.next().await.unwrap().unwrap();
+            assert!(finish.to_text().unwrap().contains("session.finish"));
+            socket.send(Message::Text(json!({"type":"session.finished"}).to_string().into())).await.unwrap();
+        });
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+        tx.send(vec![8192; 1600]).await.unwrap();
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let out = events.clone();
+        tokio::time::timeout(Duration::from_secs(3), connect_and_pump(&network_settings(url), rx, &stop, None,
+            move |event| out.lock().unwrap().push(event), |_| {})).await.unwrap().unwrap();
+        server.await.unwrap();
+        let events = events.lock().unwrap();
+        assert!(events.iter().any(|event| event.kind == "target" && event.text == "Hello"));
+        assert!(events.iter().any(|event| event.kind == "audio" && event.text == "100"));
+    }
+
+    #[tokio::test]
+    async fn stop_cancels_a_websocket_handshake_that_never_answers() {
+        let (listener, url) = local_endpoint().await;
+        let stop = Arc::new(AtomicBool::new(false));
+        let cancel = stop.clone();
+        let server = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            cancel.store(true, Ordering::Relaxed);
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        });
+        let (_tx, rx) = tokio::sync::mpsc::channel(2);
+        tokio::time::timeout(Duration::from_secs(1), connect_and_pump(&network_settings(url), rx, &stop, None, |_| {}, |_| {}))
+            .await.unwrap().unwrap();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn stop_during_unacknowledged_setup_does_not_wait_for_audio_or_network_input() {
+        let (listener, url) = local_endpoint().await;
+        let stop = Arc::new(AtomicBool::new(false));
+        let cancel = stop.clone();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            socket.next().await.unwrap().unwrap();
+            cancel.store(true, Ordering::Relaxed);
+            // A detached upload task used to remain parked on Notify here forever.
+            socket.next().await
+        });
+        let (_tx, rx) = tokio::sync::mpsc::channel(2);
+        tokio::time::timeout(Duration::from_secs(1), connect_and_pump(&network_settings(url), rx, &stop, None, |_| {}, |_| {}))
+            .await.unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(1), server).await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn setup_errors_are_fatal_and_visible_instead_of_disappearing_as_warnings() {
+        let (listener, url) = local_endpoint().await;
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            socket.next().await.unwrap().unwrap();
+            socket.send(Message::Text(json!({"type":"error","error":{"message":"setup rejected"}}).to_string().into())).await.unwrap();
+            socket.next().await
+        });
+        let (_tx, rx) = tokio::sync::mpsc::channel(2);
+        let err = connect_and_pump(&network_settings(url), rx, &Arc::new(AtomicBool::new(false)), None, |_| {}, |_| {}).await.unwrap_err();
+        assert!(err.to_string().contains("setup rejected"));
+        tokio::time::timeout(Duration::from_secs(1), server).await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn continuous_pings_cannot_extend_the_stop_deadline() {
+        let (listener, url) = local_endpoint().await;
+        let stop = Arc::new(AtomicBool::new(false));
+        let cancel = stop.clone();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            socket.next().await.unwrap().unwrap();
+            socket.send(Message::Text(json!({"type":"session.updated"}).to_string().into())).await.unwrap();
+            socket.next().await.unwrap().unwrap();
+            cancel.store(true, Ordering::Relaxed);
+            while socket.send(Message::Ping(vec![].into())).await.is_ok() { tokio::time::sleep(Duration::from_millis(50)).await; }
+        });
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+        tx.send(vec![0; 1600]).await.unwrap();
+        let started = Instant::now();
+        tokio::time::timeout(Duration::from_secs(7), connect_and_pump(&network_settings(url), rx, &stop, None, |_| {}, |_| {}))
+            .await.unwrap().unwrap();
+        assert!(started.elapsed() < Duration::from_secs(7));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn an_unacknowledged_session_reports_a_setup_timeout() {
+        let (listener, url) = local_endpoint().await;
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            socket.next().await.unwrap().unwrap();
+            tokio::time::sleep(Duration::from_secs(20)).await;
+        });
+        let (_tx, rx) = tokio::sync::mpsc::channel(2);
+        let result = tokio::time::timeout(Duration::from_secs(12), connect_and_pump(&network_settings(url), rx,
+            &Arc::new(AtomicBool::new(false)), None, |_| {}, |_| {})).await.unwrap();
+        assert!(result.unwrap_err().to_string().contains("confirm session setup"));
+        server.abort();
+    }
 
     #[test]
     fn qwen3_8_deltas_accumulate_per_item_and_finish_without_duplicates() {

@@ -35,6 +35,7 @@ use tauri::{AppHandle, Manager, State};
 #[derive(Default)]
 pub struct AppState {
     running: Mutex<Option<Arc<AtomicBool>>>,
+    task: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
     level: Arc<AtomicU32>,
 }
 
@@ -105,9 +106,9 @@ fn endpoint_url(settings: Settings) -> String {
 }
 
 #[tauri::command]
-fn start_stream(
+async fn start_stream(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     mut settings: Settings,
     source: Source,
 ) -> Result<(), String> {
@@ -119,51 +120,72 @@ fn start_stream(
         *settings.key_mut() = key;
     }
 
-    // Before capture: on macOS the process has to be a Core Audio client already for the
-    // capture to be able to exclude it.
-    let player = if settings.speak {
-        Some(player::Player::start().map_err(|e| e.to_string())?)
-    } else {
-        None
-    };
-
     let stop = Arc::new(AtomicBool::new(false));
-    // ~6 s of audio in flight; enough to ride out a slow handshake, small enough that a
-    // wedged uplink shows up as dropped audio rather than unbounded memory.
-    let (tx, rx) = tokio::sync::mpsc::channel::<Vec<i16>>(64);
-
-    match source {
-        Source::Device { id } => {
-            // Only needed when we make sound ourselves; otherwise the plain loopback path.
-            audio::start(&id, settings.sample_rate(), tx, state.level.clone(), stop.clone(), settings.speak)
-                .map_err(|e| e.to_string())?;
-        }
-        Source::File { path } => {
-            let path = PathBuf::from(path);
-            if !path.is_file() {
-                return Err(format!("file not found: {}", path.display()));
-            }
-            let (app2, stop2, rate) = (app.clone(), stop.clone(), settings.sample_rate());
-            tauri::async_runtime::spawn_blocking(move || {
-                let result = decode::stream_file(&path, rate, tx, stop2, |sent, total| {
-                    let text = match total {
-                        Some(t) => format!("{sent:.1}/{t:.1}"),
-                        None => format!("{sent:.1}/?"),
-                    };
-                    realtime::note(&app2, "progress", text);
-                });
-                match result {
-                    Ok(()) => realtime::note(&app2, "progress", "done"),
-                    Err(e) => realtime::note(&app2, "error", e.to_string()),
-                }
-                // `tx` drops here, which is the end of input: the session finishes and
-                // waits for the last sentence on its own.
-            });
-        }
-    }
-
     *state.running.lock().unwrap() = Some(stop.clone());
-    tauri::async_runtime::spawn(realtime::run(app, settings, rx, stop, player));
+    let (capture_app, capture_settings, capture_stop, level) = (app.clone(), settings.clone(), stop.clone(), state.level.clone());
+    // Opening an Android/desktop device may block in its driver. Keep the IPC/UI
+    // thread free, and retain the stop flag before that work starts.
+    let startup = tauri::async_runtime::spawn_blocking(move || -> Result<_, String> {
+        let (app, settings, stop) = (capture_app, capture_settings, capture_stop);
+        // Before capture: on macOS the process has to be a Core Audio client already for the
+        // capture to be able to exclude it.
+        let player = if settings.speak {
+            Some(player::Player::start().map_err(|e| e.to_string())?)
+        } else {
+            None
+        };
+
+        // ~6 s of audio in flight; enough to ride out a slow handshake, small enough that a
+        // wedged uplink shows up as dropped audio rather than unbounded memory.
+        let (tx, rx) = tokio::sync::mpsc::channel::<Vec<i16>>(64);
+
+        match source {
+            Source::Device { id } => {
+                // Only needed when we make sound ourselves; otherwise the plain loopback path.
+                audio::start(&id, settings.sample_rate(), tx, level, stop.clone(), settings.speak)
+                    .map_err(|e| e.to_string())?;
+            }
+            Source::File { path } => {
+                let path = PathBuf::from(path);
+                if !path.is_file() {
+                    return Err(format!("file not found: {}", path.display()));
+                }
+                let (app2, stop2, rate) = (app.clone(), stop.clone(), settings.sample_rate());
+                tauri::async_runtime::spawn_blocking(move || {
+                    let result = decode::stream_file(&path, rate, tx, stop2, |sent, total| {
+                        let text = match total {
+                            Some(t) => format!("{sent:.1}/{t:.1}"),
+                            None => format!("{sent:.1}/?"),
+                        };
+                        realtime::note(&app2, "progress", text);
+                    });
+                    match result {
+                        Ok(()) => realtime::note(&app2, "progress", "done"),
+                        Err(e) => realtime::note(&app2, "error", e.to_string()),
+                    }
+                    // `tx` drops here, which is the end of input: the session finishes and
+                    // waits for the last sentence on its own.
+                });
+            }
+        }
+
+        Ok((rx, player))
+    });
+    let result = tokio::select! {
+        _ = realtime::stopped(&stop) => {
+            if state.running.lock().unwrap().as_ref().is_some_and(|active| Arc::ptr_eq(active, &stop)) {
+                realtime::note(&app, "status", "closed");
+            }
+            return Ok(());
+        }
+        result = startup => result.map_err(|error| error.to_string()).and_then(|result| result),
+    };
+    let (rx, player) = match result {
+        Ok(capture) => capture,
+        Err(error) => { stop.store(true, Ordering::Relaxed); return Err(error); }
+    };
+    if stop.load(Ordering::Relaxed) { realtime::note(&app, "status", "closed"); return Ok(()); }
+    *state.task.lock().unwrap() = Some(tauri::async_runtime::spawn(realtime::run(app, settings, rx, stop, player)));
     Ok(())
 }
 
@@ -176,14 +198,20 @@ fn write_text(path: String, contents: String) -> Result<(), String> {
 
 #[tauri::command]
 fn stop_stream(state: State<AppState>) {
-    halt(&state);
+    request_stop(&state);
 }
 
-fn halt(state: &State<AppState>) {
-    if let Some(stop) = state.running.lock().unwrap().take() {
+fn request_stop(state: &State<AppState>) {
+    if let Some(stop) = state.running.lock().unwrap().as_ref() {
         stop.store(true, Ordering::Relaxed);
     }
     state.level.store(0f32.to_bits(), Ordering::Relaxed);
+}
+
+fn halt(state: &State<AppState>) {
+    request_stop(state);
+    state.running.lock().unwrap().take();
+    if let Some(task) = state.task.lock().unwrap().take() { task.abort(); }
 }
 
 /* ---------- phone shell ---------- */
