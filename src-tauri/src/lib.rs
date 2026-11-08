@@ -88,6 +88,14 @@ fn input_level(state: State<AppState>) -> f32 {
     audio::read_level(&state.level)
 }
 
+#[tauri::command]
+async fn probe_microphone(state: State<'_, AppState>, id: String) -> Result<usize, String> {
+    if state.running.lock().map_err(|e| e.to_string())?.as_ref().is_some_and(|s| !s.load(Ordering::Relaxed)) {
+        return Err("stop the current session before testing the microphone".into());
+    }
+    audio::probe(id).await.map_err(|e| e.to_string())
+}
+
 /// Shown read-only in Settings so it is obvious which host the app will dial.
 #[tauri::command]
 fn endpoint_url(settings: Settings) -> String {
@@ -229,6 +237,7 @@ pub fn run() {
             set_api_key,
             default_device,
             input_level,
+            probe_microphone,
             endpoint_url,
             start_stream,
             stop_stream,

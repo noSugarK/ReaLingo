@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import Sheet from "./Sheet.vue";
 import { session } from "../session";
 import { caps } from "../platform";
-import { perms } from "./perms";
+import { perms, askMic } from "./perms";
+import { isRunning } from "../stream";
+import { toast } from "./toasts";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
 
@@ -12,6 +15,20 @@ defineEmits<{ close: [] }>();
 const source = session.sourceKind;
 const fileName = session.fileName;
 const level = session.level;
+const testing = ref(false);
+async function testMic() {
+  if (testing.value || isRunning()) return;
+  testing.value = true;
+  try {
+    if (perms.mic !== "granted" && await askMic() !== "granted") return;
+    await session.refreshDevices();
+    const id = await invoke<string | null>("default_device", { loopback: false });
+    if (!id) throw new Error(t("noDevice"));
+    const samples = await invoke<number>("probe_microphone", { id });
+    toast(samples > 0 ? t("micTestOk") : t("micTestEmpty"));
+  } catch (e) { toast(String(e)); }
+  finally { testing.value = false; }
+}
 
 // `loopback` is false exactly where capture cannot happen: Android (MediaProjection is
 // phase 2 — Rust's loopback_supported folds to cfg!(windows|macos)) and a Linux box with no
@@ -64,6 +81,8 @@ const micBadge = computed(() =>
       </button>
     </div>
 
+    <button class="test-mic" :disabled="testing || isRunning()" @click="testMic">{{ testing ? t("micTesting") : t("micTest") }}</button>
+
     <div class="grp">
       <span class="glabel">{{ t('level') }}</span>
       <div class="meter"><i :style="{ transform: `scaleX(${Math.min(1, level * 1.6)})` }" /></div>
@@ -72,6 +91,8 @@ const micBadge = computed(() =>
 </template>
 
 <style scoped>
+.test-mic { padding: 12px; border-radius: 14px; background: var(--accent); color: white; font: inherit; font-weight: 650; }
+.test-mic:disabled { opacity: 0.5; }
 .cards { display: flex; flex-direction: column; gap: 10px; }
 .srccard {
   width: 100%;

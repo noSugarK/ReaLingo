@@ -105,6 +105,11 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     adb('shell', 'am', 'force-stop', packageId);
     adb('shell', 'am', 'start', '-W', '-n', component);
     await waitFor(['Start', '开始翻译']);
+    await tap(['Audio source', '音频来源']);
+    await tap(['Test microphone', '测试麦克风']);
+    await waitFor(['Microphone ready: audio received', '麦克风可用，已读取到音频']);
+    screenshot('microphone-capture');
+    await tap(['Close', '关闭']);
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await waitFor(['Start', '开始翻译']);

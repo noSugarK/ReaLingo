@@ -133,7 +133,10 @@ fn find(id: &str) -> Result<(cpal::Device, cpal::SupportedStreamConfig)> {
     } else {
         Box::new(host.input_devices()?)
     };
-    let device = devices
+    // AAudio's default is a routing sentinel (id -1), not one of AudioManager's
+    // enumerated hardware ids. It is valid to open even when absent from the list.
+    let default = if loopback { host.default_output_device() } else { host.default_input_device() };
+    let device = default.into_iter().chain(devices.by_ref())
         .find(|d| d.id().map(|i| i.to_string() == target).unwrap_or(false))
         .ok_or_else(|| anyhow!("audio device is no longer available"))?;
 
@@ -313,4 +316,25 @@ impl Pipe {
 
 pub fn read_level(level: &AtomicU32) -> f32 {
     f32::from_bits(level.load(Ordering::Relaxed))
+}
+
+/// Read real microphone frames without opening a network session or needing an API key.
+pub async fn probe(id: String) -> Result<usize> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+    let worker_stop = stop.clone();
+    let started = tauri::async_runtime::spawn_blocking(move ||
+        start(&id, 16_000, tx, Arc::new(AtomicU32::new(0)), worker_stop, false)
+    ).await;
+    let result = match started {
+        Ok(Ok(())) => {
+            tokio::time::timeout(Duration::from_secs(3), rx.recv()).await
+                .map_err(|_| anyhow!("microphone did not deliver audio within 3s"))
+                .and_then(|samples| samples.map(|s| s.len()).ok_or_else(|| anyhow!("microphone capture stopped")))
+        }
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err(anyhow!(e)),
+    };
+    stop.store(true, Ordering::Relaxed);
+    result
 }

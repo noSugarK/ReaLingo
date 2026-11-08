@@ -3,6 +3,10 @@ import { settings } from "./store";
 
 const zh = {
   appTitle: "ReaLingo",
+  micTest: "测试麦克风",
+  micTesting: "正在读取麦克风…",
+  micTestOk: "麦克风可用，已读取到音频",
+  micTestEmpty: "未读取到麦克风音频",
   startupFailed: "启动失败，请重试",
   retryStartup: "重新加载",
 
@@ -257,6 +261,10 @@ const zh = {
 
 const en: typeof zh = {
   appTitle: "ReaLingo",
+  micTest: "Test microphone",
+  micTesting: "Reading microphone…",
+  micTestOk: "Microphone ready: audio received",
+  micTestEmpty: "No microphone audio received",
   startupFailed: "Startup failed. Please try again.",
   retryStartup: "Reload",
 
