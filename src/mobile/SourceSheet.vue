@@ -45,7 +45,7 @@ const micBadge = computed(() =>
 </script>
 
 <template>
-  <Sheet :title="t('srcTitle')" @close="$emit('close')">
+  <Sheet :title="t('srcTitle')" @close="!testing && $emit('close')">
     <p class="hint">{{ t('srcHintSwitch') }}</p>
 
     <div class="cards">

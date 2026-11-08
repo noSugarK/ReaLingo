@@ -104,6 +104,12 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await waitFor(['Back', '返回']);
     screenshot('permissions');
     await tap(['Back', '返回']);
+    adb('shell', 'input', 'tap', ...await scrollTo(['Hotwords', '热词']));
+    adb('shell', 'input', 'text', 'AI=Artificial%sIntelligence');
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+    await sleep(400);
+    assert.match(ui(), /AI=Artificial Intelligence/, 'phone hotwords remain editable');
+    screenshot('hotwords-settings');
     await tap(['Back', '返回']);
     await waitFor(['Start', '开始翻译']);
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
@@ -135,7 +141,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     adb('shell', 'input', 'swipe', ox, oy, ox, Math.max(100, oy - 150), 500);
     await waitFor(['⠿  ReaLingo']);
     screenshot('floating-on-home');
-    await tap(['Hide subtitles', '隐藏字幕窗']);
+    await tap(['Hide overlay', '隐藏字幕窗']);
     adb('shell', 'am', 'start', '-W', '-n', component);
     await tap(['Close', '关闭']);
     await tap(['Audio source', '音频来源']);

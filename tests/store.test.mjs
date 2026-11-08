@@ -78,9 +78,23 @@ test('old subtitle settings migrate without discarding explicit choices', async 
   assert.equal(store.settings.sub.srcSize, 25);
   assert.equal(store.settings.sub.tgtSize, 40);
   assert.equal(store.settings.sub.locked, false);
+  assert.equal(store.settings.sub.mobileWidth, 88);
   assert.equal(store.settings.sub.fontSize, undefined);
   assert.equal(store.settings.stream.srcSize, 32);
   assert.equal(store.settings.stream.tgtSize, 16);
+});
+
+test('phone hotwords, workspace and subtitle controls persist together', async () => {
+  secure = false;
+  saved = { hotwords: { 人工智能: 'AI' }, workspaceId: 'llm-example', sub: { mobileWidth: 72, locked: true } };
+  const store = await fresh();
+  await store.initSettings();
+  assert.deepEqual(store.settings.hotwords, { 人工智能: 'AI' });
+  assert.equal(store.settings.workspaceId, 'llm-example');
+  assert.equal(store.settings.sub.mobileWidth, 72);
+  store.settings.hotwords = { 实时翻译: 'Live translation' };
+  await nextTick();
+  assert.deepEqual(persisted.at(-1).hotwords, { 实时翻译: 'Live translation' });
 });
 
 test('where a credential store exists persisted settings never contain API keys', async () => {

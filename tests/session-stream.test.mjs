@@ -56,6 +56,24 @@ const stream = await import('../src/stream.ts');
 const { useSession } = await import('../src/session.ts');
 const emit = (kind, values = {}) => events.get('rt://event')({ payload: { kind, text: '', id: '', stash: '', lang: '', done: false, ...values } });
 
+test('Android exports use the system document picker and report destination failures', async () => {
+  const written = [];
+  let state = { state: 'saved' };
+  window.ReaLingoAndroid = {
+    saveText: (name, contents) => written.push({ name, contents }),
+    saveTextResult: () => JSON.stringify(state),
+  };
+  try {
+    await stream.saveAs('srt', [{ id: 1, source: '原文', target: 'translation', at: 1000, start: 0, end: 1000 }]);
+    assert.equal(written[0].name, 'translation.srt');
+    assert.match(written[0].contents, /00:00:00,000 --> 00:00:01,000/);
+    state = { state: 'cancelled' };
+    await stream.saveAs('txt', []);
+    state = { state: 'error', error: 'destination unavailable' };
+    await assert.rejects(stream.saveAs('txt', []), /destination unavailable/);
+  } finally { delete window.ReaLingoAndroid; }
+});
+
 test.beforeEach(async () => {
   key = 'test-key';
   calls = [];

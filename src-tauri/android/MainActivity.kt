@@ -136,6 +136,7 @@ class MainActivity : TauriActivity() {
         @JavascriptInterface fun stopCapture() { runOnUiThread { systemRequestPending = false; SubtitleService.endCapture(this@MainActivity) } }
         @JavascriptInterface fun requestSystemAudio() {
             runOnUiThread {
+                if (systemRequestPending) return@runOnUiThread
                 if (Build.VERSION.SDK_INT < 29) { SubtitleService.lastError = "System audio requires Android 10+"; SubtitleService.systemState = "error"; return@runOnUiThread }
                 SubtitleService.systemState = "asking"
                 systemRequestPending = true

@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
 class SubtitleService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private lateinit var wm: WindowManager
-    private var panel: LinearLayout? = null
+    @Volatile private var panel: LinearLayout? = null
     private var source: TextView? = null
     private var target: TextView? = null
     private var handle: View? = null
@@ -102,7 +102,7 @@ class SubtitleService : Service() {
         check(Build.VERSION.SDK_INT >= 29) { "System audio capture requires Android 10 or newer" }
         stopPlayback()
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val p = manager.getMediaProjection(Activity.RESULT_OK, token)
+        val p = requireNotNull(manager.getMediaProjection(Activity.RESULT_OK, token)) { "System audio authorization was not granted" }
         projection = p
         p.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() {
@@ -270,7 +270,7 @@ class SubtitleService : Service() {
         private const val CHANNEL = "realingo-live"
         private const val NOTIFICATION = 73
         private const val HIDE = "realingo.hide-subtitles"
-        private var instance: SubtitleService? = null
+        @Volatile private var instance: SubtitleService? = null
         private var data = JSONObject()
         @Volatile var visible = false
         @Volatile var captureKind = ""
