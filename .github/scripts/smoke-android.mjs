@@ -83,7 +83,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     throw new Error(`phone UI did not render ${labels.join(' / ')}`);
   };
   const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
-  const grantProjection = () => tap(['Start', '开始', 'Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
+  const grantProjection = () => tap(['Start', '开始', 'Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享', 'Share screen', '共享屏幕']);
   const overlay = async (accept = () => true) => {
     for (let i = 0; i < 30; i++) {
       const frame = overlayFrame(adb('shell', 'dumpsys', 'window', 'windows'));

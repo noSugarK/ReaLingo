@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          fetch-depth: 10
       - name: Reuse APKs when only launch tests changed
         id: reuse
         env:
@@ -38,16 +38,19 @@ jobs:
           run_id="$APK_RUN_ID"
           if [[ -z "$run_id" && "$GITHUB_EVENT_NAME" == push ]] && git rev-parse HEAD^ >/dev/null 2>&1; then
             workflow='.github/workflows/android-test.yml'
-            git show "HEAD^:$workflow" | sed -n '/^  apk:/,/^  launch:/p' > "$RUNNER_TEMP/apk-before.yml"
             sed -n '/^  apk:/,/^  launch:/p' "$workflow" > "$RUNNER_TEMP/apk-after.yml"
-            if cmp -s "$RUNNER_TEMP/apk-before.yml" "$RUNNER_TEMP/apk-after.yml" && git diff --quiet HEAD^ HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs' ':!.github/scripts/session-server.mjs' ':!.github/workflows/android-test.yml'; then
-              previous=$(git rev-parse HEAD^)
+            # A preceding test-only run may itself have reused an APK. Look back
+            # across that chain, but never cross an app/build-input change.
+            for previous in $(git rev-list --max-count=5 HEAD^); do
+              git show "$previous:$workflow" | sed -n '/^  apk:/,/^  launch:/p' > "$RUNNER_TEMP/apk-before.yml"
+              if ! cmp -s "$RUNNER_TEMP/apk-before.yml" "$RUNNER_TEMP/apk-after.yml" || ! git diff --quiet "$previous" HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs' ':!.github/scripts/session-server.mjs' ':!.github/workflows/android-test.yml'; then break; fi
               run_id=$(gh run list --workflow android-test.yml --commit "$previous" --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
               if [[ -n "$run_id" ]]; then
                 count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" --jq '[.artifacts[] | select(.expired == false and (.name == "android-aarch64-apk" or .name == "android-x86_64-apk"))] | length' || true)
                 if [[ "$count" != 2 ]]; then run_id=''; fi
               fi
-            fi
+              if [[ -n "$run_id" ]]; then break; fi
+            done
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
