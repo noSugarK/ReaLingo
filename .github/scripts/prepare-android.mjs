@@ -84,6 +84,17 @@ export function prepareAndroid(app = 'src-tauri/gen/android/app') {
   const properties = read(wrapper).split(/\r?\n/).filter((line) => line && !line.startsWith('networkTimeout='));
   writeFileSync(wrapper, [...properties, 'networkTimeout=120000', ''].join('\n'));
 
+  // Plugin classpaths use settings.pluginManagement, not build.gradle repositories.
+  // Resolve Kotlin's Maven artifacts directly before the plugin portal's redirects.
+  const pluginRepositories = '// ReaLingo plugin repositories\npluginManagement {\n    repositories {\n        mavenCentral()\n        google()\n        gradlePluginPortal()\n    }\n}\n\n';
+  for (const file of [join(app, '../settings.gradle'), join(app, '../buildSrc/settings.gradle.kts')]) {
+    const original = existsSync(file) ? read(file) : '';
+    if (!original.startsWith(pluginRepositories)) {
+      if (/\bpluginManagement\s*\{/.test(original)) throw new Error(`prepare-android: inspect existing pluginManagement in ${file}`);
+      write(file, pluginRepositories + original);
+    }
+  }
+
   const manifest = join(app, 'src/main/AndroidManifest.xml');
   let xml = read(manifest);
   // INTERNET ships in the template; RECORD_AUDIO is ours to add — without it the

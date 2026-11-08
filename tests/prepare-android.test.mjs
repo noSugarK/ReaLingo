@@ -37,6 +37,7 @@ function fakeTree(t) {
   writeFileSync(join(root, 'src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties'), 'distributionUrl=https://services.gradle.org/distributions/gradle-8.14.3-bin.zip\n');
   writeFileSync(join(app, 'build.gradle.kts'), 'android {\n    defaultConfig {\n        minSdk = 24\n    }\n}\n');
   writeFileSync(join(root, 'src-tauri/gen/android/gradle.properties'), 'minSdkVersion = 24\n');
+  writeFileSync(join(root, 'src-tauri/gen/android/settings.gradle'), "include ':app'\n");
   writeFileSync(join(app, 'src/main/AndroidManifest.xml'), `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:name=".MainApplication">
         <activity android:name=".MainActivity" />
@@ -80,6 +81,11 @@ test('prepare-android keeps desktop config intact and packages one Android windo
   assert.ok(gradle.includes('// ReaLingo CI signing'), 'signing block appended');
 
   assert.match(read(join(root, 'src-tauri/gen/android/gradle.properties')), /minSdkVersion = 26/);
+  for (const file of ['settings.gradle', 'buildSrc/settings.gradle.kts']) {
+    const repositories = read(join(app, '..', file));
+    assert.ok(repositories.indexOf('mavenCentral()') < repositories.indexOf('gradlePluginPortal()'));
+    assert.match(repositories, /^\/\/ ReaLingo plugin repositories\npluginManagement/);
+  }
 
   const manifest = read(join(app, 'src/main/AndroidManifest.xml'));
   assert.ok(manifest.includes('android.permission.RECORD_AUDIO'), 'mic permission must reach the manifest');
@@ -109,8 +115,10 @@ test('prepare-android is idempotent (safe to re-run)', async (t) => {
   const { root, app } = fakeTree(t);
   await run(root, app);
   const first = read(join(app, 'build.gradle.kts'));
+  const settings = read(join(app, '../settings.gradle'));
   await run(root, app);
   assert.equal(read(join(app, 'build.gradle.kts')), first, 're-running must not stack signing blocks or re-splice windows');
+  assert.equal(read(join(app, '../settings.gradle')), settings, 'plugin repositories must not be duplicated');
   const config = JSON.parse(read(join(root, 'src-tauri/tauri.conf.json')));
   assert.equal(config.app.windows.filter((w) => w.label === 'main').length, 1);
 });
