@@ -18,7 +18,7 @@ import Icon from "./Icon.vue";
 import mark from "../assets/mark.png";
 import { session } from "../session";
 import { loadCaps } from "../platform";
-import { settings, activeKey, setActiveKey, keyringOk, initSettings } from "../store";
+import { settings, STREAM_SIZE, activeKey, setActiveKey, keyringOk, initSettings } from "../store";
 import { PRESETS, PROTOCOLS, langName, modelName } from "../languages";
 import { locale, t, tf } from "../i18n";
 import { checkUpdateAtStartup } from "../update";
@@ -68,6 +68,7 @@ onMounted(async () => {
     nativeTimer = window.setInterval(() => {
       refreshNative();
       settings.sub.show = native.visible;
+      if (native.visible && native.width >= 40 && native.width <= 100) settings.sub.mobileWidth = native.width;
       if (native.error && native.error !== lastNativeError) toast(native.error);
       lastNativeError = native.error;
       if (isRunning() && !starting.value && !native.captureKind) { void session.toggle(); toast(t("captureEnded")); }
@@ -209,7 +210,6 @@ function swap() {
 
 /* ---------- stream pin-to-bottom lives inside StreamList ---------- */
 
-// The desktop subtitle window has no phone counterpart yet (floating overlay is phase 2);
 function toggleSub() { drawer.value = "overlay"; }
 async function toggleOverlay() {
   try {
@@ -439,8 +439,8 @@ async function askFromCenter() {
             <label v-if="session.voiceList.value" class="connection-field"><b>{{ t("voice") }}</b><select v-model="settings.voice" :disabled="running"><option v-for="v in session.voiceOptions.value" :key="v.value" :value="v.value">{{ v.label }}</option></select></label>
             <small v-else>{{ t("voiceServer") }}</small>
             <button class="rowbtn" @click="drawer = 'overlay'"><span class="rt"><b>{{ t("subTitle") }}</b></span></button>
-            <label class="connection-field"><b>{{ t("subSrcSize") }} · {{ settings.stream.srcSize }}</b><input v-model.number="settings.stream.srcSize" type="range" min="12" max="48" /></label>
-            <label class="connection-field"><b>{{ t("subTgtSize") }} · {{ settings.stream.tgtSize }}</b><input v-model.number="settings.stream.tgtSize" type="range" min="12" max="64" /></label>
+            <label class="connection-field"><b>{{ t("subSrcSize") }} · {{ settings.stream.srcSize }}</b><input v-model.number="settings.stream.srcSize" type="range" :min="STREAM_SIZE.min" :max="STREAM_SIZE.max" /></label>
+            <label class="connection-field"><b>{{ t("subTgtSize") }} · {{ settings.stream.tgtSize }}</b><input v-model.number="settings.stream.tgtSize" type="range" :min="STREAM_SIZE.min" :max="STREAM_SIZE.max" /></label>
             <label v-if="PROTOCOLS[settings.protocol].twoWay" class="rowbtn noscroll">
               <span class="rt"><b>{{ t("twoWay") }}</b><small>{{ t("twoWayHint") }}</small></span>
               <button class="sw" :class="{ on: settings.twoWay }" :disabled="running" @click.prevent="settings.twoWay = !settings.twoWay" />

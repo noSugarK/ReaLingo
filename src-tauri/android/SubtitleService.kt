@@ -185,6 +185,7 @@ class SubtitleService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT).apply {
             gravity = Gravity.TOP or Gravity.START
+            title = "ReaLingo subtitles"
             x = prefs.getInt("x", (screenWidth() - width) / 2)
             y = prefs.getInt("y", screenHeight() * 2 / 3)
         }
@@ -301,14 +302,16 @@ class SubtitleService : Service() {
             data = runCatching { JSONObject(json) }.getOrElse { lastError = "Invalid subtitle payload"; return }
             instance?.let { service -> try { service.render() } catch (e: Exception) { service.fail(e) } }
         }
-        fun resetPosition() {
+        fun resetPosition(context: Context) {
+            context.getSharedPreferences("subtitle-window", MODE_PRIVATE).edit().clear().apply()
             instance?.let { service ->
                 service.layout?.let { p -> p.x = (service.screenWidth() - p.width) / 2; p.y = service.screenHeight() * 2 / 3 }
-                service.prefs.edit().clear().apply(); service.render()
+                service.render()
             }
         }
         fun state(context: Context): String = JSONObject().put("granted", Settings.canDrawOverlays(context))
             .put("visible", visible && instance?.panel != null).put("ready", ready).put("captureKind", captureKind).put("systemState", systemState)
-            .put("error", lastError).put("frames", framesRead).toString()
+            .put("error", lastError).put("frames", framesRead)
+            .put("width", instance?.let { service -> service.layout?.width?.let { (it * 100f / service.screenWidth()).roundToInt() } } ?: 0).toString()
     }
 }

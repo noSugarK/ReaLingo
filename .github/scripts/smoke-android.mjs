@@ -28,6 +28,16 @@ export function appCrashLines(log, pids) {
   return log.split('\n').filter((line) => ids.has(line.match(/^\S+\s+\S+\s+(\d+)\s+\d+\s+[A-Z]\s/)?.[1])).join('\n');
 }
 
+export function overlayFrame(dump) {
+  const section = dump.split(/(?=Window #\d+ Window\{)/).find((part) =>
+    /^Window #\d+ Window\{[^\n]*ReaLingo subtitles/.test(part));
+  if (!section || !section.includes('mHasSurface=true')) return null;
+  const frame = section.match(/(?:mFrame=|\bframe=)\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]/);
+  if (!frame) return null;
+  const [, x1, y1, x2, y2] = frame.map(Number);
+  return x2 > x1 && y2 > y1 ? [x1, y1, x2, y2] : null;
+}
+
 export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug') {
   assert.ok(apk, 'usage: node .github/scripts/smoke-android.mjs APK [package-id]');
   const output = process.env.ANDROID_SMOKE_OUTPUT ?? 'android-smoke';
@@ -56,6 +66,14 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     throw new Error(`phone UI did not render ${labels.join(' / ')}`);
   };
   const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
+  const overlay = async () => {
+    for (let i = 0; i < 30; i++) {
+      const frame = overlayFrame(adb('shell', 'dumpsys', 'window', 'windows'));
+      if (frame) return frame;
+      await sleep(250);
+    }
+    throw new Error('native subtitle overlay did not acquire a visible surface');
+  };
   const scrollTo = async (labels) => {
     const size = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/);
     const width = Number(size?.[1] ?? 1080), height = Number(size?.[2] ?? 1920);
@@ -133,15 +151,26 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     assert.match(adb('shell', 'dumpsys', 'activity', 'activities'), /Settings|settings/, 'overlay authorization opens Android settings');
     adb('shell', 'appops', 'set', packageId, 'SYSTEM_ALERT_WINDOW', 'allow');
     adb('shell', 'am', 'start', '-W', '-n', component);
-    await tap(['Show overlay', '显示字幕窗']);
-    await waitFor(['⠿  ReaLingo']);
+    // Returning from authorization opens the requested overlay automatically.
+    // UIAutomator dumps only the focused window; this intentionally non-focusable
+    // native overlay is verified through WindowManager and real input instead.
+    await overlay();
     screenshot('floating-subtitles');
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
-    const [ox, oy] = await waitFor(['⠿  ReaLingo']);
+    const [x1, y1, x2, y2] = await overlay();
+    const density = Number(adb('shell', 'wm', 'density').match(/(?:Override|Physical) density: (\d+)/)?.[1] ?? 420) / 160;
+    const ox = Math.round(x1 + 60 * density), oy = Math.round(y1 + 24 * density);
     adb('shell', 'input', 'swipe', ox, oy, ox, Math.max(100, oy - 150), 500);
-    await waitFor(['⠿  ReaLingo']);
+    const moved = await overlay();
+    assert.ok(moved[1] < y1, 'the native title bar moves the overlay');
+    const gx = Math.round(moved[2] - 30 * density), gy = Math.round(moved[3] - 20 * density);
+    adb('shell', 'input', 'swipe', gx, gy, gx - 120, gy, 500);
+    const resized = await overlay();
+    assert.ok(resized[2] - resized[0] < x2 - x1, 'the native resize handle changes the width');
     screenshot('floating-on-home');
-    await tap(['Hide overlay', '隐藏字幕窗']);
+    adb('shell', 'input', 'tap', Math.round(resized[2] - 32 * density), Math.round(resized[1] + 24 * density));
+    await sleep(500);
+    assert.equal(overlayFrame(adb('shell', 'dumpsys', 'window', 'windows')), null, 'the native close button removes the surface');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await tap(['Close', '关闭']);
     await tap(['Audio source', '音频来源']);
@@ -166,6 +195,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     // original assertion. Save crash evidence first, then the unbounded full log.
     saveLog('crash.txt', ['logcat', '-b', 'crash', '-d']);
     saveLog('logcat.txt', ['logcat', '-d']);
+    saveLog('windows.txt', ['shell', 'dumpsys', 'window', 'windows']);
     try { screenshot('last-screen'); } catch (e) { console.error(e.message); }
   }
 }

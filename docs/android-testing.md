@@ -46,8 +46,10 @@ node .github/scripts/smoke-android.mjs /absolute/path/to/app.apk com.nosugark.re
 The default package ID above is for a test-signed release. Pass
 `com.nosugark.realingo` for a production-signed APK. The smoke runner clears that
 package's data, performs two cold launches, requires rendered WebView controls,
-opens About/Settings/Permissions, resumes from the background and tests microphone
-grant/revocation across launches. It saves screenshots, UI XML and logcat in
+opens About/Settings/Permissions, edits hotwords, resumes from the background and tests microphone
+capture and grant/revocation across launches. It also authorizes the native floating
+subtitles, moves them over the launcher, and exercises system-audio consent cancellation
+and actual AudioPlaybackCapture frames. It saves screenshots, UI XML and logcat in
 `android-smoke/` (override with `ANDROID_SMOKE_OUTPUT`). Never use the smoke runner
 against an installation containing settings/history you want to keep.
 
@@ -59,6 +61,45 @@ workflow and the ARM64 release workflow check APK ZIP alignment and every native
 library's ELF load-segment alignment. These are regression gates, not evidence that
 a particular vendor device has passed. Remote emulator results are available only
 after the workflow actually runs.
+
+## Audio, floating subtitles and settings
+
+The microphone default is AAudio's routing sentinel (`AAudio:-1`), which is valid
+even when it is absent from the hardware list. Always check the default before
+enumerated devices. The source drawer's test buttons open real capture without an API key.
+
+System audio requires Android 10+, RECORD_AUDIO permission, and fresh MediaProjection
+consent for each session. The system may call this screen sharing, but the service
+only reads audio. Apps must permit playback capture; protected media and calls may
+remain silent even when authorization and PCM delivery work. The native foreground
+service keeps capture active when the Activity is in the background.
+
+The subtitle button opens native overlay settings. Grant “display over other apps”,
+then show the window. When unlocked, drag its title or lower-right resize handle.
+Locking enables touch-through; return to the app to unlock or hide it. Font sizes,
+colors, opacity, alignment, width and wrapping apply immediately. Positions persist
+across sessions. The separate fullscreen option stays inside ReaLingo.
+
+Phone settings expose the same Qwen hotwords, region and workspace as desktop.
+Hotwords use one `source=translation` per line (up to 1000), are saved automatically,
+and apply to the next translation session. Voice selection, stream font sizes and
+history are also available. TXT/SRT exports use Android's system document picker,
+not desktop filesystem paths.
+
+## Android version and update identity
+
+`Cargo.toml` remains the version source. Preparation writes Android's `versionName`
+and `versionCode`, including the generated Gradle properties. The migration code is
+`1000000 + major * 1000000 + minor * 1000 + patch`, so 0.7.2 advances past the old
+template's 1.0 / 1000000. Both workflows inspect the finished APK with aapt; an
+in-app version label alone cannot prove the installed package version.
+
+Branch pushes require the four configured signing secrets (`ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) and produce
+`com.nosugark.realingo`. PRs without secrets can use the `.debug` package. Temporary
+debug keys cannot update earlier APKs signed with a different key. A production APK
+can update only the same package signed by the same key; an existing `.debug` test
+installation has a separate identity. Keep the production keystore stable.
 
 ## Capture the reported vivo X300 crash without clearing app data
 
