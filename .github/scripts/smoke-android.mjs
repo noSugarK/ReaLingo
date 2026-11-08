@@ -59,6 +59,16 @@ export function keyboardVisible(dump) {
     /\bmHasSurface=true\b/.test(keyboard) && /\bisOnScreen=true\b/.test(keyboard);
 }
 
+export function editorFocused(xml, labels) {
+  const expected = targetBounds(xml, labels, 'android.widget.EditText');
+  if (!expected) return false;
+  return [...xml.matchAll(/<node\b[^>]*>/g)].some(([node]) => {
+    if (!node.includes('class="android.widget.EditText"') || !node.includes('focused="true"')) return false;
+    const value = node.match(/\btext="([^"]*)"/)?.[1] ?? '';
+    return JSON.stringify(targetBounds(node, [value], 'android.widget.EditText')) === JSON.stringify(expected);
+  });
+}
+
 export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug') {
   assert.ok(apk, 'usage: node .github/scripts/smoke-android.mjs APK [package-id]');
   const output = process.env.ANDROID_SMOKE_OUTPUT ?? 'android-smoke';
@@ -124,8 +134,14 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     }
   };
   const fill = async (labels, text, direction = 'down', replace = false) => {
-    adb('shell', 'input', 'tap', ...await scrollTo(labels, 'android.widget.EditText', direction));
-    await sleep(500);
+    let focused = false;
+    for (let i = 0; i < 4; i++) {
+      adb('shell', 'input', 'tap', ...await scrollTo(labels, 'android.widget.EditText', direction));
+      await sleep(500);
+      try { focused = editorFocused(ui(), labels); } catch { continue; }
+      if (focused) break;
+    }
+    assert.ok(focused, `editor did not gain focus: ${labels.join(' / ')}`);
     if (replace) {
       adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A');
       adb('shell', 'input', 'keyevent', 'KEYCODE_DEL');
@@ -242,7 +258,10 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await tap(['Settings', '设置']);
     await fill(['API Key'], 'android-ci-key', 'up');
     await fill(['Custom URL', '自定义地址'], peer.url);
+    screenshot('session-settings');
     await tap(['Back', '返回']);
+    await waitFor(['Start', '开始翻译']);
+    assert.doesNotMatch(lastXml, /text="(?:API key not set|未配置 API Key)"/, 'the fake CI API key must be configured before starting capture');
     await tap(['Start', '开始翻译']);
     await waitFor(['Android session verified.']);
     assert.ok((await peer.snapshot()).at(-1).audioBytes > 0, 'the Android microphone reaches the socket');

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds, appCrashLines, overlayFrame, keyboardVisible } from '../.github/scripts/smoke-android.mjs';
+import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused } from '../.github/scripts/smoke-android.mjs';
 import { decode } from '../tools/png.mjs';
 
 test('native overlay checks select its own surfaced window and support Android frame formats', () => {
@@ -20,6 +20,16 @@ test('keyboard dismissal requires the current visible IME window, not stale inpu
   assert.equal(keyboardVisible(visible.replaceAll('isOnScreen=true', 'isOnScreen=false')), false);
   assert.equal(keyboardVisible(visible.replaceAll('mHasSurface=true', 'mHasSurface=false')), false);
   assert.equal(keyboardVisible('mInputShown=true isInputViewShown=true'), false);
+});
+
+test('typing waits for the requested editor rather than a different focused field', () => {
+  const xml = '<node text="API Key" class="android.widget.TextView" bounds="[0,20][100,60]" />' +
+    '<node text="" class="android.widget.EditText" focused="true" bounds="[0,60][200,120]" />' +
+    '<node text="Custom URL" class="android.widget.TextView" bounds="[0,140][100,180]" />' +
+    '<node text="" class="android.widget.EditText" focused="false" bounds="[0,180][200,240]" />';
+  assert.equal(editorFocused(xml, ['API Key']), true);
+  assert.equal(editorFocused(xml, ['Custom URL']), false);
+  assert.equal(editorFocused(xml.replaceAll('focused="true"', 'focused="false"'), ['API Key']), false);
 });
 
 test('UI navigation locates visible English and Chinese controls by text or accessibility label', () => {

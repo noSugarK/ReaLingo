@@ -53,6 +53,31 @@ jobs:
             done
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          if [[ -n "$run_id" ]]; then
+            echo "APKs reused from https://github.com/$GITHUB_REPOSITORY/actions/runs/$run_id; application/build inputs are unchanged." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Download reused APKs for this run's artifacts
+        if: steps.reuse.outputs.run_id != ''
+        uses: actions/download-artifact@v7
+        with:
+          pattern: android-*-apk
+          path: reused-apks
+          run-id: ${{ steps.reuse.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Retain the ARM64 test APK in this run
+        if: steps.reuse.outputs.run_id != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-aarch64-apk
+          path: reused-apks/android-aarch64-apk/
+          if-no-files-found: error
+      - name: Retain the x86_64 test APK in this run
+        if: steps.reuse.outputs.run_id != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-x86_64-apk
+          path: reused-apks/android-x86_64-apk/
+          if-no-files-found: error
 
   apk:
     needs: resolve
