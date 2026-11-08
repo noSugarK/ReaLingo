@@ -56,6 +56,30 @@ const stream = await import('../src/stream.ts');
 const { useSession } = await import('../src/session.ts');
 const emit = (kind, values = {}) => events.get('rt://event')({ payload: { kind, text: '', id: '', stash: '', lang: '', done: false, ...values } });
 
+test('connection and stopping stay distinct from listening and diagnostic progress resets for a new session', async () => {
+  const s = useSession();
+  stream.status.value = 'connecting';
+  assert.equal(s.statusKey.value, 'statusConnecting');
+  emit('audio', { text: '1500' });
+  assert.equal(stream.audioMs.value, 1500);
+  emit('audio', { text: 'NaN' });
+  assert.equal(stream.audioMs.value, 1500);
+  events.get('rt://raw')({ payload: { type: 'session.updated' } });
+  assert.equal(stream.lastServerEvent.value, 'session.updated');
+  emit('error', { text: 'server did not confirm session setup' });
+  assert.match(stream.lastServerError.value, /confirm session setup/);
+  emit('status', { text: 'closed' });
+  assert.equal(stream.status.value, 'error');
+  await stream.start({ kind: 'device', id: 'mic|default' }, false);
+  assert.equal(stream.audioMs.value, 0);
+  assert.equal(stream.lastServerEvent.value, '');
+  assert.equal(stream.lastServerError.value, '');
+  await stream.stop();
+  emit('status', { text: 'connected' });
+  assert.equal(stream.status.value, 'stopping');
+  assert.equal(s.statusKey.value, 'statusStopping');
+});
+
 test('Android exports use the system document picker and report destination failures', async () => {
   const written = [];
   let state = { state: 'saved' };

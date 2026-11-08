@@ -42,6 +42,9 @@ export const speaking = ref(false);
 export const fileProgress = ref<{ sent: number; total: number | null } | null>(null);
 /** Raw server frames, newest last — the diagnostics drawer. */
 export const rawLog = ref<unknown[]>([]);
+export const audioMs = ref(0);
+export const lastServerEvent = ref("");
+export const lastServerError = ref("");
 
 let nextId = 1;
 
@@ -211,7 +214,7 @@ function resetTurns() {
 }
 
 interface RtEvent {
-  kind: "status" | "target" | "source" | "link" | "speech" | "error" | "warn" | "progress";
+  kind: "status" | "target" | "source" | "link" | "speech" | "error" | "warn" | "progress" | "audio";
   text: string;
   stash: string;
   lang: string;
@@ -225,9 +228,14 @@ interface RtEvent {
 
 void listen<RtEvent>("rt://event", ({ payload: e }) => {
   switch (e.kind) {
+    case "audio": {
+      const sent = Number(e.text);
+      if (Number.isFinite(sent) && sent >= 0) audioMs.value = sent;
+      break;
+    }
     case "status":
-      if (e.text === "connecting") status.value = "connecting";
-      else if (e.text === "connected") status.value = "connected";
+      if (e.text === "connecting" && status.value !== "stopping") status.value = "connecting";
+      else if (e.text === "connected" && status.value !== "stopping") status.value = "connected";
       else if (e.text === "closed") {
         flush();
         speaking.value = false;
@@ -300,10 +308,12 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
       }
       break;
     case "warn":
+      lastServerError.value = e.text;
       // The session is still alive — say so and keep streaming.
       warn(e.text);
       break;
     case "error":
+      lastServerError.value = e.text;
       errorMsg.value = e.text;
       status.value = "error";
       break;
@@ -311,6 +321,7 @@ void listen<RtEvent>("rt://event", ({ payload: e }) => {
 });
 
 void listen("rt://raw", ({ payload }) => {
+  if (payload && typeof payload === "object" && "type" in payload && typeof payload.type === "string") lastServerEvent.value = payload.type;
   rawLog.value.push(payload);
   if (rawLog.value.length > 300) rawLog.value.splice(0, rawLog.value.length - 300);
 });
@@ -325,6 +336,9 @@ export async function start(source: Source, speak: boolean) {
   detectedLang.value = "";
   resetTurns();
   rawLog.value = [];
+  audioMs.value = 0;
+  lastServerEvent.value = "";
+  lastServerError.value = "";
   fileProgress.value = null;
   status.value = "connecting";
   // The id is the file name, so it has to survive as a plain slug — and being an ISO

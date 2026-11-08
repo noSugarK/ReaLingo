@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 
 import Hotwords from "../components/Hotwords.vue";
 import History from "../components/History.vue";
+import DiagnosticsSheet from "./DiagnosticsSheet.vue";
 import OverlaySheet from "./OverlaySheet.vue";
 import { native, refreshNative, requestOverlay, showOverlay, updateOverlay, beginCapture, stopCapture } from "./native";
 import SourceSheet from "./SourceSheet.vue";
@@ -28,7 +29,7 @@ import { toast } from "./toasts";
 
 type Page = "home" | "settings" | "perms";
 const page = ref<Page>("home");
-type Drawer = null | "src" | "lang" | "model" | "about" | "uilang" | "overlay" | "history";
+type Drawer = null | "src" | "lang" | "model" | "about" | "uilang" | "overlay" | "history" | "diagnostics";
 const drawer = ref<Drawer>(null);
 
 /** Modes layered over the home layout: the room reads these, the hand does not. */
@@ -71,7 +72,7 @@ onMounted(async () => {
       if (native.visible && native.width >= 40 && native.width <= 100) settings.sub.mobileWidth = native.width;
       if (native.error && native.error !== lastNativeError) toast(native.error);
       lastNativeError = native.error;
-      if (isRunning() && !starting.value && !native.captureKind) { void session.toggle(); toast(t("captureEnded")); }
+      if ((status.value === "connecting" || status.value === "connected") && !starting.value && !native.captureKind) { void session.toggle(); toast(t("captureEnded")); }
     }, 1000);
     await refreshPerms();
     await session.refreshDevices();
@@ -147,8 +148,10 @@ watch(running, (run, old) => { if (old && !run) stopCapture(); });
 async function exportRows(kind: "txt" | "srt") {
   try { await saveAs(kind, lines.value); } catch (e) { toast(String(e)); }
 }
-function stop() {
-  void session.toggle();
+async function stop() {
+  stopCapture();
+  try { await session.toggle(); }
+  catch (e) { errorMsg.value = String(e); status.value = "error"; }
 }
 
 /** The toast's "重新开始": stop, then start again with the new wire format. Stopping is
@@ -317,7 +320,7 @@ async function askFromCenter() {
       <div class="stream-card glass" :class="{ face: mode === 'face', big: mode === 'big' }">
         <div class="stream-head">
           <span class="dotstat" :class="{ ok: running }" />
-          <span class="st" :class="{ ok: running }">{{ running ? t("statusListening") : t("statusIdle") }}</span>
+          <span class="st" :class="{ ok: status === 'connected' }">{{ t(session.statusKey.value) }}</span>
           <span v-if="fileProgress" class="meta">
             {{ fileProgress.total ? `${Math.round((fileProgress.sent / fileProgress.total) * 100)}%` : "…" }}
           </span>
@@ -356,7 +359,7 @@ async function askFromCenter() {
           <span class="go-ring" />
           <svg v-if="!running" width="17" height="17" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.6v10.8L13 8z"/></svg>
           <svg v-else width="17" height="17" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="2"/></svg>
-          {{ running ? t("stop") : t("start") }}
+          {{ status === 'stopping' ? t("statusStopping") : running ? t("stop") : t("start") }}
         </button>
       </footer>
 
@@ -469,6 +472,7 @@ async function askFromCenter() {
 
         <section>
           <div class="rows">
+            <button class="rowbtn" @click="drawer = 'diagnostics'"><span class="rt"><b>{{ t("diagnostics") }}</b></span></button>
             <button class="rowbtn" @click="drawer = 'about'">
               <span class="rt"><b>{{ t("about") }}</b></span>
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
@@ -530,6 +534,7 @@ async function askFromCenter() {
     </div>
 
     <!-- ══ drawers ══ -->
+    <DiagnosticsSheet v-if="drawer === 'diagnostics'" @close="drawer = null" />
     <History v-if="drawer === 'history'" @close="drawer = null" />
     <OverlaySheet v-if="drawer === 'overlay'" @close="drawer = null" @toggle="toggleOverlay" @fullscreen="drawer = null; mode = 'big'" />
     <SourceSheet v-if="drawer === 'src'" @close="drawer = null" />
