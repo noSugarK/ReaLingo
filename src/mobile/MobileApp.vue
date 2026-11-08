@@ -341,8 +341,8 @@ async function askFromCenter() {
         </div>
       </div>
 
-      <p v-if="errorMsg" class="err-line">{{ errorMsg }}</p>
-      <p v-else-if="warnMsg" class="warn-line">{{ warnMsg }}</p>
+      <p v-if="errorMsg" class="err-line" role="alert" :aria-label="errorMsg">{{ errorMsg }}</p>
+      <p v-else-if="warnMsg" class="warn-line" role="status" :aria-label="warnMsg">{{ warnMsg }}</p>
 
       <!-- dock -->
       <footer class="dock">
@@ -631,7 +631,7 @@ async function askFromCenter() {
 .stream-card.big { position: absolute; inset: 0; z-index: 20; border-radius: 0; }
 
 .err-line, .warn-line { flex: none; margin: 0; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.45; }
-.err-line { color: var(--danger); }
+.err-line { color: var(--danger); user-select: text; }
 .warn-line { color: #b7791f; }
 
 /* ---------- dock ---------- */
