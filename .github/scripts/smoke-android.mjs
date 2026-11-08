@@ -7,13 +7,23 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export function targetBounds(xml, labels, className) {
+  let labelledField = false;
   for (const node of xml.matchAll(/<node\b[^>]*>/g)) {
-    if (className && !node[0].includes(`class="${className}"`)) continue;
     const text = node[0].match(/\btext="([^"]*)"/)?.[1];
     const desc = node[0].match(/\bcontent-desc="([^"]*)"/)?.[1];
     // Android accessibility may merge a button's title and subtitle into one node.
     const matches = (value) => labels.some((label) => value === label || value?.startsWith(`${label} `) || value?.startsWith(`${label}\n`));
-    if (!matches(text) && !matches(desc)) continue;
+    const named = matches(text) || matches(desc);
+    const isClass = !className || node[0].includes(`class="${className}"`);
+    // WebView 124 exposes a textarea's label as a preceding TextView but omits
+    // its labelledBy relation from UIAutomator XML. Select that actual editor.
+    if (className && !isClass) {
+      if (named && !node[0].includes('bounds="[0,0][0,0]"')) labelledField = true;
+      continue;
+    }
+    const accepted = named || labelledField;
+    labelledField = false;
+    if (!accepted) continue;
     const bounds = node[0].match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
     if (!bounds) continue;
     const [, x1, y1, x2, y2] = bounds.map(Number);
@@ -123,16 +133,6 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await waitFor(['Back', '返回']);
     screenshot('permissions');
     await tap(['Back', '返回']);
-    adb('shell', 'input', 'tap', ...await scrollTo(['Hotwords', '热词'], 'android.widget.EditText'));
-    await sleep(1000);
-    adb('shell', 'input', 'text', 'AI=Artificial%sIntelligence');
-    assert.match(ui(), /AI=Artificial Intelligence/, 'phone hotwords remain editable');
-    // Sending Back before a slow IME opens exits the Activity instead of hiding it.
-    if (/mInputShown=true|isInputViewShown=true|mIsInputViewShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
-      adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
-      await sleep(400);
-    }
-    screenshot('hotwords-settings');
     await tap(['Back', '返回']);
     await waitFor(['Start', '开始翻译']);
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
@@ -189,6 +189,18 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     assert.equal(overlayFrame(adb('shell', 'dumpsys', 'window', 'windows')), null, 'the native close button removes the surface');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await tap(['Close', '关闭']);
+    await tap(['Settings', '设置']);
+    adb('shell', 'input', 'tap', ...await scrollTo(['Hotwords', '热词'], 'android.widget.EditText'));
+    await sleep(1000);
+    adb('shell', 'input', 'text', 'AI=Artificial%sIntelligence');
+    assert.match(ui(), /AI=Artificial Intelligence/, 'phone hotwords remain editable');
+    // Sending Back before a slow IME opens exits the Activity instead of hiding it.
+    if (/mInputShown=true|isInputViewShown=true|mIsInputViewShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
+      adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+      await sleep(400);
+    }
+    screenshot('hotwords-settings');
+    await tap(['Back', '返回']);
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
     await waitFor(['Start', '开始翻译']);
