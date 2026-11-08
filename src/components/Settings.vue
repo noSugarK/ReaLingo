@@ -5,6 +5,7 @@ import { activeKey, keyringOk, REGION_ID, setActiveKey, settings, type Protocol,
 import { isRunning } from "../stream";
 import { PRESETS, PROTOCOLS, type Vendor } from "../languages";
 import { t } from "../i18n";
+import Hotwords from "./Hotwords.vue";
 import Picker from "./Picker.vue";
 import Sheet from "./Sheet.vue";
 
@@ -21,29 +22,6 @@ watch(
   },
   { immediate: true }
 );
-
-/** The service asks for no more than this many; anything past it is dropped on parse. */
-const MAX_HOTWORDS = 1000;
-
-// A plain ref seeded once, not a two-way computed: re-serialising the map on every
-// keystroke would rewrite the textarea mid-word (a line is unparseable until the "=" is
-// typed) and throw the caret to the end. Text flows down on open, up on edit.
-const hotwordText = ref(
-  Object.entries(settings.hotwords)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("\n")
-);
-watch(hotwordText, (text) => {
-  const entries = text
-    .split("\n")
-    .map((line) => {
-      const i = line.indexOf("=");
-      return i < 1 ? null : ([line.slice(0, i).trim(), line.slice(i + 1).trim()] as const);
-    })
-    .filter((e): e is readonly [string, string] => !!e && !!e[0] && !!e[1]);
-  settings.hotwords = Object.fromEntries(entries.slice(0, MAX_HOTWORDS));
-});
-const hotwordCount = computed(() => Object.keys(settings.hotwords).length);
 
 const vendor = computed(() => PROTOCOLS[settings.protocol].vendor);
 /** Region, workspace, hotwords and the Model Studio links only mean something for Qwen. */
@@ -202,18 +180,7 @@ const advancedOpen = !!settings.url;
     <!-- Hotwords are the group's only item, so its name rides on the title line. -->
     <section v-if="isQwen" class="group">
       <h3>{{ t("groupTranslate") }} <span class="sub">{{ t("hotwords") }}</span></h3>
-      <textarea
-        v-model="hotwordText"
-        :aria-label="t('hotwords')"
-        :disabled="isRunning()"
-        rows="4"
-        spellcheck="false"
-        placeholder="人工智能=Artificial Intelligence"
-      ></textarea>
-      <small class="hint">
-        {{ t("hotwordsHint") }}
-        <template v-if="hotwordCount"> · {{ hotwordCount }} {{ t("hotwordsInUse") }}</template>
-      </small>
+      <Hotwords />
     </section>
 
     <!-- Native <details>: the open/closed state and keyboard handling come for free. -->
