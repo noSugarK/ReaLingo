@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 2
-      - name: Reuse APKs when only the smoke runner or tests changed
+      - name: Reuse APKs when only launch tests changed
         id: reuse
         env:
           GH_TOKEN: ${{ github.token }}
@@ -37,7 +37,10 @@ jobs:
         run: |
           run_id="$APK_RUN_ID"
           if [[ -z "$run_id" && "$GITHUB_EVENT_NAME" == push ]] && git rev-parse HEAD^ >/dev/null 2>&1; then
-            if git diff --quiet HEAD^ HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs' ':!.github/scripts/session-server.mjs'; then
+            workflow='.github/workflows/android-test.yml'
+            git show "HEAD^:$workflow" | sed -n '/^  apk:/,/^  launch:/p' > "$RUNNER_TEMP/apk-before.yml"
+            sed -n '/^  apk:/,/^  launch:/p' "$workflow" > "$RUNNER_TEMP/apk-after.yml"
+            if cmp -s "$RUNNER_TEMP/apk-before.yml" "$RUNNER_TEMP/apk-after.yml" && git diff --quiet HEAD^ HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs' ':!.github/scripts/session-server.mjs' ':!.github/workflows/android-test.yml'; then
               previous=$(git rev-parse HEAD^)
               run_id=$(gh run list --workflow android-test.yml --commit "$previous" --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
               if [[ -n "$run_id" ]]; then
@@ -140,7 +143,9 @@ jobs:
           - api: 35
             tag: google_apis
             page-size: 4096
-          - api: 35
+          # The API 35 16 KB preview ships WebView 124, which aborts in MemoryInfra.
+          # Keep API 35 coverage above and run 16 KB sessions on the stable API 36 image.
+          - api: 36
             tag: google_apis_ps16k
             page-size: 16384
     steps:
