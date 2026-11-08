@@ -253,6 +253,11 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await peer.setMode('stall');
     await tap(['Start', '开始翻译']);
     await waitFor(['Connecting…', '连接中…']);
+    // UIAutomator dumps can each take several seconds. Reuse this connecting
+    // snapshot so another dump cannot consume the app's 10-second setup deadline.
+    const cancelBounds = targetBounds(lastXml, ['Stop', '停止']);
+    assert.ok(cancelBounds, 'a connecting session exposes Stop');
+    assert.doesNotMatch(lastXml, /text="Listening…"/, 'pending setup must not masquerade as listening');
     for (let i = 0; i < 50; i++) {
       const session = (await peer.snapshot()).at(-1);
       if (session?.mode === 'stall' && session.updates === 1) break;
@@ -260,15 +265,21 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     }
     assert.equal((await peer.snapshot()).at(-1)?.mode, 'stall');
     assert.equal((await peer.snapshot()).at(-1)?.updates, 1, 'cancel is tested after the server receives setup');
-    assert.doesNotMatch(ui(), /text="Listening…"/, 'pending setup must not masquerade as listening');
-    await tap(['Stop', '停止']);
+    adb('shell', 'input', 'tap', ...cancelBounds);
     await waitFor(['Start', '开始翻译']);
     screenshot('session-cancelled');
     await peer.setMode('reject');
     await tap(['Start', '开始翻译']);
-    await waitFor(['CI setup rejection']);
     await waitFor(['Start', '开始翻译']);
+    // Older WebViews omit live-region text from UIAutomator even while rendering
+    // it. Verify the persistent error through the user-facing diagnostics sheet.
+    await tap(['Settings', '设置']);
+    await scrollTo(['Session diagnostics', '会话诊断']);
+    await tap(['Session diagnostics', '会话诊断']);
+    await waitFor(['CI setup rejection']);
     screenshot('session-error');
+    await tap(['Close', '关闭']);
+    await tap(['Back', '返回']);
     await peer.setMode('linger');
     await tap(['Start', '开始翻译']);
     await waitFor(['Android session verified.']);
