@@ -18,6 +18,9 @@ test('UI navigation locates visible English and Chinese controls by text or acce
   assert.deepEqual(targetBounds(xml, ['Settings', '设置']), [40, 50]);
   assert.deepEqual(targetBounds(xml, ['Permission center', '权限中心']), [110, 120]);
   assert.equal(targetBounds(xml, ['Missing']), null);
+  assert.deepEqual(targetBounds('<node text="Hotwords" class="android.widget.TextView" bounds="[0,0][80,30]" />' +
+    '<node text="" content-desc="Hotwords" class="android.widget.EditText" bounds="[0,40][200,140]" />',
+    ['Hotwords'], 'android.widget.EditText'), [100, 90]);
 });
 
 test('hidden or malformed controls never become taps at the origin', () => {

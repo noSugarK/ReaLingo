@@ -6,8 +6,9 @@ import { mkdirSync, writeFileSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export function targetBounds(xml, labels) {
+export function targetBounds(xml, labels, className) {
   for (const node of xml.matchAll(/<node\b[^>]*>/g)) {
+    if (className && !node[0].includes(`class="${className}"`)) continue;
     const text = node[0].match(/\btext="([^"]*)"/)?.[1];
     const desc = node[0].match(/\bcontent-desc="([^"]*)"/)?.[1];
     // Android accessibility may merge a button's title and subtitle into one node.
@@ -66,19 +67,19 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     throw new Error(`phone UI did not render ${labels.join(' / ')}`);
   };
   const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
-  const overlay = async () => {
+  const overlay = async (accept = () => true) => {
     for (let i = 0; i < 30; i++) {
       const frame = overlayFrame(adb('shell', 'dumpsys', 'window', 'windows'));
-      if (frame) return frame;
+      if (frame && accept(frame)) return frame;
       await sleep(250);
     }
     throw new Error('native subtitle overlay did not acquire a visible surface');
   };
-  const scrollTo = async (labels) => {
+  const scrollTo = async (labels, className) => {
     const size = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/);
     const width = Number(size?.[1] ?? 1080), height = Number(size?.[2] ?? 1920);
     for (let i = 0; i < 8; i++) {
-      const bounds = targetBounds(ui(), labels);
+      const bounds = targetBounds(ui(), labels, className);
       if (bounds) return bounds;
       adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * .78), Math.round(width / 2), Math.round(height * .35), 350);
       await sleep(400);
@@ -86,7 +87,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     throw new Error(`Could not scroll to ${labels.join(' / ')}`);
   };
   const screenshot = (name) => writeFileSync(join(output, `${name}.png`),
-    execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000 }));
+    execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }));
   const saveLog = (name, args) => {
     const fd = openSync(join(output, name), 'w');
     try {
@@ -122,11 +123,15 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await waitFor(['Back', '返回']);
     screenshot('permissions');
     await tap(['Back', '返回']);
-    adb('shell', 'input', 'tap', ...await scrollTo(['Hotwords', '热词']));
+    adb('shell', 'input', 'tap', ...await scrollTo(['Hotwords', '热词'], 'android.widget.EditText'));
+    await sleep(1000);
     adb('shell', 'input', 'text', 'AI=Artificial%sIntelligence');
-    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
-    await sleep(400);
     assert.match(ui(), /AI=Artificial Intelligence/, 'phone hotwords remain editable');
+    // Sending Back before a slow IME opens exits the Activity instead of hiding it.
+    if (/mInputShown=true|isInputViewShown=true|mIsInputViewShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
+      adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+      await sleep(400);
+    }
     screenshot('hotwords-settings');
     await tap(['Back', '返回']);
     await waitFor(['Start', '开始翻译']);
@@ -145,6 +150,16 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await waitFor(['Microphone ready: audio received', '麦克风可用，已读取到音频']);
     screenshot('microphone-capture');
     await tap(['Close', '关闭']);
+    await tap(['Audio source', '音频来源']);
+    await tap(['System audio', '系统声音']);
+    await tap(['Test system audio', '测试系统声音']);
+    await tap(['Cancel', '取消']);
+    await waitFor(['Test system audio', '测试系统声音']);
+    await tap(['Test system audio', '测试系统声音']);
+    await tap(['Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
+    await waitFor(['System audio ready: audio received', '系统声音可用，已读取到音频']);
+    screenshot('system-audio-capture');
+    await tap(['Close', '关闭']);
     await tap(['Subtitle overlay', '字幕窗']);
     await tap(['Authorize overlay', '授权悬浮窗']);
     await sleep(1000);
@@ -157,31 +172,22 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await overlay();
     screenshot('floating-subtitles');
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+    await sleep(1500);
     const [x1, y1, x2, y2] = await overlay();
     const density = Number(adb('shell', 'wm', 'density').match(/(?:Override|Physical) density: (\d+)/)?.[1] ?? 420) / 160;
     const ox = Math.round(x1 + 60 * density), oy = Math.round(y1 + 24 * density);
     adb('shell', 'input', 'swipe', ox, oy, ox, Math.max(100, oy - 150), 500);
-    const moved = await overlay();
+    const moved = await overlay((frame) => frame[1] < y1);
     assert.ok(moved[1] < y1, 'the native title bar moves the overlay');
     const gx = Math.round(moved[2] - 30 * density), gy = Math.round(moved[3] - 20 * density);
     adb('shell', 'input', 'swipe', gx, gy, gx - 120, gy, 500);
-    const resized = await overlay();
+    const resized = await overlay((frame) => frame[2] - frame[0] < x2 - x1);
     assert.ok(resized[2] - resized[0] < x2 - x1, 'the native resize handle changes the width');
     screenshot('floating-on-home');
     adb('shell', 'input', 'tap', Math.round(resized[2] - 32 * density), Math.round(resized[1] + 24 * density));
     await sleep(500);
     assert.equal(overlayFrame(adb('shell', 'dumpsys', 'window', 'windows')), null, 'the native close button removes the surface');
     adb('shell', 'am', 'start', '-W', '-n', component);
-    await tap(['Close', '关闭']);
-    await tap(['Audio source', '音频来源']);
-    await tap(['System audio', '系统声音']);
-    await tap(['Test system audio', '测试系统声音']);
-    await tap(['Cancel', '取消']);
-    await waitFor(['Test system audio', '测试系统声音']);
-    await tap(['Test system audio', '测试系统声音']);
-    await tap(['Start now', '立即开始', 'Start recording', '开始录制', 'Start sharing', '开始共享']);
-    await waitFor(['System audio ready: audio received', '系统声音可用，已读取到音频']);
-    screenshot('system-audio-capture');
     await tap(['Close', '关闭']);
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'start', '-W', '-n', component);
