@@ -9,17 +9,27 @@
 //!   tap* plus a private aggregate device. Needs macOS 14.4+, and the app bundle must carry
 //!   `NSAudioCaptureUsageDescription` (see `Info.plist`) — without it TCC denies access
 //!   *silently*, handing back perfectly valid buffers full of zeros. cpal 0.17's own tap
-//!   never starts (also silence), so we build the tap ourselves: [`crate::tap`].
+//!   never starts (also silence), so we build the tap ourselves: [`tap`].
 //! - **Linux / ALSA**: there is no loopback flag, and the monitor sources that would serve
 //!   the purpose belong to PulseAudio/PipeWire, which ALSA does not enumerate. cpal
 //!   therefore cannot reach them at all, so system audio here does not go through cpal: see
-//!   [`crate::pulse`], which asks the sound server directly. Only when no sound server
+//!   [`pulse`], which asks the sound server directly. Only when no sound server
 //!   answers does the old story hold — no system-audio entries, route it in pavucontrol.
 //!
 //! When we speak the translation ourselves, system audio must leave our own voice out or it
 //! gets translated again. `exclude_self` asks for that: Windows switches to process loopback
-//! ([`crate::wasapi`]), macOS to a tap that lists our process as excluded ([`crate::tap`]).
+//! ([`wasapi`]), macOS to a tap that lists our process as excluded ([`tap`]).
 //! Linux has no such filter, so the frontend does not offer speaking with system audio there.
+
+#[cfg(any(target_os = "android", test))]
+mod android;
+// PulseAudio monitoring forks pactl/parec on desktop Linux; Android uses AAudio.
+#[cfg(all(target_os = "linux", not(target_os = "android")))]
+mod pulse;
+#[cfg(target_os = "macos")]
+mod tap;
+#[cfg(windows)]
+mod wasapi;
 
 use anyhow::{anyhow, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -50,7 +60,7 @@ const SYS: &str = "sys";
 pub fn loopback_supported() -> bool {
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
     {
-        crate::pulse::available()
+        pulse::available()
     }
     #[cfg(target_os = "android")]
     { true } // The native bridge further gates AudioPlaybackCapture on Android 10+.
@@ -85,7 +95,7 @@ pub fn list_devices() -> Vec<DeviceInfo> {
     // Listing output devices where loopback is impossible would only offer the user streams
     // that fail to build.
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
-    out.extend(crate::pulse::monitors().into_iter().map(|m| DeviceInfo {
+    out.extend(pulse::monitors().into_iter().map(|m| DeviceInfo {
         id: format!("{SYS}{SEP}{}", m.name),
         name: m.label,
         loopback: true,
@@ -113,8 +123,8 @@ pub fn default_device_id(loopback: bool) -> Option<String> {
         // Fall back to the first monitor: `pactl get-default-sink` can name a sink whose
         // monitor is not actually offered (a just-removed device), and an id that matches
         // nothing leaves the picker looking empty.
-        let all = crate::pulse::monitors();
-        let preferred = crate::pulse::default_monitor()
+        let all = pulse::monitors();
+        let preferred = pulse::default_monitor()
             .filter(|n| all.iter().any(|m| &m.name == n))
             .or_else(|| all.first().map(|m| m.name.clone()))?;
         Some(format!("{SYS}{SEP}{preferred}"))
@@ -164,18 +174,18 @@ pub fn start(
     exclude_self: bool,
 ) -> Result<()> {
     #[cfg(target_os = "android")]
-    if id == "sys|android" { return crate::android_audio::start(rate, tx, level, stop); }
+    if id == "sys|android" { return android::start(rate, tx, level, stop); }
     // Linux system audio never reaches cpal — it is a `parec` pipe, which owns its own
     // thread and reports failure synchronously already.
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
     if let Some(source) = id.strip_prefix(SYS).and_then(|r| r.strip_prefix(SEP)) {
-        return crate::pulse::start(source, rate, tx, level, stop);
+        return pulse::start(source, rate, tx, level, stop);
     }
 
     #[cfg(windows)]
     if exclude_self && is_default_output(id) {
-        let pipe = Pipe::new(crate::wasapi::RATE, crate::wasapi::CHANNELS as usize, rate, tx, level);
-        return crate::wasapi::start(pipe, stop);
+        let pipe = Pipe::new(wasapi::RATE, wasapi::CHANNELS as usize, rate, tx, level);
+        return wasapi::start(pipe, stop);
     }
     #[cfg(not(any(windows, target_os = "macos")))]
     let _ = exclude_self;
@@ -190,7 +200,7 @@ pub fn start(
         let (_tap, id) = match id
             .strip_prefix(SYS)
             .and_then(|r| r.strip_prefix(SEP))
-            .map(|output| crate::tap::Tap::new(output, exclude_self))
+            .map(|output| tap::Tap::new(output, exclude_self))
         {
             None => (None, id),
             Some(Ok(tap)) => {

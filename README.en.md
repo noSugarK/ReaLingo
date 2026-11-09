@@ -159,7 +159,7 @@ text in the config file, and the settings page says so rather than pretending ot
 **System audio on Ubuntu**: ALSA has neither a loopback flag nor any knowledge of the
 PulseAudio/PipeWire *monitor* sources — and a monitor is exactly the "record what this output
 is playing" device you pick in pavucontrol. So system audio on Linux does not go through cpal;
-it talks to the sound server directly (`src-tauri/src/pulse.rs`):
+it talks to the sound server directly (`src-tauri/src/audio/pulse.rs`):
 
 - `pactl list sources` lists every source; the ones carrying `Monitor of Sink` go straight
   into the device picker
@@ -178,11 +178,11 @@ pavucontrol's Recording tab.
 (`src-tauri/src/player.rs`), not by the webview. Exclusion works per process, and webview audio comes
 out of a separate WebView2 / WebKit process.
 
-- Windows (`src-tauri/src/wasapi.rs`): process loopback in `EXCLUDE_TARGET_PROCESS_TREE` mode records
+- Windows (`src-tauri/src/audio/wasapi.rs`): process loopback in `EXCLUDE_TARGET_PROCESS_TREE` mode records
   everything on the default output except our process tree. It can only record the default device, which
   is also where the speech plays, so it is used only when the selected device is the default; any other
   device never hears the speech and keeps plain loopback
-- macOS (`src-tauri/src/tap.rs`): system audio always goes through a tap we build ourselves, wrapped in a
+- macOS (`src-tauri/src/audio/tap.rs`): system audio always goes through a tap we build ourselves, wrapped in a
   private aggregate device and read through cpal as an ordinary input; while reading aloud, our process is
   on its exclusion list. Our process has to be known to Core Audio before it can be looked up, so playback
   starts before capture. cpal 0.17's own tap is not used: it creates the aggregate device with tap
@@ -364,7 +364,7 @@ audio file ──┘   (cpal / symphonia)                                       
 - **System audio** is the same call on all three platforms — an input stream on an *output*
   device — with each backend doing something different: Windows adds
   `AUDCLNT_STREAMFLAGS_LOOPBACK`, macOS creates a Core Audio process tap, Linux has no
-  equivalent (see the module comment in `src-tauri/src/audio.rs`).
+  equivalent (see the module comment in `src-tauri/src/audio/mod.rs`).
 - **Resampling** is a direct windowed sinc with the cutoff pinned to the lower of the two
   Nyquist frequencies, so any ratio is anti-aliased (48000/16000 = 3, 44100/16000 = 2.75625).
 

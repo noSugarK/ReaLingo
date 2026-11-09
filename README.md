@@ -142,7 +142,7 @@ Linux 上如果没有跑 Secret Service（无桌面环境或精简发行版）�
 
 **Ubuntu 的系统声音**：ALSA 既没有回录标志，也不枚举 PulseAudio/PipeWire 的 monitor 源 ——
 monitor 正是「录下这个输出在放什么」的设备，pavucontrol 里能选到的就是它。所以 Linux 的系统声音
-不走 cpal，而是直接跟声音服务器说话（`src-tauri/src/pulse.rs`）：
+不走 cpal，而是直接跟声音服务器说话（`src-tauri/src/audio/pulse.rs`）：
 
 - `pactl list sources` 列出全部源，带 `Monitor of Sink` 的就是 monitor，直接进设备下拉框
 - `parec` 录其中一个，raw PCM 走 stdout。直接问它要 s16le / 单声道 / 当前接口要的采样率（16k 或 24k），降混和重采样由声音
@@ -157,10 +157,10 @@ monitor 正是「录下这个输出在放什么」的设备，pavucontrol 里能
 **朗读时为什么不会录回去**：朗读在 Rust 里用 cpal 播放（`src-tauri/src/player.rs`），不交给 webview。
 排除是按进程算的，而 webview 的声音来自另一个 WebView2 / WebKit 进程。
 
-- Windows（`src-tauri/src/wasapi.rs`）：process loopback 的 `EXCLUDE_TARGET_PROCESS_TREE` 模式，
+- Windows（`src-tauri/src/audio/wasapi.rs`）：process loopback 的 `EXCLUDE_TARGET_PROCESS_TREE` 模式，
   录「默认输出设备上除了本进程树以外的所有声音」。它只能录默认设备，而朗读也放在默认设备上，
   所以只有选中的就是默认设备时才走这条路；选了别的设备本来就录不到朗读，仍走普通 loopback
-- macOS（`src-tauri/src/tap.rs`）：系统声音一律走自建的 tap，包成私有聚合设备交给 cpal 当普通输入读；
+- macOS（`src-tauri/src/audio/tap.rs`）：系统声音一律走自建的 tap，包成私有聚合设备交给 cpal 当普通输入读；
   朗读时把本进程列进排除名单。本进程要先在 Core Audio 里出现才查得到，所以先开播放再开采集。
   不用 cpal 0.17 自带的 tap：它建聚合设备时关了 tap 自动启动，只录到静音；设备 UID 是写死的，
   又不销毁，第二次开始就报 `Illegal operation`。新建的聚合设备要过一小会儿才报得出输入配置，
@@ -342,7 +342,7 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
   （不然最后半句出不来），之后连续 4 秒没有新文字、也没有非静音音频就结束会话。
 - **系统声音**：三个平台都是「对输出设备建 input stream」这一个调用，后端各自处理 ——
   Windows 加 `AUDCLNT_STREAMFLAGS_LOOPBACK`，macOS 建 Core Audio process tap，
-  Linux 没有对应机制（细节见 `src-tauri/src/audio.rs` 的模块注释）。
+  Linux 没有对应机制（细节见 `src-tauri/src/audio/mod.rs` 的模块注释）。
 - **重采样**：直接窗化 sinc，截止频率取两端奈奎斯特的较小者，任意比率都抗混叠
   （48000/16000 = 3，44100/16000 = 2.75625）。
 

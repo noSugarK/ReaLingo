@@ -1,19 +1,12 @@
 mod audio;
-#[cfg(any(target_os = "android", test))]
-mod android_audio;
 pub mod config;
 pub mod decode;
 mod history;
 mod player;
 pub mod realtime;
-// PulseAudio monitoring forks pactl/parec on desktop Linux; Android uses AAudio.
-#[cfg(all(target_os = "linux", not(target_os = "android")))]
-pub mod pulse;
 pub mod resample;
 pub mod volc;
 mod secret;
-#[cfg(target_os = "macos")]
-mod tap;
 // Tray icons are a desktop concept. Mobile gets the same command surface backed by
 // no-ops, so the frontend can keep calling sync_tray without a platform check.
 #[cfg(not(target_os = "android"))]
@@ -21,8 +14,6 @@ mod tray;
 #[cfg(target_os = "android")]
 #[path = "tray_stub.rs"]
 mod tray;
-#[cfg(windows)]
-mod wasapi;
 
 use audio::DeviceInfo;
 use config::{Protocol, Settings};
