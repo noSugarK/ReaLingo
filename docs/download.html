@@ -132,7 +132,7 @@ sudo dnf install ./ReaLingo_*_linux_x86_64.rpm</code></pre></li>
             <li><b>火山引擎豆包</b>：先到<a href="https://console.volcengine.com/speech/new/setting/activate">开通管理</a>里手动开通「同声传译」（开通后发放 100 万 token 免费额度，以控制台实际为准），再到<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台的 API Key 页</a>创建 Key。没开通的话，Key 填进去也连不上。</li>
           </ul>
           <h4>2. 把 Key 填进 ReaLingo</h4>
-          <p>打开 ReaLingo，点右上角齿轮（或标题栏 logo 下方的模型名）进入设置，在「连接」里选接口，粘贴 Key；用百炼的话再选好地域。Key 存进系统凭据库（Windows 凭据管理器、macOS 钥匙串、Linux Secret Service），不写进配置文件。</p>
+          <p>桌面端点右上角齿轮（或标题栏下的模型名），在「连接」里选接口并粘贴 Key；Android 点模型卡片选接口，在设置中填写 Key。用百炼时再确认地域。桌面端使用可用的系统凭据库；Android 当前将 Key 明文保存在应用私有配置中，Linux 无凭据库时也使用此回退。不要共享包含 Key 的配置文件。</p>
           <h4>3. 开始翻译</h4>
           <ol>
             <li>选音频来源：麦克风、系统声音或音频文件。</li>
@@ -152,7 +152,7 @@ sudo dnf install ./ReaLingo_*_linux_x86_64.rpm</code></pre></li>
             <li><b>Volcengine Doubao</b>: first switch on simultaneous interpretation by hand under <a href="https://console.volcengine.com/speech/new/setting/activate">Activation</a> (that grants 1M free tokens; the console has the final word), then create a key on the <a href="https://console.volcengine.com/speech/new/setting/apikeys">API key page of the Doubao Speech console</a>. Without activation the key will not connect.</li>
           </ul>
           <h4>2. Put the key into ReaLingo</h4>
-          <p>Open ReaLingo and click the gear in the top-right (or the model name under the title-bar logo). Under Connection, pick the API and paste the key; for Model Studio, also pick the region. The key goes into the OS keychain (Windows Credential Manager, macOS Keychain, Linux Secret Service), never a config file.</p>
+          <p>On desktop, open the gear (or model name below the title-bar logo) and select the provider under Connection. On Android, select the provider in the model card and enter the key in Settings. For Model Studio, confirm the region too. Desktop uses the OS credential store when available. Android currently keeps keys as plaintext in its app-private configuration; Linux without a credential store uses the same fallback. Do not share configuration files containing keys.</p>
           <h4>3. Start translating</h4>
           <ol>
             <li>Pick the audio source: microphone, system audio or an audio file.</li>

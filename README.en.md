@@ -2,7 +2,7 @@
   <img src="brand/banner.png" width="380" alt="ReaLingo" />
 </p>
 
-<p align="center"><b>Realtime speech translation</b> — a desktop simultaneous interpreter for Alibaba Cloud Qwen, OpenAI, Google Gemini and Volcengine Doubao</p>
+<p align="center"><b>Realtime speech translation</b> — a desktop and Android simultaneous interpreter for Alibaba Cloud Qwen, OpenAI, Google Gemini and Volcengine Doubao</p>
 
 <p align="center">
   <a href="https://github.com/noSugarK/ReaLingo/actions/workflows/build.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/noSugarK/ReaLingo/build.yml?style=flat-square&label=build" /></a>
@@ -10,7 +10,7 @@
   <a href="https://github.com/noSugarK/ReaLingo/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/noSugarK/ReaLingo/total?style=flat-square&color=5e5ce6" /></a>
   <a href="https://github.com/noSugarK/ReaLingo/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/noSugarK/ReaLingo?style=flat-square&color=bf5af2" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/noSugarK/ReaLingo?style=flat-square" /></a>
-  <a href="#platform-support"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-8a8f98?style=flat-square" /></a>
+  <a href="#platform-support"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-8a8f98?style=flat-square" /></a>
   <a href="https://hub.xerj.org/contributors/noSugarK"><img alt="XERJ Corpus Hub contributor" src="https://hub.xerj.org/contributors/noSugarK/badge.svg" /></a>
 </p>
 
@@ -22,14 +22,16 @@ Rust core on Tauri 2, Vue 3 front end, Apple liquid-glass interface.
 
 Grab the installer for your platform from the
 [latest release](https://github.com/noSugarK/ReaLingo/releases/latest):
-`.exe` / `.msi` for Windows, `.dmg` for macOS (universal — Intel and Apple Silicon), `.deb` / `.rpm` for Linux.
-None of them carry a commercial code signature, so the OS stops the first launch once; let it through as below.
+`.exe` / `.msi` for Windows, `.dmg` for macOS (universal — Intel and Apple Silicon), `.deb` / `.rpm` for Linux, and an arm64 `.apk` for Android.
+Windows/macOS installers have no commercial signing or Apple notarization; follow the steps below. Android APKs use a persistent release signing key so official installations can be upgraded.
 
 | OS | Install | First launch |
 |---|---|---|
 | Windows 10/11 | Run `ReaLingo_x.y.z_windows_x86_64-setup.exe` (or the `.msi`) | If SmartScreen says "Windows protected your PC", click **More info → Run anyway**; afterwards open it from the Start menu |
 | macOS 12+ | Open the `.dmg` and drag ReaLingo into Applications | If macOS says the app is damaged or from an unidentified developer, run `xattr -dr com.apple.quarantine /Applications/ReaLingo.app` in Terminal, or click **Open Anyway** under **System Settings → Privacy & Security**; then allow microphone / system audio recording when asked |
 | Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_linux_x86_64.deb` (apt, not `dpkg -i`, so dependencies get pulled in) | Open it from the app menu, or run `realingo` |
+| Compatible RPM distributions · x86_64 | `sudo dnf install ./ReaLingo_x.y.z_linux_x86_64.rpm` | Requires WebKitGTK 4.1, Ayatana AppIndicator and PulseAudio tools; installation on target distributions still needs testing |
+| Android 8.0+ · arm64 | Install `ReaLingo_x.y.z_android_arm64.apk`; allow installation from your browser or file manager when prompted | System audio requires Android 10+; grant microphone, capture, and overlay permissions as needed |
 
 If system audio stays silent on macOS after an upgrade, remove ReaLingo under
 **System Settings → Privacy & Security → Screen & System Audio Recording** (and **Microphone**),
@@ -38,7 +40,7 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 ## Features
 
 - **Three audio sources**: microphone / system audio / a local audio file
-  (Windows, macOS and Ubuntu can all capture system audio directly)
+  (Windows, macOS 14.4+, Ubuntu and Android 10+ can capture system audio directly)
 - **Five APIs to choose from**: Alibaba Cloud Model Studio Qwen3.8 (60 languages, default), Qwen3.5
   (60), OpenAI `gpt-realtime-translate` (13 output languages), Google Gemini Live Translate
   (54) and Volcengine Doubao Simultaneous Interpretation 2.0 (20; one side of every pair must be
@@ -52,17 +54,17 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
   out); OpenAI and Gemini speak every target language they offer, in a voice they choose themselves;
   Doubao speaks 8 target languages, cloning the speaker's own voice by default, with 2 preset
   voices on offer when the target is Chinese or English.
-  When capturing system audio, Windows and macOS leave ReaLingo's own speech out
+  When capturing system audio, Windows, macOS and Android leave ReaLingo's own speech out
   of the capture so it is not recorded and translated again (see Platform support); with a microphone,
   speech from your speakers will be picked up, so use headphones
-- **Standalone subtitle overlay**: always on top, bilingual / translation only / source only,
+- **Desktop subtitle overlay**: always on top, bilingual / translation only / source only,
   with adjustable background opacity, font size, colours, outline and alignment. A long
   sentence either grows the window taller (bottom edge pinned) or stays on one line that
   scrolls to the newest words — your pick. Lock it to make clicks pass straight through to
   the video underneath. While unlocked, right-click the overlay to change what it shows,
   its alignment, long-sentence behaviour, click-through or to hide it — no trip back to the
   main window
-- **System tray**: "Minimize to tray" hides the main window while translation and the overlay
+- **Desktop system tray**: "Minimize to tray" hides the main window while translation and the overlay
   keep running. Left-click the tray icon to bring the window back; right-click for start/stop,
   overlay on/off, subtitle content, click-through and quit.
   Windows 11 hides new tray icons under `^` by default — drag it onto the taskbar to pin it
@@ -75,9 +77,20 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
   own file; browse, search, export and delete past runs from the History panel. One JSONL
   file per run under `app-data/history/`, appended as you go
 - **About panel**: click the logo in the title bar for the version, an update check against the latest
-  GitHub release, that release's new features and fixes (in the interface language), and repo links.
-  The model name under the logo opens Settings
-- Built-in `rt://raw` event inspector (the `< >` button in the title bar) for protocol debugging
+  GitHub release and, on desktop, its new features and fixes in the interface language. Both platforms have icon links for the repository, author, issues, email and license. Email feedback: `nosugark@qq.com`.
+  The model name under the desktop logo opens Settings
+- Desktop `rt://raw` event inspector (the `< >` button in the title bar) for protocol debugging
+
+## Using Android
+
+1. Choose a provider and model in the model card, then enter the matching API key in Settings.
+2. Select languages and an audio source: microphone, system audio, or audio file. Press Start.
+3. Grant microphone permission when asked. System audio needs Android 10+ and fresh system consent for each session; protected media, calls, or apps that block capture may be silent.
+4. Allow “Display over other apps” for floating subtitles. Drag or resize the overlay; locking lets touches pass through. Fullscreen subtitles stay inside the app.
+5. Route speech to the speaker, earpiece, or headphones; search the voice list. History and TXT/SRT exports use the system document picker.
+
+Permission center and Session diagnostics show authorization and actual audio-upload status. Vendor-specific background restrictions still need device testing.
+The `.debug` test package and official package are separate apps; settings/history do not migrate automatically.
 
 ## Comparing the APIs
 
@@ -121,7 +134,7 @@ Settings come in three groups — Connection, Translation, Advanced:
 | Setting | Notes |
 |---|---|
 | API | Which message format to speak: **Qwen3.5**, **Qwen3.8** (Alibaba Cloud Model Studio), **OpenAI**, **Gemini Live Translate** (Google), **Doubao Simultaneous Interpretation** (Volcengine). Both Qwen APIs share the Model Studio key. Switching remembers each API's model and each vendor's custom URL |
-| API Key | One per vendor, kept in the OS credential store — see below. Get one from the [Model Studio console](https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key) (the link follows the region), [OpenAI](https://platform.openai.com/api-keys), [Google AI Studio](https://aistudio.google.com/apikey) or the [Doubao Speech console](https://console.volcengine.com/speech/new/setting/apikeys); the settings page links to each. A Doubao key only works once simultaneous interpretation is switched on under [Activation](https://console.volcengine.com/speech/new/setting/activate) |
+| API Key | One per vendor; desktop prefers the OS credential store, while Android currently uses plaintext private configuration — see below. Get one from the [Model Studio console](https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key) (the link follows the region), [OpenAI](https://platform.openai.com/api-keys), [Google AI Studio](https://aistudio.google.com/apikey) or the [Doubao Speech console](https://console.volcengine.com/speech/new/setting/apikeys); the settings page links to each. A Doubao key only works once simultaneous interpretation is switched on under [Activation](https://console.volcengine.com/speech/new/setting/activate) |
 | Model | Pick a preset or "Custom…" for any model ID. Presets: Qwen3.8 (60 languages, default), Qwen3.5 (60), `gpt-realtime-translate` (13 output languages), `gemini-3.5-live-translate-preview` (54), Doubao Simultaneous Interpretation 2.0 (20; the endpoint takes no model name, so this is display only). The language pickers list only what the current model supports, and a language it cannot handle falls back automatically |
 | Region | Qwen only. China (Beijing) / Singapore — the only regions serving the LiveTranslate models today |
 | Workspace ID | Qwen only, **optional.** Leave blank for the shared endpoint `dashscope[-intl].aliyuncs.com`; filling it in uses your workspace's dedicated domain `{id}.{region}.maas.aliyuncs.com`. Beijing IDs look like `llm-…`, Singapore ones like `ws-…` |
@@ -141,8 +154,7 @@ not encryption, and it buys false confidence. The credential store defends again
 leaking (synced to a cloud drive, sitting in a backup, pasted into an issue, a disk walking away).
 It does not defend against malware running as you — that can just call the API itself.
 
-On Linux with no Secret Service running (headless, or a minimal distro) it falls back to plain
-text in the config file, and the settings page says so rather than pretending otherwise.
+The credential-store behavior above applies to desktop. Android currently has no system keystore integration: API keys use the plaintext fallback in the app-private `settings.json`. Linux without a usable Secret Service uses the same fallback, with a notice in Settings. Do not include files containing keys in feedback or shared backups.
 
 ## Platform support
 
@@ -152,6 +164,8 @@ text in the config file, and the settings page says so rather than pretending ot
 | macOS 14.4+ | ✅ | ✅ | Core Audio process tap; macOS asks for permission on first use. While reading aloud, the tap lists our process as excluded |
 | macOS 12–14.3 | ✅ | ❌ | Process taps are a 14.4 API |
 | Ubuntu 22.04+ | ✅ | ✅ | Goes around ALSA and asks PulseAudio / PipeWire for monitor sources (below) |
+| Android 8 / 9 · arm64 | ✅ | ❌ | Microphone and audio files work; the system-audio API starts at Android 10 |
+| Android 10+ · arm64 | ✅ | ✅ | AudioPlaybackCapture, fresh consent per session, excludes this app's audio |
 
 <details>
 <summary><b>Platform details: Linux system audio, macOS permissions, Linux tray</b></summary>
@@ -210,6 +224,8 @@ the window on Ubuntu. Use "Show window" in the right-click menu.
 
 ## Development
 
+Use Node.js 24+, Rust 1.90+, and the platform build dependencies. Android also needs JDK 17, SDK 36, and NDK 28.2.13676358; see [Android development and testing](development/android-testing.md).
+
 ```bash
 npm install
 npm run tauri dev
@@ -244,30 +260,37 @@ node scripts/cdp.mjs probe.js subtitle      # evaluate in the subtitle overlay
 ```
 
 macOS and Linux bundles cannot be cross-compiled from Windows, so
-`.github/workflows/build.yml` (**build & release**) produces all three on GitHub Actions:
+`.github/workflows/build.yml` (**build & release**) produces Windows, macOS, Linux and Android installers on GitHub Actions:
 
 | Trigger | Result |
 |---|---|
 | Manual run from the Actions tab | One workflow artifact per platform |
 | Pushing a `v*` tag | The same, plus a GitHub release with the installers attached |
 
-Releasing goes draft → each platform uploads → **published only once all three succeed**, so a
-failure on any platform leaves the release as a draft rather than shipping half a set. A tag
-that disagrees with `version` in `tauri.conf.json` fails the run, so the binaries can never
-claim the wrong version.
+Releasing goes draft → each of the four platforms uploads → **publish only after all builds, main CI, and Android 15/16 emulator tests pass for that commit**. A failure leaves the release as a draft. Tags must match `[package] version` in `src-tauri/Cargo.toml`.
 
 The version lives in exactly one place: `[package] version` in `src-tauri/Cargo.toml`.
 `tauri.conf.json` omits the `version` field so Tauri falls back to Cargo.toml, and
-`package.json` is `private` and carries none. CI checks the tag against that one place.
+`package.json` is `private` and carries none. CI checks the tag against that one place. Prerelease tags are marked Pre-release and do not replace stable Latest. Windows MSI rejects textual prerelease suffixes; configure a separate numeric MSI version before shipping a Beta or similar version.
 
 Release notes go in `.github/release-notes/v<version>.md`, committed before the tag; CI puts them at the
 top of the release, followed by GitHub's generated list of changes. Without that file only the generated
 part appears.
 
 ```bash
-# after bumping version in src-tauri/Cargo.toml and writing .github/release-notes/v0.2.1.md
-git tag v0.2.1 && git push origin v0.2.1
+# Replace X.Y.Z with the intended version; update Cargo.toml / Cargo.lock and release notes, then commit.
+# Push main first: publishing requires main CI and Android tests for this exact commit.
+git push origin main
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
+
+| Artifact | Contents |
+|---|---|
+| `realingo-x86_64-pc-windows-msvc` | MSI and NSIS EXE |
+| `realingo-universal-apple-darwin` | DMG for Intel and Apple Silicon |
+| `realingo-x86_64-unknown-linux-gnu` | DEB and RPM |
+| `realingo-android-arm64` | APK signed with the persistent release key |
 
 Release filenames follow `ReaLingo_<version>_<system>_<architecture>.<format>`; Windows EXE files retain the `-setup` suffix.
 The system/architecture pairs are `windows_x86_64`, `macos_universal`, `linux_x86_64`, and `android_arm64`.
@@ -353,7 +376,7 @@ audio file ──┘   (cpal / symphonia)                                       
 
 - **The WebSocket lives in Rust**: the Model Studio and OpenAI endpoints authenticate with an
   `Authorization` request header, and the browser `WebSocket` constructor cannot set headers.
-  Keeping the API key out of the webview is a welcome side effect.
+  All platforms share the same Rust session and protocol handling.
 - **Per-API differences** live in `src-tauri/src/config.rs`: uplink sample rate (OpenAI 24 kHz, the
   rest 16 kHz), the audio and end-of-input frames, the session setup, and what counts as done.
   Gemini takes its key as a URL parameter, added only at connect time and never shown in Settings.
@@ -369,10 +392,7 @@ audio file ──┘   (cpal / symphonia)                                       
 - **Finishing a Gemini session**: it never says it is done and keeps streaming silent audio after
   the input ends, so stopping first sends ~3 s of silence (or the last clause never arrives), then
   ends once 4 s pass with neither new text nor non-silent audio.
-- **System audio** is the same call on all three platforms — an input stream on an *output*
-  device — with each backend doing something different: Windows adds
-  `AUDCLNT_STREAMFLAGS_LOOPBACK`, macOS creates a Core Audio process tap, Linux has no
-  equivalent (see the module comment in `src-tauri/src/audio/mod.rs`).
+- **System audio** uses WASAPI loopback/process loopback on Windows, Core Audio process taps on macOS, and `pactl`/`parec` monitor sources on Linux. Android captures PCM through a Kotlin foreground service and AudioPlaybackCapture, then passes it to Rust. Platform boundaries live in `src-tauri/src/audio/`.
 - **Resampling** is a direct windowed sinc with the cutoff pinned to the lower of the two
   Nyquist frequencies, so any ratio is anti-aliased (48000/16000 = 3, 44100/16000 = 2.75625).
 

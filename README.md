@@ -2,7 +2,7 @@
   <img src="brand/banner.png" width="380" alt="ReaLingo" />
 </p>
 
-<p align="center"><b>实时语音翻译</b> — 支持阿里云百炼 Qwen、OpenAI、Google Gemini、火山引擎豆包的桌面同声传译工具</p>
+<p align="center"><b>实时语音翻译</b> — 支持阿里云百炼 Qwen、OpenAI、Google Gemini、火山引擎豆包的桌面与 Android 实时同声传译工具</p>
 
 <p align="center">
   <a href="https://github.com/noSugarK/ReaLingo/actions/workflows/build.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/noSugarK/ReaLingo/build.yml?style=flat-square&label=build" /></a>
@@ -10,7 +10,7 @@
   <a href="https://github.com/noSugarK/ReaLingo/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/noSugarK/ReaLingo/total?style=flat-square&color=5e5ce6" /></a>
   <a href="https://github.com/noSugarK/ReaLingo/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/noSugarK/ReaLingo?style=flat-square&color=bf5af2" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/noSugarK/ReaLingo?style=flat-square" /></a>
-  <a href="#平台支持"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-8a8f98?style=flat-square" /></a>
+  <a href="#平台支持"><img alt="platform" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-8a8f98?style=flat-square" /></a>
   <a href="https://hub.xerj.org/contributors/noSugarK"><img alt="XERJ Corpus Hub contributor" src="https://hub.xerj.org/contributors/noSugarK/badge.svg" /></a>
 </p>
 
@@ -21,21 +21,23 @@ Tauri 2 + Rust 内核，Vue 3 前端，苹果液态玻璃风格界面。
 ## 下载与安装
 
 从 [Releases](https://github.com/noSugarK/ReaLingo/releases/latest) 取对应平台的安装包：
-Windows `.exe` / `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb` / `.rpm`。
-安装包都没有商业代码签名，首次打开会被系统拦一下，按下面放行即可。
+Windows `.exe` / `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb` / `.rpm`、Android arm64 `.apk`。
+Windows / macOS 安装包没有商业代码签名或 Apple 公证，首次打开按下面放行；Android APK 使用固定发布密钥签名，可覆盖升级同包名的正式版本。
 
 | 系统 | 安装 | 首次打开 |
 |---|---|---|
 | Windows 10/11 | 双击 `ReaLingo_x.y.z_windows_x86_64-setup.exe`（或 `.msi`） | SmartScreen 提示「Windows 已保护你的电脑」时点 **更多信息 → 仍要运行**；之后从开始菜单打开 |
 | macOS 12+ | 打开 `.dmg`，把 ReaLingo 拖进「应用程序」 | 提示「已损坏」或「无法验证开发者」时，终端执行 `xattr -dr com.apple.quarantine /Applications/ReaLingo.app`，或到 **系统设置 → 隐私与安全性** 点 **仍要打开**；随后按提示允许麦克风 / 系统录音 |
 | Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_linux_x86_64.deb`（用 apt 才会拉依赖） | 从应用菜单打开，或终端运行 `realingo` |
+| 兼容的 RPM 发行版 · x86_64 | `sudo dnf install ./ReaLingo_x.y.z_linux_x86_64.rpm` | 需要 WebKitGTK 4.1、Ayatana AppIndicator 和 PulseAudio 工具，目标发行版安装兼容性仍需实测 |
+| Android 8.0+ · arm64 | 安装 `ReaLingo_x.y.z_android_arm64.apk`，按提示允许从浏览器或文件管理器安装 | 系统声音采集需 Android 10+；按需授予麦克风、系统声音和悬浮窗权限 |
 
 macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性 → 屏幕与系统录音**（以及 **麦克风**）
 里删掉 ReaLingo，重开应用再授权一次 —— ad-hoc 签名每个版本都不同，旧的授权可能对不上。
 
 ## 功能
 
-- **三种音频来源**：麦克风 / 系统声音 / 本地音频文件（Windows、macOS、Ubuntu 三平台都能直接采系统声音）
+- **三种音频来源**：麦克风 / 系统声音 / 本地音频文件（Windows、macOS 14.4+、Ubuntu 和 Android 10+ 可直接采系统声音）
 - **五种接口可选**：阿里云百炼 Qwen3.8（60 语种，默认）、Qwen3.5（60 语种）、
   OpenAI `gpt-realtime-translate`（输出 13 种语言）、Google Gemini Live Translate（54 种语言）、
   火山引擎豆包同声传译 2.0（20 种语言，每一对里必须有中文或英文）。
@@ -46,14 +48,14 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
 - **朗读译文**：语言卡片里打开，由模型直接合成，不另接 TTS。Qwen 有 47 种音色可选，29 种目标语言有语音输出，
   其余只能出文字，开关会变灰；OpenAI 和 Gemini 所有目标语言都能朗读，音色由服务端决定；
   豆包能朗读 8 种目标语言，默认复刻说话人自己的音色，目标是中英时也可选 2 个预置音色。
-  录系统声音时，Windows 和 macOS 会把 ReaLingo 自己的朗读排除在采集之外，
+  录系统声音时，Windows、macOS 和 Android 会把 ReaLingo 自己的朗读排除在采集之外，
   不会被录回去再翻一遍（见「平台支持」）；用麦克风时扬声器的声音会被收回去，请戴耳机
-- **独立字幕窗**：默认置顶，双语 / 仅译文 / 仅原文，背景不透明度、字号、字体颜色、描边、
+- **桌面独立字幕窗**：默认置顶，双语 / 仅译文 / 仅原文，背景不透明度、字号、字体颜色、描边、
   对齐方式（左 / 中 / 右）可调；长句可选「自动加高」（换行，窗口跟着文字长高，底边不动）
   或「单行滚动」（每行不换行，滚到最新的字，说过的从左边切掉）；
   锁定后鼠标点击穿透（不挡住下面的播放器）；解锁状态下在字幕窗上右键，
   显示内容 / 对齐 / 长句处理 / 点击穿透 / 隐藏都能直接改，不用切回主窗
-- **系统托盘**：标题栏「收起到托盘」把主窗藏起来，翻译和字幕窗照常跑；左键托盘图标唤回主窗，
+- **桌面系统托盘**：标题栏「收起到托盘」把主窗藏起来，翻译和字幕窗照常跑；左键托盘图标唤回主窗，
   右键快捷菜单可开始/停止、开关字幕窗、切换显示内容与点击穿透、退出。
   Windows 11 默认把新托盘图标折叠进 `^` 里，想常驻就从溢出区拖到任务栏上
 - **界面中英文切换**，浅色 / 深色 / 跟随系统
@@ -64,8 +66,19 @@ macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性
   在旁边的「翻译历史」里按场次翻看、搜索、导出、删除。存在 `app-data/history/` 下，
   一场一个 JSONL，追加写，进程被杀最多丢最后一句
 - **关于面板**：点标题栏左上角 logo 打开，显示版本、检查更新（比对 GitHub 最新 release）、
-  该版本的新增与修复（按界面语言显示），以及仓库与作者链接。标题栏 logo 下方显示当前模型，点它直达设置
-- 内置 `rt://raw` 事件查看器（标题栏 `< >` 按钮），用于排查协议字段
+  桌面端还显示该版本的新增与修复（按界面语言显示）。双端提供仓库、作者、反馈、邮箱和许可证图标入口；邮件反馈：`nosugark@qq.com`。桌面标题栏 logo 下方显示当前模型，点它直达设置
+- 桌面端内置 `rt://raw` 事件查看器（标题栏 `< >` 按钮），用于排查协议字段
+
+## Android 使用
+
+1. 在模型卡片选择接口和模型，在设置中填入对应厂商的 API Key。
+2. 选择语言和音频来源：麦克风、系统声音或音频文件，再点「开始翻译」。
+3. 麦克风录音需要授权；系统声音需要 Android 10+，每次会话均需同意系统录制提示。部分应用不允许采集，受保护内容和通话可能静音。
+4. 跨应用字幕需要「显示在其他应用上层」权限；可拖动、缩放，锁定后触摸穿透。全屏字幕在应用内显示。
+5. 朗读可选扬声器、听筒或耳机，音色列表支持搜索；历史记录与 TXT/SRT 导出通过系统文件选择器保存。
+
+权限中心和会话诊断可查看授权及音频上传状态。不同厂商的后台限制仍需在真机上验证。
+`.debug` 测试包和正式包是两个独立应用，旧测试包的设置和历史不会自动迁移。
 
 ## 接口对比
 
@@ -107,7 +120,7 @@ Gemini 和 OpenAI 直接取官方的每分钟价。译文文本按字数另计�
 | 项 | 说明 |
 |---|---|
 | 接口 | 决定按哪种消息格式通信：**Qwen3.5**、**Qwen3.8**（阿里云百炼）、**OpenAI**、**Gemini Live Translate**（Google）、**豆包同声传译**（火山引擎）。两个 Qwen 接口共用百炼的 Key。切换时每个接口记住自己的模型、每家记住自己的自定义地址 |
-| API Key | 每家一个，存在系统凭据库里（见下）。获取：[百炼控制台](https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key)（链接随地域切换）、[OpenAI](https://platform.openai.com/api-keys)、[Google AI Studio](https://aistudio.google.com/apikey)、[豆包语音控制台](https://console.volcengine.com/speech/new/setting/apikeys)，设置页里都有直达链接。豆包的 Key 要先在[开通管理](https://console.volcengine.com/speech/new/setting/activate)里开通「同声传译」才能用 |
+| API Key | 每家一个；桌面端优先使用系统凭据库，Android 当前使用明文私有配置（见下）。获取：[百炼控制台](https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key)（链接随地域切换）、[OpenAI](https://platform.openai.com/api-keys)、[Google AI Studio](https://aistudio.google.com/apikey)、[豆包语音控制台](https://console.volcengine.com/speech/new/setting/apikeys)，设置页里都有直达链接。豆包的 Key 要先在[开通管理](https://console.volcengine.com/speech/new/setting/activate)里开通「同声传译」才能用 |
 | 翻译模型 | 下拉选预设，或选「自定义…」填任意模型 ID。预设：Qwen3.8（60 语种，默认）、Qwen3.5（60 语种）、`gpt-realtime-translate`（输出 13 种语言）、`gemini-3.5-live-translate-preview`（54 种语言）、豆包同声传译 2.0（20 种语言；接口不收模型名，这一项只用于显示）。语言选择器只列当前模型支持的语言，当前选择不在其中会自动回退 |
 | 地域 | 仅 Qwen。华北2（北京）/ 新加坡 —— 目前只有这两个地域提供 LiveTranslate 模型 |
 | 业务空间 ID | 仅 Qwen，**选填**。留空走公共域名 `dashscope[-intl].aliyuncs.com`；填写后走业务空间专属域名 `{id}.{地域}.maas.aliyuncs.com`。北京的 ID 形如 `llm-…`，新加坡形如 `ws-…` |
@@ -125,8 +138,7 @@ Linux Secret Service，密钥由 OS 从你的登录凭据派生，磁盘上不�
 （被云盘同步、躺在备份里、贴进 issue、硬盘被拿走）；挡不住以你账号身份运行的恶意程序，
 那种情况下它直接调 API 就能取。
 
-Linux 上如果没有跑 Secret Service（无桌面环境或精简发行版），会退回明文存配置文件，
-设置页会直说，不会假装安全。
+上面的系统凭据库说明适用于桌面端。Android 当前没有接入系统密钥库，API Key 保存在应用私有目录的 `settings.json` 中，属于明文回退；Linux 没有可用 Secret Service 时也使用此回退，设置页会提示。不要将包含 Key 的配置文件放进反馈或共享备份。
 
 ## 平台支持
 
@@ -136,6 +148,8 @@ Linux 上如果没有跑 Secret Service（无桌面环境或精简发行版）�
 | macOS 14.4+ | ✅ | ✅ | Core Audio process tap；首次使用会弹权限申请。朗读时 tap 把自身进程列为排除 |
 | macOS 12–14.3 | ✅ | ❌ | process tap 是 14.4 才有的 API |
 | Ubuntu 22.04+ | ✅ | ✅ | 绕开 ALSA，直接向 PulseAudio / PipeWire 要 monitor 源（见下） |
+| Android 8 / 9 · arm64 | ✅ | ❌ | 支持麦克风与音频文件；系统声音 API 从 Android 10 起可用 |
+| Android 10+ · arm64 | ✅ | ✅ | AudioPlaybackCapture；每次会话需系统授权，排除自身进程音频 |
 
 <details>
 <summary><b>平台细节：Linux 系统声音、macOS 权限、Linux 托盘</b></summary>
@@ -183,6 +197,8 @@ monitor 正是「录下这个输出在放什么」的设备，pavucontrol 里能
 
 ## 开发
 
+需要 Node.js 24+、Rust 1.90+ 和对应平台的构建依赖。Android 另需 JDK 17、SDK 36 与 NDK 28.2.13676358，详见 [Android 开发与测试](development/android-testing.md)。
+
 ```bash
 npm install
 npm run tauri dev
@@ -217,27 +233,30 @@ node scripts/cdp.mjs probe.js subtitle      # 在字幕窗求值
 ```
 
 macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，由 `.github/workflows/build.yml`
-（**build & release**）在 GitHub Actions 上出三份：
+（**build & release**）在 GitHub Actions 上生成 Windows、macOS、Linux 和 Android 四个平台的安装包：
 
 | 触发方式 | 结果 |
 |---|---|
-| Actions 页手动运行 | 三个平台各出一份 workflow artifact |
+| Actions 页手动运行 | 四个平台分别生成 workflow artifact，不公开 Release |
 | 推 `v*` tag | 同上，外加一个 GitHub Release，安装包作为附件 |
 
-发布流程是「先建草稿 → 各平台分别上传 → **三个平台全部成功后**才转正式发布」，
+发布流程是「先建草稿 → 四个平台分别上传 → **构建、同一提交的 main CI 与 Android 15/16 模拟器测试全部通过后**才公开发布」，
 所以任一平台挂掉时 release 会停在草稿状态，不会放出半套包。tag 与
 `src-tauri/Cargo.toml` 里的 `version` 不一致会直接失败，避免发出版本号对不上的包。
 
 版本号只有一处：`src-tauri/Cargo.toml` 的 `[package] version`。`tauri.conf.json` 不写
 `version` 字段，Tauri 会回落到 Cargo.toml；`package.json` 是 `private` 的，也不带版本号。
-CI 就按这一处校验 tag。
+CI 就按这一处校验 tag。预发布标签会标记为 Pre-release，不替换稳定版 Latest；Windows MSI 不接受文字预发布后缀，若发布 Beta 等版本须先配置独立的数字 MSI 版本。
 
 发布说明写在 `.github/release-notes/v<版本号>.md`，随 tag 一起提交；CI 建 release 时把它放在最前面，
 后面接 GitHub 自动生成的提交列表。没有这个文件就只有自动生成的部分。
 
 ```bash
-# 改完 src-tauri/Cargo.toml 里的 version，写好 .github/release-notes/v0.2.1.md
-git tag v0.2.1 && git push origin v0.2.1
+# X.Y.Z 替换为要发布的版本；更新 Cargo.toml / Cargo.lock 和对应发布说明后提交
+# 必须先推 main：发布流程会查找同一提交的 main CI 和 Android 测试
+git push origin main
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 | artifact | 内容 |
@@ -245,6 +264,7 @@ git tag v0.2.1 && git push origin v0.2.1
 | `realingo-x86_64-pc-windows-msvc` | `.msi` + NSIS `.exe` |
 | `realingo-universal-apple-darwin` | `.dmg`，**Intel 与 Apple Silicon 通用** |
 | `realingo-x86_64-unknown-linux-gnu` | `.deb` + `.rpm` |
+| `realingo-android-arm64` | 固定发布密钥签名的 `.apk` |
 
 macOS 不再单独跑 Intel job —— `macos-13` runner 已于 2025-12 退役，x86_64 的 job 只会一直排队；
 改为在 Apple Silicon 上交叉编译出 universal 二进制，一个 DMG 通吃。
@@ -271,7 +291,7 @@ npm run tauri build
 
 测试（重采样、地址拼接、各接口的消息格式与字幕切分）：
 
-安卓分支的权限、会话、图标及 APK 启动验证见 [Android 测试与闪退排查](development/android-testing.md)。
+Android 的权限、会话、图标、版本码及 APK 启动验证见 [Android 测试与闪退排查](development/android-testing.md)。
 
 ```bash
 cd src-tauri && cargo test
@@ -330,7 +350,7 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
 ```
 
 - **WebSocket 放在 Rust 侧**：百炼和 OpenAI 的实时接口用 `Authorization` 请求头鉴权，浏览器
-  `WebSocket` 构造函数无法设置请求头。附带好处是 API Key 不进 webview。
+  `WebSocket` 构造函数无法设置请求头。所有平台复用同一套 Rust 会话与协议处理。
 - **各接口的差异**集中在 `src-tauri/src/config.rs`：上行采样率（OpenAI 24kHz，其余 16kHz）、
   音频帧与结束帧的格式、会话配置、怎样算结束。Gemini 的 Key 走 URL 参数而不是请求头，
   且只在连接时拼上，不出现在设置页的地址预览里。
@@ -342,9 +362,7 @@ GIF 只有 256 色，渐变字会断层，且 1-bit 透明会在深色底上留�
   按句末标点切出轮次，原文在自己最后一个句末处切开，余下的带进下一行。
 - **Gemini 的收尾**：它不发结束信号，停止后还会一直推静音帧，所以停止时先补约 3 秒静音
   （不然最后半句出不来），之后连续 4 秒没有新文字、也没有非静音音频就结束会话。
-- **系统声音**：三个平台都是「对输出设备建 input stream」这一个调用，后端各自处理 ——
-  Windows 加 `AUDCLNT_STREAMFLAGS_LOOPBACK`，macOS 建 Core Audio process tap，
-  Linux 没有对应机制（细节见 `src-tauri/src/audio/mod.rs` 的模块注释）。
+- **系统声音**：Windows 使用 WASAPI loopback / process loopback，macOS 使用 Core Audio process tap，Linux 通过 `pactl` / `parec` 读取 monitor 源；Android 用 Kotlin 前台服务和 AudioPlaybackCapture 采集 PCM，再交给 Rust 音频模块。平台边界见 `src-tauri/src/audio/`。
 - **重采样**：直接窗化 sinc，截止频率取两端奈奎斯特的较小者，任意比率都抗混叠
   （48000/16000 = 3，44100/16000 = 2.75625）。
 

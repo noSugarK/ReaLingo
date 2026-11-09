@@ -1,10 +1,10 @@
 # Android development and crash verification
 
-Run Git pulls and commits through WSL. Android builds need Node 24+, Rust, JDK 17,
+Run Git pulls and commits through WSL. Android builds need Node 24+, Rust 1.90+, JDK 17,
 Android SDK 36 and NDK 28.2.13676358. A browser preview only tests the web UI;
 it cannot prove that Android's native Activity, audio backend or plugins start.
 
-## Confirmed startup failure
+## Historical startup failure (fixed)
 
 The release APK reproduced a native abort on both 4 KB and 16 KB Android 15 images:
 the first `list_devices` IPC entered cpal's AAudio device enumeration, which called
@@ -36,6 +36,7 @@ Python tests check malformed ELF data, missing libraries, 4 KB alignment and seg
 ## Build and run an APK
 
 ```bash
+rustup target add aarch64-linux-android
 npm run tauri -- android init --ci --skip-targets-install
 node scripts/prepare-android.mjs
 npm run tauri -- android build --ci --apk --target aarch64
@@ -53,8 +54,7 @@ and actual AudioPlaybackCapture frames. It saves screenshots, UI XML and logcat 
 `android-smoke/` (override with `ANDROID_SMOKE_OUTPUT`). Never use the smoke runner
 against an installation containing settings/history you want to keep.
 
-`.github/workflows/android-test.yml` builds release ARM64 and x86_64 APKs and runs the latter on API 35
-with both 4 KB and 16 KB pages. The page size is asserted on the emulator. The API 26
+`.github/workflows/android-test.yml` runs on main pushes, PRs, and manual dispatch. It builds release ARM64 and x86_64 APKs, then runs the latter on API 35 with 4 KB pages and API 36 (`google_apis_ps16k`) with 16 KB pages. The API 35 16 KB preview's older WebView is not used. The page size is asserted on the emulator. The API 26
 default emulator image has no WebView provider; testing older supported devices requires
 an installed, current WebView and remains a separate device check. Both this
 workflow and the ARM64 release workflow check APK ZIP alignment and every native
@@ -103,11 +103,15 @@ not desktop filesystem paths.
 
 ## Android version and update identity
 
-`Cargo.toml` remains the version source. Preparation writes Android's `versionName`
-and `versionCode`, including the generated Gradle properties. The migration code is
-`1000000 + major * 1000000 + minor * 1000 + patch`, so 0.7.2 advances past the old
-template's 1.0 / 1000000. Both workflows inspect the finished APK with aapt; an
-in-app version label alone cannot prove the installed package version.
+`Cargo.toml` remains the version source. Preparation writes the full version to Android's `versionName` and updates `versionCode`, including the generated Gradle properties:
+
+```text
+base = major * 1000000 + minor * 1000 + patch
+stage = alpha.N: N; beta.N: 100 + N; rc.N: 200 + N; stable: 999
+versionCode = 1000000 + base * 1000 + stage
+```
+
+Prerelease counters range from 1 to 99; minor/patch must be below 1000 and the final code must fit Android's 2,100,000,000 limit. For example, `0.8.0-beta.1` is `9000101` and `0.8.0` is `9000999`. Stable follows the prereleases and advances past historical 0.7.x codes. Both workflows inspect the finished APK with aapt; an in-app version label alone cannot prove the installed package version.
 
 Branch pushes require the four configured signing secrets (`ANDROID_KEYSTORE_BASE64`,
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) and produce
@@ -116,7 +120,21 @@ debug keys cannot update earlier APKs signed with a different key. A production 
 can update only the same package signed by the same key; an existing `.debug` test
 installation has a separate identity. Keep the production keystore stable.
 
-## Capture the reported vivo X300 crash without clearing app data
+## Release validation and feedback
+
+The published [v0.8.0 release](https://github.com/noSugarK/ReaLingo/releases/tag/v0.8.0) passed:
+
+- [Main CI](https://github.com/noSugarK/ReaLingo/actions/runs/42559374377).
+- [Android API 35 / 4 KB and API 36 / 16 KB emulator checks](https://github.com/noSugarK/ReaLingo/actions/runs/42559374379).
+- [Windows, macOS universal, Linux DEB/RPM and Android arm64 release builds](https://github.com/noSugarK/ReaLingo/actions/runs/42559402548).
+
+The release workflow publishes only after all platform builds and the same commit's main CI and Android smoke tests succeed. Push the release commit to main before pushing its tag. ARM64 APK compilation and x86_64 emulator results do not establish compatibility with every ARM64/vendor device.
+
+About uses compact repository, author, issue, email and license icons. Their accessible names are part of smoke navigation: the license button exposes `MIT License`. Feedback email is `nosugark@qq.com`.
+
+Android currently persists API keys through the plaintext `settings.json` fallback in the app-private directory; it does not use Android Keystore. Do not share configurations containing keys.
+
+## Capture a device crash without clearing app data
 
 Enable USB debugging, connect the phone and run:
 

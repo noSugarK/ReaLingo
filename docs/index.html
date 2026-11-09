@@ -92,7 +92,7 @@
     </div>
     <div class="steps">
       <div class="reveal"><b><span class="zh">下载安装</span><span class="en">Install</span></b><p><span class="zh">Windows、macOS、Linux 各有安装包，Android 提供 APK，下载页可按系统选择。</span><span class="en">Installers for Windows, macOS and Linux, plus an Android APK — choose your system on the download page.</span></p></div>
-      <div class="reveal" style="--d:.08s"><b><span class="zh">填入 API Key</span><span class="en">Add your API key</span></b><p><span class="zh">在设置里选接口，到 <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">百炼控制台</a>、<a href="https://platform.openai.com/api-keys">OpenAI</a>、<a href="https://aistudio.google.com/apikey">Google AI Studio</a> 或<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台</a>拿一个 Key 粘贴进去，详细步骤见<a href="#guide">常见问题</a>。它存进系统凭据库，不写进配置文件。</span><span class="en">Pick an API in Settings and paste a key from the <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">Model Studio console</a>, <a href="https://platform.openai.com/api-keys">OpenAI</a>, <a href="https://aistudio.google.com/apikey">Google AI Studio</a> or the <a href="https://console.volcengine.com/speech/new/setting/apikeys">Doubao Speech console</a> (step by step in the <a href="#guide">FAQ</a>). It goes into the OS keychain, not a config file.</span></p></div>
+      <div class="reveal" style="--d:.08s"><b><span class="zh">填入 API Key</span><span class="en">Add your API key</span></b><p><span class="zh">在设置里选接口，到 <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">百炼控制台</a>、<a href="https://platform.openai.com/api-keys">OpenAI</a>、<a href="https://aistudio.google.com/apikey">Google AI Studio</a> 或<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台</a>拿一个 Key 粘贴进去，详细步骤见<a href="#guide">常见问题</a>。桌面端优先使用系统凭据库；Android 当前保存在应用私有配置中。</span><span class="en">Pick an API in Settings and paste a key from the <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">Model Studio console</a>, <a href="https://platform.openai.com/api-keys">OpenAI</a>, <a href="https://aistudio.google.com/apikey">Google AI Studio</a> or the <a href="https://console.volcengine.com/speech/new/setting/apikeys">Doubao Speech console</a> (step by step in the <a href="#guide">FAQ</a>). Desktop uses the OS credential store when available; Android currently stores it in app-private configuration.</span></p></div>
       <div class="reveal" style="--d:.16s"><b><span class="zh">选来源，点开始</span><span class="en">Pick a source, press start</span></b><p><span class="zh">麦克风、系统声音或音频文件三选一，选好目标语言，打开字幕窗，点「开始翻译」。</span><span class="en">Microphone, system audio or a file; choose the target language, open the overlay, press Start.</span></p></div>
     </div>
   </div>
@@ -210,15 +210,15 @@
       <div class="feat">
         <div class="reveal">
           <div class="kicker"><span class="zh">隐私</span><span class="en">Privacy</span></div>
-          <h3><span class="zh">你的 Key，只在你的电脑上</span><span class="en">Your key stays on your machine</span></h3>
+          <h3><span class="zh">你的 Key，保存在你的设备上</span><span class="en">Your key stays on your machine</span></h3>
           <ul>
             <li><span class="zh">没有中转服务器：应用直接连你选的服务（百炼、OpenAI、Gemini 或火山引擎），音频只发给它</span><span class="en">No relay server: the app talks straight to the service you pick (Model Studio, OpenAI, Gemini or Volcengine), and audio goes nowhere else</span></li>
-            <li><span class="zh">API Key 存进 Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service</span><span class="en">The key lives in Credential Manager, Keychain or Secret Service</span></li>
+            <li><span class="zh">桌面端优先使用 Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service；Android 当前使用应用私有目录中的明文配置</span><span class="en">Desktop prefers Credential Manager, Keychain or Secret Service; Android currently uses plaintext configuration in its app-private directory</span></li>
             <li><span class="zh">代码全部开源（MIT），可以自己检查、自己编译</span><span class="en">All of it is open source (MIT) — read it, build it yourself</span></li>
           </ul>
         </div>
         <div class="art reveal" style="--d:.1s">
-          <div class="lockrow"><svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg><div><b><span class="zh">系统凭据库</span><span class="en">OS keychain</span></b><small><span class="zh">磁盘上没有明文 Key</span><span class="en">No plaintext key on disk</span></small></div></div>
+          <div class="lockrow"><svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg><div><b><span class="zh">系统凭据库</span><span class="en">OS keychain</span></b><small><span class="zh">桌面凭据库；Android 使用私有配置</span><span class="en">Desktop credential store; Android private config</span></small></div></div>
           <div class="lockrow"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><div><b><span class="zh">直连服务商</span><span class="en">Direct to the provider</span></b><small><span class="zh">WebSocket 由 Rust 内核发起</span><span class="en">The Rust core opens the WebSocket</span></small></div></div>
           <div class="lockrow"><svg viewBox="0 0 24 24"><path d="M12 3.2l7.6 4.2v9.2L12 20.8 4.4 16.6V7.4z"/><path d="M12 12.2l7.6-4.4M12 12.2v8.6M12 12.2L4.4 7.8"/></svg><div><b><span class="zh">开源 · MIT</span><span class="en">Open source · MIT</span></b><small>Tauri 2 · Rust · Vue 3</small></div></div>
         </div>
@@ -281,7 +281,7 @@
             <li><b>火山引擎豆包</b>：先到<a href="https://console.volcengine.com/speech/new/setting/activate">开通管理</a>里手动开通「同声传译」（开通后发放 100 万 token 免费额度，以控制台实际为准），再到<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台的 API Key 页</a>创建 Key。没开通的话，Key 填进去也连不上。</li>
           </ul>
           <h4>2. 把 Key 填进 ReaLingo</h4>
-          <p>打开 ReaLingo，点右上角齿轮（或标题栏 logo 下方的模型名）进入设置，在「连接」里选接口，粘贴 Key；用百炼的话再选好地域。Key 存进系统凭据库（Windows 凭据管理器、macOS 钥匙串、Linux Secret Service），不写进配置文件。</p>
+          <p>桌面端点右上角齿轮（或标题栏下的模型名），在「连接」里选接口并粘贴 Key；Android 点模型卡片选接口，在设置中填写 Key。用百炼时再确认地域。桌面端使用可用的系统凭据库；Android 当前将 Key 明文保存在应用私有配置中，Linux 无凭据库时也使用此回退。不要共享包含 Key 的配置文件。</p>
           <h4>3. 开始翻译</h4>
           <ol>
             <li>选音频来源：麦克风、系统声音或音频文件。</li>
@@ -301,7 +301,7 @@
             <li><b>Volcengine Doubao</b>: first switch on simultaneous interpretation by hand under <a href="https://console.volcengine.com/speech/new/setting/activate">Activation</a> (that grants 1M free tokens; the console has the final word), then create a key on the <a href="https://console.volcengine.com/speech/new/setting/apikeys">API key page of the Doubao Speech console</a>. Without activation the key will not connect.</li>
           </ul>
           <h4>2. Put the key into ReaLingo</h4>
-          <p>Open ReaLingo and click the gear in the top-right (or the model name under the title-bar logo). Under Connection, pick the API and paste the key; for Model Studio, also pick the region. The key goes into the OS keychain (Windows Credential Manager, macOS Keychain, Linux Secret Service), never a config file.</p>
+          <p>On desktop, open the gear (or model name below the title-bar logo) and select the provider under Connection. On Android, select the provider in the model card and enter the key in Settings. For Model Studio, confirm the region too. Desktop uses the OS credential store when available. Android currently keeps keys as plaintext in its app-private configuration; Linux without a credential store uses the same fallback. Do not share configuration files containing keys.</p>
           <h4>3. Start translating</h4>
           <ol>
             <li>Pick the audio source: microphone, system audio or an audio file.</li>
