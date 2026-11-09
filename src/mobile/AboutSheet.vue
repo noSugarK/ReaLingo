@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import Sheet from "./Sheet.vue";
-import { check, checkUpdate, openHome, REPO } from "../core/update";
+import { check, checkUpdate, openHome } from "../core/update";
 import { isMobile } from "../core/platform";
 import { t } from "../core/i18n";
 import appIcon from "../../brand/app-icon.png";
+import AboutLinks from "../shared/AboutLinks.vue";
 
 defineEmits<{ close: [] }>();
-const AUTHOR = "https://github.com/noSugarK";
 
 const version = ref("");
 onMounted(async () => {
@@ -17,7 +16,6 @@ onMounted(async () => {
   if (check.value.state === "idle") void checkUpdate();
 });
 
-const open = (url: string) => invoke("plugin:opener|open_url", { url });
 const platform = () => (isMobile.value ? t("platformAndroid") : "desktop");
 </script>
 
@@ -43,19 +41,9 @@ const platform = () => (isMobile.value ? t("platformAndroid") : "desktop");
       <button v-if="check.state === 'found'" class="rowbtn primary" @click="openHome">
         <span class="rt"><b>{{ t("updNewVersion") }} {{ check.tag }} ↗</b></span>
       </button>
-      <button class="rowbtn" @click="open(REPO)">
-        <span class="rt"><b>{{ t("aboutRepo") }}</b><small>github.com/noSugarK/ReaLingo</small></span>
-      </button>
-      <button class="rowbtn" @click="open(AUTHOR)">
-        <span class="rt"><b>{{ t("aboutAuthor") }}</b><small>noSugarK</small></span>
-      </button>
-      <button class="rowbtn" @click="open(`${REPO}/issues`)">
-        <span class="rt"><b>{{ t("aboutIssues") }}</b><small>{{ t("aboutIssuesLink") }}</small></span>
-      </button>
-      <button class="rowbtn" @click="open(`${REPO}/blob/main/LICENSE`)">
-        <span class="rt"><b>{{ t("aboutLicense") }}</b><small>MIT</small></span>
-      </button>
     </div>
+
+    <AboutLinks :version="version" />
 
     <p class="note">{{ t("aboutNote") }}</p>
   </Sheet>

@@ -3,13 +3,12 @@ import { computed, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { locale, t } from "../../core/i18n";
-import { check, checkUpdate, openHome, REPO, whatsNew } from "../../core/update";
+import { check, checkUpdate, openHome, whatsNew } from "../../core/update";
 import Sheet from "../../shared/Sheet.vue";
+import AboutLinks from "../../shared/AboutLinks.vue";
 import mark from "../../assets/mark.png";
 
 defineEmits<{ close: [] }>();
-
-const AUTHOR = "https://github.com/noSugarK";
 
 const version = ref("");
 onMounted(async () => {
@@ -109,19 +108,7 @@ function onNotesClick(e: MouseEvent) {
 
     <hr />
 
-    <dl class="meta">
-      <dt>{{ t("aboutRepo") }}</dt>
-      <dd><button class="link" @click="open(REPO)">noSugarK/ReaLingo ↗</button></dd>
-
-      <dt>{{ t("aboutAuthor") }}</dt>
-      <dd><button class="link" @click="open(AUTHOR)">noSugarK ↗</button></dd>
-
-      <dt>{{ t("aboutIssues") }}</dt>
-      <dd><button class="link" @click="open(`${REPO}/issues`)">{{ t("aboutIssuesLink") }} ↗</button></dd>
-
-      <dt>{{ t("aboutLicense") }}</dt>
-      <dd><button class="link" @click="open(`${REPO}/blob/main/LICENSE`)">MIT ↗</button></dd>
-    </dl>
+    <AboutLinks :version="version" />
   </Sheet>
 </template>
 
@@ -172,26 +159,6 @@ function onNotesClick(e: MouseEvent) {
   background: var(--hairline);
 }
 .notes-body :deep(a) { color: var(--accent); }
-
-.meta {
-  margin: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 9px 16px;
-  align-items: baseline;
-  font-size: 13px;
-}
-.meta dt { color: var(--ink-3); font-size: 12px; }
-.meta dd { margin: 0; }
-
-.link {
-  padding: 0;
-  font: inherit; font-weight: 600;
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.link:hover { filter: brightness(1.15); }
 
 hr { border: none; border-top: 1px solid var(--hairline); margin: 0; }
 </style>
