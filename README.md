@@ -269,7 +269,7 @@ npm run tauri build
 
 测试（重采样、地址拼接、各接口的消息格式与字幕切分）：
 
-安卓分支的权限、会话、图标及 APK 启动验证见 [Android 测试与闪退排查](docs/android-testing.md)。
+安卓分支的权限、会话、图标及 APK 启动验证见 [Android 测试与闪退排查](development/android-testing.md)。
 
 ```bash
 cd src-tauri && cargo test

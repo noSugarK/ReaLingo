@@ -277,7 +277,7 @@ npm run tauri build
 
 Tests (resampling, endpoint construction, per-API message shapes and subtitle segmentation):
 
-For Android permissions, sessions, icons and APK launch checks, see [Android testing and crash verification](docs/android-testing.md).
+For Android permissions, sessions, icons and APK launch checks, see [Android testing and crash verification](development/android-testing.md).
 
 ```bash
 cd src-tauri && cargo test
