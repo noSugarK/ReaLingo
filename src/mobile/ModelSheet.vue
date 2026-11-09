@@ -5,6 +5,7 @@ import { settings, switchProtocol, type Protocol } from "../core/store";
 import { PRESETS, modelName } from "../core/languages";
 import { t, tf } from "../core/i18n";
 import { toast } from "./toasts";
+import { VENDOR_LOGO } from "../shared/vendorLogos";
 
 const props = defineProps<{ running: boolean }>();
 const emit = defineEmits<{ close: []; restart: [] }>();
@@ -53,7 +54,7 @@ watch(customDraft, (v) => {
     <div class="cards">
       <button v-for="c in cards" :key="c.id" class="srccard" :class="{ on: settings.protocol === c.id }" @click="pick(c.id)">
         <span class="ic">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/></svg>
+          <img class="vendor-logo" :class="{ 'logo-mono': VENDOR_LOGO[c.id].mono }" :src="VENDOR_LOGO[c.id].src" alt="" width="22" height="22">
         </span>
         <span class="tx">
           <b>{{ c.name }} <em class="badge">{{ c.vendor }}</em></b>
@@ -80,8 +81,9 @@ watch(customDraft, (v) => {
   transition: all 0.2s var(--ease);
 }
 .srccard.on { background: rgba(10, 132, 255, 0.14); box-shadow: inset 0 0 0 1.6px var(--accent); }
-.ic { width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center; background: var(--glass); color: var(--ink-2); }
-.srccard.on .ic { background: var(--accent); color: #fff; }
+/* The mark keeps its own colours, so the tile stays neutral and selection shows on the card. */
+.ic { width: 38px; height: 38px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--hairline); }
+:root[data-theme="dark"] .ic { background: rgba(255, 255, 255, 0.08); }
 .tx { flex: 1; min-width: 0; }
 .srccard b { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--ink); }
 .srccard small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--ink-2); }

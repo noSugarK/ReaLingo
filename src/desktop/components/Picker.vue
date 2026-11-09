@@ -9,6 +9,9 @@ export type PickerOption = {
   note?: string;
   /** Extra text the search box matches on, e.g. the same name in the other UI language. */
   keywords?: string;
+  /** Leading image (a vendor mark); `iconMono` inverts it in the dark theme. */
+  icon?: string;
+  iconMono?: boolean;
 };
 
 const props = defineProps<{
@@ -32,9 +35,8 @@ const MAX_POP_H = 300;
 const SEARCH_FROM = 10;
 
 const searchable = computed(() => props.options.length > SEARCH_FROM);
-const label = computed(
-  () => props.options.find((o) => o.value === props.modelValue)?.label ?? props.placeholder ?? ""
-);
+const picked = computed(() => props.options.find((o) => o.value === props.modelValue));
+const label = computed(() => picked.value?.label ?? props.placeholder ?? "");
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -106,6 +108,7 @@ function pick(value: string) {
 <template>
   <div ref="box" class="pk">
     <button class="pk-trigger" :disabled="disabled" @click="open = !open">
+      <img v-if="picked?.icon" class="vendor-logo pk-ic" :class="{ 'logo-mono': picked.iconMono }" :src="picked.icon" alt="" width="16" height="16" />
       <span class="pk-value" :class="{ dim: !label || modelValue === '' }">{{ label }}</span>
       <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
         <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -132,6 +135,7 @@ function pick(value: string) {
             :class="{ on: o.value === modelValue }"
             @click="pick(o.value)"
           >
+            <img v-if="o.icon" class="vendor-logo pk-ic" :class="{ 'logo-mono': o.iconMono }" :src="o.icon" alt="" width="16" height="16" />
             <span>{{ o.label }}</span>
             <span v-if="o.note" class="pk-note">{{ o.note }}</span>
           </button>
@@ -219,4 +223,8 @@ function pick(value: string) {
    wrap inside 60% rather than squeezing the name into an ellipsis. */
 .pk-pop .pk-note { flex: 0 1 auto; max-width: 60%; text-align: right; font-size: 11px; color: var(--ink-3); }
 .pk-pop .pk-none { padding: 14px; text-align: center; color: var(--ink-3); font-size: 13px; }
+/* With a leading mark the label takes the free space, so the row reads mark · name · note
+   instead of spreading three items apart. */
+.pk-ic { width: 16px; height: 16px; }
+.pk-ic + span { flex: 1; min-width: 0; text-align: left; }
 </style>

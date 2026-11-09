@@ -28,6 +28,7 @@ import { checkUpdateAtStartup } from "../core/update";
 import { isRunning, lines, current, status, errorMsg, warnMsg, fileProgress, saveAs, pollHealth } from "../core/stream";
 import { perms, droid, refreshPerms, askMic, openAppSettings, openBatterySettings, pendingList, setKeepScreenOn, pickAudio } from "./perms";
 import { toast } from "./toasts";
+import { VENDOR_LOGO } from "../shared/vendorLogos";
 
 type Page = "home" | "settings" | "perms";
 const page = ref<Page>("home");
@@ -397,8 +398,8 @@ async function askFromCenter() {
           <span class="m-glabel">{{ t("groupConn") }}</span>
           <div class="m-group">
             <button class="m-row" @click="drawer = 'model'">
-              <span class="m-tx"><b>{{ t("protocol") }}</b><small class="mono">{{ settings.model }}</small></span>
-              <span class="m-val">{{ modelName(settings.protocol, PRESETS[settings.protocol][0].id) }}</span>
+              <span class="vendor-tile"><img class="vendor-logo" :class="{ 'logo-mono': VENDOR_LOGO[settings.protocol].mono }" :src="VENDOR_LOGO[settings.protocol].src" alt="" width="20" height="20"></span>
+              <span class="m-tx"><b>{{ modelName(settings.protocol, PRESETS[settings.protocol][0].id) }}</b><small class="mono">{{ settings.model }}</small></span>
               <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
             </button>
             <label class="m-field">
@@ -723,7 +724,9 @@ async function askFromCenter() {
 .pt2 { font-size: 11px; color: var(--ink-3); font-weight: 600; margin-top: 2px; }
 .settings-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; padding-bottom: 8px; }
 section { display: flex; flex-direction: column; }
-.m-tx small.mono { font-family: ui-monospace, monospace; word-break: break-all; }
+.vendor-tile { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--hairline); }
+:root[data-theme="dark"] .vendor-tile { background: rgba(255, 255, 255, 0.08); }
+.m-tx small.mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
 .statpill { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
 .statpill.g { color: var(--ok); background: rgba(48, 209, 88, 0.14); }
 .statpill.r { color: var(--danger); background: rgba(255, 69, 58, 0.15); }

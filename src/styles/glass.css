@@ -283,6 +283,10 @@ input[type="color"] {
   border-radius: 9px; cursor: pointer;
 }
 
+/* vendor marks (shared/vendorLogos.ts): a black single-colour logo flips in the dark */
+.vendor-logo { flex: none; object-fit: contain; }
+:root[data-theme="dark"] .vendor-logo.logo-mono { filter: invert(1); }
+
 /* switch */
 .sw {
   width: 42px; height: 25px; flex: none;

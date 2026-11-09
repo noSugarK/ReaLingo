@@ -7,6 +7,7 @@ import { PRESETS, PROTOCOLS, type Vendor } from "../../core/languages";
 import { t } from "../../core/i18n";
 import Hotwords from "../../shared/Hotwords.vue";
 import Picker from "./Picker.vue";
+import { VENDOR_LOGO } from "../../shared/vendorLogos";
 import Sheet from "../../shared/Sheet.vue";
 
 defineEmits<{ close: [] }>();
@@ -62,13 +63,15 @@ function pickProtocol(p: Protocol) {
 }
 
 // A dropdown, not a segmented row: the list grows with every protocol added.
-const protocolOptions = computed(() => [
-  { value: "qwen35", label: t("protocolQwen35"), note: t("vendorQwen") },
-  { value: "qwen38", label: t("protocolQwen38"), note: t("vendorQwen") },
-  { value: "openai", label: t("protocolOpenai") },
-  { value: "gemini", label: t("protocolGemini"), note: "Google" },
-  { value: "volc", label: t("protocolVolc"), note: t("vendorVolc") },
-]);
+const protocolOptions = computed(() =>
+  [
+    { value: "qwen35", label: t("protocolQwen35"), note: t("vendorQwen") },
+    { value: "qwen38", label: t("protocolQwen38"), note: t("vendorQwen") },
+    { value: "openai", label: t("protocolOpenai") },
+    { value: "gemini", label: t("protocolGemini"), note: "Google" },
+    { value: "volc", label: t("protocolVolc"), note: t("vendorVolc") },
+  ].map((o) => ({ ...o, icon: VENDOR_LOGO[o.value as Protocol].src, iconMono: VENDOR_LOGO[o.value as Protocol].mono }))
+);
 const protocolPick = computed({
   get: () => settings.protocol as string,
   set: (v: string) => pickProtocol(v as Protocol),
