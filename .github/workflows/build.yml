@@ -46,8 +46,10 @@ jobs:
           # Hand-written notes for this tag go on top; the generated changelog follows them.
           notes=".github/release-notes/$GITHUB_REF_NAME.md"
           [ -f "$notes" ] || notes=/dev/null
+          prerelease=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease+=(--prerelease --latest=false); fi
           gh release create "$GITHUB_REF_NAME" \
-            --draft --title "ReaLingo $GITHUB_REF_NAME" --notes-file "$notes" --generate-notes
+            --draft "${prerelease[@]}" --title "ReaLingo $GITHUB_REF_NAME" --notes-file "$notes" --generate-notes
 
   bundle:
     needs: create-release
@@ -230,11 +232,8 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/realingo-upload.jks"
 
-  # `android` deliberately NOT in needs yet: the pipeline is proving itself on this branch,
-  # and a green desktop release must not wait on an untested NDK path. Once the first
-  # tagged build has an APK passing here, add `, android` and its upload step takes effect.
   publish-release:
-    needs: bundle
+    needs: [bundle, android]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -243,4 +242,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$GITHUB_REF_NAME" --draft=false
+          fi
