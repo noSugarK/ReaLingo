@@ -23,6 +23,20 @@
   background: var(--shade); color: var(--ink); font: inherit; font-size: 16px;
 }
 
+/* A pick-one row whose choices are long or rarely changed: the name on the left, the
+   current value and a chevron on the right, the platform's own picker on tap. Short,
+   often-flipped sets with a visible effect stay segmented (.m-seg). */
+.m-pick { position: relative; cursor: pointer; }
+.m-pick select {
+  appearance: none; -webkit-appearance: none; flex: none; max-width: 55%; min-height: 34px; padding: 0 22px 0 8px;
+  border: 0; border-radius: 9px; background: none; color: var(--ink-2); font: inherit; font-size: 14px; font-weight: 560;
+  text-align: right; text-align-last: right; cursor: pointer; outline: none;
+}
+.m-pick select:focus-visible { box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25); }
+.m-pick select:disabled { opacity: 0.5; cursor: default; }
+.m-pick .m-chev { position: absolute; right: 0; pointer-events: none; }
+.m-pick select option { background: var(--canvas); color: var(--ink); }
+
 /* Search box above a long pick list (languages, voices). */
 .m-search {
   width: 100%; height: 44px; padding: 0 14px; border-radius: 13px; background: var(--shade); border: 1px solid var(--hairline);

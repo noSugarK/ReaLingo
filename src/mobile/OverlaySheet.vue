@@ -25,15 +25,13 @@ const SWITCHES = [["outline", "subOutline"], ["grow", "subGrow"], ["locked", "su
     </div>
 
     <section>
-      <span class="m-glabel">{{ t('subMode') }}</span>
-      <div class="m-seg">
-        <button v-for="[v, k] in MODES" :key="v" :class="{ on: settings.sub.mode === v }" @click="settings.sub.mode = v">{{ t(k) }}</button>
-      </div>
-    </section>
-
-    <section>
       <span class="m-glabel">{{ t('subGroupText') }}</span>
       <div class="m-group">
+        <label class="m-row m-pick">
+          <span class="m-tx"><b>{{ t('subMode') }}</b></span>
+          <select v-model="settings.sub.mode"><option v-for="[v, k] in MODES" :key="v" :value="v">{{ t(k) }}</option></select>
+          <svg class="m-chev" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+        </label>
         <label class="m-field">
           <b>{{ t('subTgtSize') }}<output>{{ settings.sub.tgtSize }}</output></b>
           <input v-model.number="settings.sub.tgtSize" class="m-range" type="range" min="12" max="72" />
