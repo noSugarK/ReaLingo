@@ -1,4 +1,0 @@
-interface:
-  display_name: "Tauri 2 桌面与移动应用"
-  short_description: "构建 Tauri 2、Rust 与 Vue 应用，覆盖平台集成、故障排查和发布验证"
-  default_prompt: "使用 $tauri-rust-vue 实现或排查当前应用，按目标平台选择方案，并验证构建、原生行为和发布产物。"
