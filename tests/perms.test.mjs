@@ -151,6 +151,26 @@ test('an open system prompt cannot be mistaken for permanent denial', async () =
   assert.deepEqual(m.pendingList(), []);
 });
 
+test('a prompt left open past the poll window keeps the start intent for resume', async (t) => {
+  store.clear();
+  bridge = {
+    requestMic: () => {},
+    micStatus: () => JSON.stringify({ granted: false, rationale: false, requesting: true }),
+    notifEnabled: () => true, batteryIgnored: () => true, deviceName: () => 'X',
+  };
+  const m = await fresh();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const asks = [m.askMic(true), m.askMic()];
+  for (let i = 0; i < 61; i++) { await new Promise(setImmediate); t.mock.timers.tick(500); }
+  await Promise.all(asks);
+  assert.equal(m.perms.pendingStart, true);
+  m.perms.pendingStart = false;
+  const centre = m.askMic();
+  for (let i = 0; i < 61; i++) { await new Promise(setImmediate); t.mock.timers.tick(500); }
+  await centre;
+  assert.equal(m.perms.pendingStart, false, 'asking from the permission centre never auto-starts');
+});
+
 test('a completed repeated denial returns promptly even when the state is unchanged', async () => {
   store.clear();
   bridge = {

@@ -123,7 +123,8 @@ async function start() {
     }
     // First time, or denied-but-will-ask-again: the system dialog owns it. The app adds
     // nothing around it (design rule) — just waits for the answer and starts on a yes.
-    const after = await askMic();
+    const after = await askMic(true);
+    if (perms.pendingStart) return; // dialog still open: onResume starts on the answer
     if (after === "granted") void doStart();
     else if (after === "permanent") guideOpen.value = true;
     else if (after === "denied") toast(t("permDeniedToast"));

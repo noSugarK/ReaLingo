@@ -93,7 +93,7 @@ export async function refreshPerms(): Promise<void> {
  * A human needs a beat to read the dialog, hence half-second ticks for up to 30 s; after
  * that the next resume refresh still catches a slow answer (start() waits on it).
  */
-export async function askMic(): Promise<MicState> {
+export async function askMic(autoStart = false): Promise<MicState> {
   asked = true;
   localStorage.setItem("micAsked", "1");
   const before = perms.mic;
@@ -111,6 +111,8 @@ export async function askMic(): Promise<MicState> {
     }
     if (perms.mic !== before) break;
   }
+  // Dialog still open after 30 s: let the resume refresh start on a late yes.
+  if (autoStart && droid && JSON.parse(droid.micStatus()).requesting) perms.pendingStart = true;
   return perms.mic;
 }
 
