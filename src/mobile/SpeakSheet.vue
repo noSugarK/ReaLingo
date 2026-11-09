@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import Sheet from "./Sheet.vue";
 import { session } from "../core/session";
 import { settings } from "../core/store";
@@ -14,6 +14,15 @@ defineEmits<{ close: [] }>();
 const running = computed(() => isRunning());
 const blocked = computed(() => session.speakBlocked.value);
 const on = computed(() => settings.speak && !blocked.value);
+
+// Qwen alone has 47 voices: searched by name and by trait ("gentle", "male", accent),
+// the same keywords the desktop picker matches.
+const query = ref("");
+const voices = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  const all = session.voiceOptions.value;
+  return q ? all.filter((v) => `${v.label} ${v.value} ${v.note ?? ""} ${v.keywords}`.toLowerCase().includes(q)) : all;
+});
 
 function toggle() {
   if (running.value || blocked.value) return;
@@ -33,15 +42,20 @@ function toggle() {
 
     <section v-if="session.voiceList.value" :class="{ off: !on }">
       <span class="glabel">{{ t('voice') }}</span>
+      <label class="m-search">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg>
+        <input v-model="query" type="search" :placeholder="t('voiceSearchPh')" :aria-label="t('voice')" spellcheck="false" autocomplete="off">
+      </label>
       <div class="list" role="radiogroup" :aria-label="t('voice')">
         <button
-          v-for="v in session.voiceOptions.value" :key="v.value" class="vrow" role="radio"
+          v-for="v in voices" :key="v.value" class="vrow" role="radio"
           :aria-checked="settings.voice === v.value" :class="{ on: settings.voice === v.value }"
           :disabled="running" @click="settings.voice = v.value"
         >
           <span class="nm"><b>{{ v.label }}</b><small v-if="v.note">{{ v.note }}</small></span>
           <svg class="ck" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
         </button>
+        <p v-if="!voices.length" class="none">{{ t('voiceNoMatch') }}</p>
       </div>
     </section>
     <p v-else class="note">{{ t('voiceServer') }}</p>
@@ -68,7 +82,7 @@ function toggle() {
 section { display: flex; flex-direction: column; transition: opacity 0.25s var(--ease); }
 section.off { opacity: 0.55; }
 .glabel { font-size: 12px; font-weight: 700; color: var(--ink-3); margin: 0 4px 9px; }
-.list { border-radius: 15px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline); }
+.list { margin-top: 10px; border-radius: 15px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline); }
 .vrow { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 8px 16px; text-align: left; color: var(--ink); }
 .vrow + .vrow { box-shadow: inset 0 1px 0 var(--hairline); }
 .vrow .nm { flex: 1; min-width: 0; }
@@ -78,5 +92,6 @@ section.off { opacity: 0.55; }
 .vrow.on .ck { visibility: visible; }
 .vrow.on b { color: var(--accent); font-weight: 700; }
 .vrow:disabled { cursor: default; }
+.none { margin: 0; padding: 14px; text-align: center; color: var(--ink-2); font-size: 13.5px; }
 .note { margin: 0; padding: 14px; border-radius: 15px; background: var(--shade); text-align: center; color: var(--ink-2); font-size: 13.5px; line-height: 1.6; }
 </style>

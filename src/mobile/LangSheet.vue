@@ -56,10 +56,10 @@ function switchTab(side: "source" | "target") {
 
     <p v-if="tab === 'source' && detectedOnly" class="note">{{ t('srcDetectedOnly') }}</p>
     <template v-else>
-      <div class="field">
+      <label class="m-search">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg>
         <input v-model="query" type="search" :placeholder="t('tgtSearchPh')" spellcheck="false" autocomplete="off">
-      </div>
+      </label>
 
       <div class="list">
         <button v-for="o in filtered" :key="o.value" class="langrow" :class="{ on: selected === o.value }" @click="pick(o.value)">
@@ -81,13 +81,6 @@ function switchTab(side: "source" | "target") {
 }
 .seg button { height: 38px; border-radius: 10px; font-size: 14px; font-weight: 650; color: var(--ink-2); }
 .seg button.on { background: var(--glass-hi); color: var(--ink); box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.3); }
-.field {
-  width: 100%; height: 44px; padding: 0 14px; border-radius: 13px;
-  background: var(--shade); border: 1px solid var(--hairline);
-  display: flex; align-items: center; gap: 9px; color: var(--ink-3);
-}
-.field input { flex: 1; border: 0; background: none; outline: none; font-family: inherit; font-size: 16px; color: var(--ink); min-width: 0; }
-.field input::placeholder { color: var(--ink-3); }
 /* The list is the sheet's body, not a 230 px window inside it: the sheet scrolls, the
    search field stays in reach above it. */
 .list { margin-top: -6px; border-radius: 15px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline); }

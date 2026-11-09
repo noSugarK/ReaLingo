@@ -23,6 +23,15 @@
   background: var(--shade); color: var(--ink); font: inherit; font-size: 16px;
 }
 
+/* Search box above a long pick list (languages, voices). */
+.m-search {
+  width: 100%; height: 44px; padding: 0 14px; border-radius: 13px; background: var(--shade); border: 1px solid var(--hairline);
+  display: flex; align-items: center; gap: 9px; color: var(--ink-3);
+}
+.m-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: none; box-shadow: none; font: inherit; font-size: 16px; color: var(--ink); }
+.m-search input::placeholder { color: var(--ink-3); }
+.m-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.18); }
+
 /* Native range, themed: a 44 px tall hit area around a thin track. */
 .m-range { width: 100%; height: 28px; margin: 0; accent-color: var(--accent); background: none; }
 
