@@ -21,14 +21,14 @@ Tauri 2 + Rust 内核，Vue 3 前端，苹果液态玻璃风格界面。
 ## 下载与安装
 
 从 [Releases](https://github.com/noSugarK/ReaLingo/releases/latest) 取对应平台的安装包：
-Windows `.exe` / `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb`。
+Windows `.exe` / `.msi`、macOS `.dmg`（Intel 与 Apple Silicon 通用）、Linux `.deb` / `.rpm`。
 安装包都没有商业代码签名，首次打开会被系统拦一下，按下面放行即可。
 
 | 系统 | 安装 | 首次打开 |
 |---|---|---|
-| Windows 10/11 | 双击 `ReaLingo_x.y.z_x64-setup.exe`（或 `.msi`） | SmartScreen 提示「Windows 已保护你的电脑」时点 **更多信息 → 仍要运行**；之后从开始菜单打开 |
+| Windows 10/11 | 双击 `ReaLingo_x.y.z_windows_x86_64-setup.exe`（或 `.msi`） | SmartScreen 提示「Windows 已保护你的电脑」时点 **更多信息 → 仍要运行**；之后从开始菜单打开 |
 | macOS 12+ | 打开 `.dmg`，把 ReaLingo 拖进「应用程序」 | 提示「已损坏」或「无法验证开发者」时，终端执行 `xattr -dr com.apple.quarantine /Applications/ReaLingo.app`，或到 **系统设置 → 隐私与安全性** 点 **仍要打开**；随后按提示允许麦克风 / 系统录音 |
-| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_amd64.deb`（用 apt 才会拉依赖） | 从应用菜单打开，或终端运行 `realingo` |
+| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_linux_x86_64.deb`（用 apt 才会拉依赖） | 从应用菜单打开，或终端运行 `realingo` |
 
 macOS 升级后系统声音没反应：到 **系统设置 → 隐私与安全性 → 屏幕与系统录音**（以及 **麦克风**）
 里删掉 ReaLingo，重开应用再授权一次 —— ad-hoc 签名每个版本都不同，旧的授权可能对不上。
@@ -244,22 +244,24 @@ git tag v0.2.1 && git push origin v0.2.1
 |---|---|
 | `realingo-x86_64-pc-windows-msvc` | `.msi` + NSIS `.exe` |
 | `realingo-universal-apple-darwin` | `.dmg`，**Intel 与 Apple Silicon 通用** |
-| `realingo-x86_64-unknown-linux-gnu` | `.deb`（约 6 MB） |
+| `realingo-x86_64-unknown-linux-gnu` | `.deb` + `.rpm` |
 
 macOS 不再单独跑 Intel job —— `macos-13` runner 已于 2025-12 退役，x86_64 的 job 只会一直排队；
 改为在 Apple Silicon 上交叉编译出 universal 二进制，一个 DMG 通吃。
 
-Linux 只出 `.deb`：它在 `tauri.conf.json` 里声明了 `libwebkit2gtk-4.1-0` 与
-`libayatana-appindicator3-1`，装的时候 apt 会自己把依赖拉下来 ——
+发布文件统一命名为 `ReaLingo_<版本>_<系统>_<架构>.<格式>`，Windows EXE 保留 `-setup` 后缀。
+系统与架构分别为 `windows_x86_64`、`macos_universal`、`linux_x86_64`、`android_arm64`。
+macOS universal 包同时包含 Intel x86_64 和 Apple Silicon arm64。
+
+Linux 同时提供 DEB 和 RPM，由包管理器安装运行依赖：
 
 ```bash
-sudo apt install ./ReaLingo_0.2.1_amd64.deb   # 用 apt 而不是 dpkg -i，才会解析依赖
+sudo apt install ./ReaLingo_*_linux_x86_64.deb  # Ubuntu / Debian
+sudo dnf install ./ReaLingo_*_linux_x86_64.rpm  # Fedora 等 RPM 发行版，需提供 WebKitGTK 4.1
 ```
 
-不出 AppImage 是因为它存在的意义就是自带一份 WebKitGTK 去伺候没有该库的发行版，
-而我们的目标是 Ubuntu 22.04+（`libwebkit2gtk-4.1-0` 从 22.04 起就在源里），
-那 90 MB 纯属白背。要覆盖 Fedora/Arch 的话，workflow 里 `--bundles deb` 后面
-补 `,rpm` 或 `,appimage` 即可。
+RPM 声明 `webkit2gtk4.1`、Ayatana AppIndicator 共享库和 `pulseaudio-utils` 依赖。
+目前不提供 AppImage。RPM 的实际发行版兼容性仍需在对应系统上验证。
 
 打包：
 

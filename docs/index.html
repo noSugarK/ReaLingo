@@ -302,7 +302,7 @@
       <details><summary><span class="zh">macOS 提示「已损坏」或打不开？</span><span class="en">macOS says the app is damaged?</span></summary><p><span class="zh">应用没有经过 Apple 公证。把它拖进「应用程序」后，在终端执行 <code>xattr -dr com.apple.quarantine /Applications/ReaLingo.app</code>，或到「系统设置 → 隐私与安全性」点「仍要打开」。升级后系统声音没反应，就在「屏幕与系统录音」里删掉 ReaLingo 重新授权。</span><span class="en">It is not notarised. After moving it to Applications, run <code>xattr -dr com.apple.quarantine /Applications/ReaLingo.app</code>, or click “Open Anyway” in System Settings → Privacy &amp; Security. If system audio goes quiet after an update, remove ReaLingo under Screen &amp; System Audio Recording and grant it again.</span></p></details>
       <details><summary><span class="zh">朗读会不会被录回去，越翻越乱？</span><span class="en">Will it record its own voice and loop?</span></summary><p><span class="zh">录系统声音时不会：Windows 和 macOS 都会把 ReaLingo 自己的进程排除在采集之外，Linux 上则不朗读。用麦克风时，扬声器的声音会被物理地收进去，请戴耳机。</span><span class="en">Not with system audio: Windows and macOS leave ReaLingo’s own process out of the capture, and Linux does not speak at all. With a microphone the speakers are physically picked up — use headphones.</span></p></details>
       <details><summary><span class="zh">翻译记录会存在哪？</span><span class="en">Where are transcripts kept?</span></summary><p><span class="zh">默认不保存。打开翻译流右上角的「记录」后，每场存成 <code>app-data/history/</code> 下的一个 JSONL 文件，可以在「翻译历史」里打开文件夹、导出或删除。</span><span class="en">Nothing is saved by default. Turn on “Record” and each session becomes one JSONL file in <code>app-data/history/</code>, which the History panel can open, export or delete.</span></p></details>
-      <details><summary><span class="zh">Linux 怎么装？</span><span class="en">How do I install on Linux?</span></summary><p><span class="zh">用 apt 装本地包，依赖会一起装上：<code>sudo apt install ./ReaLingo_*_amd64.deb</code>。用 <code>dpkg -i</code> 不会解析依赖。</span><span class="en">Install with apt so the dependencies come along: <code>sudo apt install ./ReaLingo_*_amd64.deb</code>. <code>dpkg -i</code> resolves none of them.</span></p></details>
+      <details><summary><span class="zh">Linux 怎么装？</span><span class="en">How do I install on Linux?</span></summary><p><span class="zh">用 apt 装本地包，依赖会一起装上：<code>sudo apt install ./ReaLingo_*_linux_x86_64.deb</code>。用 <code>dpkg -i</code> 不会解析依赖。</span><span class="en">Install with apt so the dependencies come along: <code>sudo apt install ./ReaLingo_*_linux_x86_64.deb</code>. <code>dpkg -i</code> resolves none of them.</span></p></details>
     </div>
   </div>
 </section>
@@ -468,7 +468,7 @@
      link breaks on every release. Ask the API once and rewrite the hrefs; if
      that fails (offline, rate limited), the markup's releases-page href stands. */
   var REPO = "noSugarK/ReaLingo";
-  var PICK = { win: /x64-setup\.exe$/i, mac: /\.dmg$/i, linux: /\.deb$/i };
+  var PICK = { win: /(?:x64|windows_x86_64)-setup\.exe$/i, mac: /\.dmg$/i, linux: /\.deb$/i };
   var release = null;
   function fmtSize(b) { var mb = b / 1048576; return mb >= 1 ? mb.toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
   function detectOS() {

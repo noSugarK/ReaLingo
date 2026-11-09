@@ -56,6 +56,9 @@
     "linux": {
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0", "libayatana-appindicator3-1", "pulseaudio-utils"]
+      },
+      "rpm": {
+        "depends": ["webkit2gtk4.1", "libayatana-appindicator3.so.1()(64bit)", "pulseaudio-utils"]
       }
     },
     "android": {

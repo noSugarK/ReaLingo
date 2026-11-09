@@ -22,14 +22,14 @@ Rust core on Tauri 2, Vue 3 front end, Apple liquid-glass interface.
 
 Grab the installer for your platform from the
 [latest release](https://github.com/noSugarK/ReaLingo/releases/latest):
-`.exe` / `.msi` for Windows, `.dmg` for macOS (universal — Intel and Apple Silicon), `.deb` for Linux.
+`.exe` / `.msi` for Windows, `.dmg` for macOS (universal — Intel and Apple Silicon), `.deb` / `.rpm` for Linux.
 None of them carry a commercial code signature, so the OS stops the first launch once; let it through as below.
 
 | OS | Install | First launch |
 |---|---|---|
-| Windows 10/11 | Run `ReaLingo_x.y.z_x64-setup.exe` (or the `.msi`) | If SmartScreen says "Windows protected your PC", click **More info → Run anyway**; afterwards open it from the Start menu |
+| Windows 10/11 | Run `ReaLingo_x.y.z_windows_x86_64-setup.exe` (or the `.msi`) | If SmartScreen says "Windows protected your PC", click **More info → Run anyway**; afterwards open it from the Start menu |
 | macOS 12+ | Open the `.dmg` and drag ReaLingo into Applications | If macOS says the app is damaged or from an unidentified developer, run `xattr -dr com.apple.quarantine /Applications/ReaLingo.app` in Terminal, or click **Open Anyway** under **System Settings → Privacy & Security**; then allow microphone / system audio recording when asked |
-| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_amd64.deb` (apt, not `dpkg -i`, so dependencies get pulled in) | Open it from the app menu, or run `realingo` |
+| Ubuntu 22.04+ | `sudo apt install ./ReaLingo_x.y.z_linux_x86_64.deb` (apt, not `dpkg -i`, so dependencies get pulled in) | Open it from the app menu, or run `realingo` |
 
 If system audio stays silent on macOS after an upgrade, remove ReaLingo under
 **System Settings → Privacy & Security → Screen & System Audio Recording** (and **Microphone**),
@@ -268,6 +268,14 @@ part appears.
 # after bumping version in src-tauri/Cargo.toml and writing .github/release-notes/v0.2.1.md
 git tag v0.2.1 && git push origin v0.2.1
 ```
+
+Release filenames follow `ReaLingo_<version>_<system>_<architecture>.<format>`; Windows EXE files retain the `-setup` suffix.
+The system/architecture pairs are `windows_x86_64`, `macos_universal`, `linux_x86_64`, and `android_arm64`.
+The macOS universal bundle includes both Intel x86_64 and Apple Silicon arm64.
+
+Linux ships DEB and RPM packages. On Fedora and other compatible RPM distributions, use
+`sudo dnf install ./ReaLingo_*_linux_x86_64.rpm`. RPM requires `webkit2gtk4.1`,
+the Ayatana AppIndicator shared library, and `pulseaudio-utils`; distribution compatibility still needs testing on the target system.
 
 Packaging locally:
 

@@ -62,11 +62,7 @@ jobs:
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             rust-targets: x86_64-unknown-linux-gnu
-            # .deb only. Its Depends (see tauri.conf.json) let apt pull webkit2gtk and
-            # appindicator in, so the ~90 MB AppImage — which exists to carry its own copy
-            # of WebKitGTK for distros without it — buys nothing on our stated target of
-            # Ubuntu 22.04+. Add `,appimage` or `,rpm` here if other distros ever matter.
-            bundles: --bundles deb
+            bundles: --bundles deb,rpm
 
           # One universal binary instead of separate Intel/ARM jobs: the macos-13 runner was
           # retired in Dec 2025 (an x86_64 job just queues forever), and Apple Silicon hosts
@@ -110,18 +106,14 @@ jobs:
         with:
           args: --target ${{ matrix.target }} ${{ matrix.bundles }}
 
-      # Only the installers. `bundle/**/*` also sweeps up the unpacked trees the bundlers
-      # leave behind, which is half of why the Linux artifact was 192 MB — the same payload
-      # uploaded twice over.
+      - name: Collect installers with system and architecture in their names
+        run: node scripts/collect-installers.mjs ${{ matrix.target }}
+
       - uses: actions/upload-artifact@v6
         with:
           name: realingo-${{ matrix.target }}
           if-no-files-found: error
-          path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*-setup.exe
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+          path: installers/*
 
       # bash on every runner (Windows included) so one glob works across all three.
       - name: Attach bundles to the release
@@ -131,14 +123,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          shopt -s nullglob
-          files=(src-tauri/target/${{ matrix.target }}/release/bundle/*/*.{msi,exe,dmg,deb})
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "no installers produced for ${{ matrix.target }}" >&2
-            exit 1
-          fi
-          printf 'uploading %s\n' "${files[@]}"
-          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          gh release upload "$GITHUB_REF_NAME" installers/* --clobber
 
   # ARM64 APK, built and signed the same way LittleLobby's release pipeline does it.
   # The generated Gradle project lives in src-tauri/gen/ (gitignored), so CI runs
@@ -218,7 +203,7 @@ jobs:
           suffix=''
           if [[ "$SIGNED" != true ]]; then suffix='-test-signed'; fi
           mkdir -p installers
-          cp "${packages[0]}" "installers/ReaLingo_${version}_android-arm64${suffix}.apk"
+          cp "${packages[0]}" "installers/ReaLingo_${version}_android_arm64${suffix}.apk"
           expected_id=com.nosugark.realingo
           if [[ "$SIGNED" != true ]]; then expected_id="$expected_id.debug"; fi
           node scripts/verify-android-package.mjs "${packages[0]}" "$expected_id" "$ANDROID_HOME/build-tools/36.0.0/aapt"

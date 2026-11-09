@@ -107,8 +107,10 @@ pre code { padding: 0; background: none; }
         <li><span class="zh">首次用麦克风 / 系统声音时会弹权限申请，点允许。系统声音需要 <b>macOS 14.4+</b>。</span><span class="en">Allow the microphone / system audio permission when asked. System audio needs <b>macOS 14.4+</b>.</span></li>
       </ol>
       <ol data-os="linux">
-        <li><span class="zh">下载 <b>.deb</b>，用 apt 安装（会自动拉依赖，<code>dpkg -i</code> 不会）：</span><span class="en">Download the <b>.deb</b> and install it with apt (which pulls in dependencies; <code>dpkg -i</code> does not):</span>
-          <pre><code>sudo apt install ./ReaLingo_*_amd64.deb</code></pre></li>
+        <li><span class="zh">Ubuntu / Debian 下载 <b>.deb</b> 用 apt 安装，Fedora 下载 <b>.rpm</b> 用 dnf 安装，自动安装依赖：</span><span class="en">Use apt with the <b>.deb</b> on Ubuntu / Debian, or dnf with the <b>.rpm</b> on Fedora, to install dependencies automatically:</span>
+          <pre><code>sudo apt install ./ReaLingo_*_linux_x86_64.deb
+# Fedora (RPM)
+sudo dnf install ./ReaLingo_*_linux_x86_64.rpm</code></pre></li>
         <li><span class="zh">从应用菜单打开 ReaLingo，或在终端运行 <code>realingo</code>。</span><span class="en">Open ReaLingo from the app menu, or run <code>realingo</code> in a terminal.</span></li>
         <li><span class="zh">系统声音需要 PulseAudio 或 PipeWire（Ubuntu 桌面默认就有）。托盘图标不响应左键，用右键菜单里的「显示主窗口」。</span><span class="en">System audio needs PulseAudio or PipeWire (standard on the Ubuntu desktop). The tray icon ignores left clicks; use "Show main window" in its right-click menu.</span></li>
       </ol>
@@ -201,9 +203,9 @@ pre code { padding: 0; background: none; }
   var svg = function (os, cls) { return '<svg' + (cls ? ' class="' + cls + '"' : "") + ' viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON[os] + '"/></svg>'; };
   // Formats per system, the first being the one the big button hands out.
   var OS = [
-    { os: "win", name: "Windows", req: "Windows 10 / 11 · x64", fmts: [[".exe", /x64-setup\.exe$/i], [".msi", /\.msi$/i]] },
+    { os: "win", name: "Windows", req: "Windows 10 / 11 · x64", fmts: [[".exe", /(?:x64|windows_x86_64)-setup\.exe$/i], [".msi", /\.msi$/i]] },
     { os: "mac", name: "macOS", req: ["macOS 12+ · Apple 芯片 / Intel", "macOS 12+ · Apple silicon / Intel"], fmts: [[".dmg", /\.dmg$/i]] },
-    { os: "linux", name: "Linux", req: "Ubuntu 22.04+ · x64", fmts: [[".deb", /\.deb$/i]] }
+    { os: "linux", name: "Linux", req: "Ubuntu 22.04+ / Fedora · x64", fmts: [[".deb", /\.deb$/i], [".rpm", /\.rpm$/i]] }
   ];
   var assetFor = function (rel, re) { return rel && rel.assets.filter(function (a) { return re.test(a.name); })[0]; };
   function fmtSize(b) { var mb = b / 1048576; return mb >= 1 ? mb.toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
