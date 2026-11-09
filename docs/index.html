@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ReaLingo — 桌面实时同传</title>
-<meta name="description" content="桌面同声传译，支持阿里云百炼 Qwen、OpenAI、Google Gemini、火山引擎豆包：最多 60 种语言互译，译文浮在任何窗口上，还能朗读。Windows / macOS / Linux，开源免费。" />
+<title>ReaLingo — 桌面与 Android 实时同传</title>
+<meta name="description" content="桌面同声传译，支持阿里云百炼 Qwen、OpenAI、Google Gemini、火山引擎豆包：最多 60 种语言互译，译文浮在任何窗口上，还能朗读。Windows / macOS / Linux 与 Android Beta，开源免费。" />
 <link rel="icon" href="mark.png" />
 <script src="site.js"></script>
-<meta property="og:title" content="ReaLingo — 桌面实时同传" />
+<meta property="og:title" content="ReaLingo — 桌面与 Android 实时同传" />
 <meta property="og:description" content="支持 Qwen、OpenAI、Gemini、豆包的实时同传，字幕浮在任何窗口上，译文还能念给你听。开源免费。" />
 <meta property="og:image" content="https://nosugark.github.io/ReaLingo/promo-poster.jpg" />
 <meta property="og:type" content="website" />
@@ -41,7 +41,7 @@
   <canvas id="tunnel" aria-hidden="true"></canvas>
   <div class="wrap">
     <img class="logo reveal" src="banner.webp" alt="ReaLingo" width="1075" height="320" />
-    <h1 class="reveal" style="--d:.06s"><span class="zh">实时同传，<span class="grad">就在你的桌面</span></span><span class="en">Live interpreting, <span class="grad">on your desktop</span></span></h1>
+    <h1 class="reveal" style="--d:.06s"><span class="zh">实时同传，<span class="grad">从桌面到手机</span></span><span class="en">Live interpreting, <span class="grad">on desktop and Android</span></span></h1>
     <p class="lead reveal" style="--d:.12s"><span class="zh">开会、看视频、上网课时，把麦克风、系统声音或音频文件交给它，译文实时浮在任何窗口上。开源免费，自带阿里云百炼、OpenAI、Google Gemini 或火山引擎豆包的 API Key 即可。</span><span class="en">In a meeting, a video or a lecture: hand it your mic, system audio or a file, and the translation floats live over any window. Free and open source — bring your own Alibaba Cloud Model Studio, OpenAI, Google Gemini or Volcengine Doubao key.</span></p>
     <div class="cta reveal" style="--d:.18s">
       <a class="btn primary" id="hero-dl" href="download.html">
@@ -51,7 +51,7 @@
       <a class="btn ghost" href="#film"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l5.5-3.5z"/></svg><span class="zh">看 30 秒宣传片</span><span class="en">Watch the 30s film</span></a>
     </div>
     <p class="cta-note" id="hero-note"></p>
-    <a class="pill reveal" style="--d:.22s" href="#languages"><i></i><span class="zh">0.7 新增：火山引擎豆包同声传译，支持中英互译 ›</span><span class="en">New in 0.7: Doubao Simultaneous Interpretation, Chinese ⇄ English ›</span></a>
+    <a class="pill reveal" style="--d:.22s" href="#android"><i></i><span class="zh">Android Beta：手机实时翻译与悬浮字幕 ›</span><span class="en">Android Beta: live translation and floating subtitles on your phone ›</span></a>
     <div class="shot reveal" style="--d:.1s">
       <img class="theme-light" src="app.webp" alt="ReaLingo 主界面 / ReaLingo main window" width="1280" height="760" />
       <img class="theme-dark" src="app-dark.webp" alt="ReaLingo 主界面 / ReaLingo main window" width="1280" height="760" />
@@ -91,7 +91,7 @@
       <h2 class="h2"><span class="zh">三步，就能开始翻译</span><span class="en">Three steps and you are translating</span></h2>
     </div>
     <div class="steps">
-      <div class="reveal"><b><span class="zh">下载安装</span><span class="en">Install</span></b><p><span class="zh">Windows、macOS、Ubuntu 各有安装包，按钮会自动给你的系统对应的那个。</span><span class="en">Installers for Windows, macOS and Ubuntu — this page picks the one for your system.</span></p></div>
+      <div class="reveal"><b><span class="zh">下载安装</span><span class="en">Install</span></b><p><span class="zh">Windows、macOS、Linux 各有安装包，Android 提供 Beta APK，下载页可按系统选择。</span><span class="en">Installers for Windows, macOS and Linux, plus an Android Beta APK — choose your system on the download page.</span></p></div>
       <div class="reveal" style="--d:.08s"><b><span class="zh">填入 API Key</span><span class="en">Add your API key</span></b><p><span class="zh">在设置里选接口，到 <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key">百炼控制台</a>、<a href="https://platform.openai.com/api-keys">OpenAI</a>、<a href="https://aistudio.google.com/apikey">Google AI Studio</a> 或<a href="https://console.volcengine.com/speech/new/setting/apikeys">豆包语音控制台</a>拿一个 Key 粘贴进去，详细步骤见<a href="#guide">常见问题</a>。它存进系统凭据库，不写进配置文件。</span><span class="en">Pick an API in Settings and paste a key from the <a href="https://bailian.console.aliyun.com/ap-southeast-1/model/settings/api-key">Model Studio console</a>, <a href="https://platform.openai.com/api-keys">OpenAI</a>, <a href="https://aistudio.google.com/apikey">Google AI Studio</a> or the <a href="https://console.volcengine.com/speech/new/setting/apikeys">Doubao Speech console</a> (step by step in the <a href="#guide">FAQ</a>). It goes into the OS keychain, not a config file.</span></p></div>
       <div class="reveal" style="--d:.16s"><b><span class="zh">选来源，点开始</span><span class="en">Pick a source, press start</span></b><p><span class="zh">麦克风、系统声音或音频文件三选一，选好目标语言，打开字幕窗，点「开始翻译」。</span><span class="en">Microphone, system audio or a file; choose the target language, open the overlay, press Start.</span></p></div>
     </div>
@@ -227,12 +227,27 @@
   </div>
 </section>
 
+<section id="android">
+  <div class="wrap">
+    <div class="head reveal">
+      <div class="kicker">Android Beta</div>
+      <h2 class="h2"><span class="zh">把实时同传带到手机</span><span class="en">Live translation on your phone</span></h2>
+      <p class="lead"><span class="zh">为手机设计的操作界面：翻译麦克风、系统声音或音频文件，用悬浮字幕跨应用查看译文，也能导出翻译记录。</span><span class="en">A phone-first interface for microphone, system audio, and audio-file translation, with floating subtitles across apps and transcript export.</span></p>
+    </div>
+    <div class="steps">
+      <div class="reveal"><b><span class="zh">实时翻译与朗读</span><span class="en">Translate and listen</span></b><p><span class="zh">使用你自己的 API Key，选择语言和音色；朗读可切换扬声器、听筒或耳机。</span><span class="en">Bring your own API key, choose languages and a voice, and route speech to the speaker, earpiece, or headphones.</span></p></div>
+      <div class="reveal"><b><span class="zh">跨应用悬浮字幕</span><span class="en">Floating subtitles</span></b><p><span class="zh">看视频或上网课时，在其他应用上显示译文。需授予悬浮窗权限；系统声音采集需要 Android 10+，受保护的音频可能无法采集。</span><span class="en">Read translations over videos or lectures in other apps. Overlay permission is required; system audio capture needs Android 10+ and may not capture protected audio.</span></p></div>
+      <div class="reveal"><b><span class="zh">加入 Beta 测试</span><span class="en">Try the Beta</span></b><p><span class="zh">支持 Android 8.0+ 的 arm64 设备。不同厂商的后台与录音行为仍需测试。</span><span class="en">For arm64 devices on Android 8.0+. Background and recording behavior still needs testing across vendors.</span></p><a class="btn primary" id="android-dl" href="download.html#android"><span class="zh">下载 Android Beta</span><span class="en">Download Android Beta</span></a></div>
+    </div>
+  </div>
+</section>
+
 <!-- ======================= platforms ======================= -->
 <section>
   <div class="wrap">
     <div class="head reveal">
       <div class="kicker"><span class="zh">平台</span><span class="en">Platforms</span></div>
-      <h2 class="h2"><span class="zh">三个系统，各自的做法</span><span class="en">Three systems, three ways in</span></h2>
+      <h2 class="h2"><span class="zh">桌面与手机，各自的做法</span><span class="en">Desktop and mobile, each in its own way</span></h2>
     </div>
     <div class="scroll-x reveal"><table>
       <thead><tr><th></th><th><span class="zh">麦克风</span><span class="en">Mic</span></th><th><span class="zh">系统声音</span><span class="en">System audio</span></th><th><span class="zh">朗读时排除自身</span><span class="en">Leaves its own voice out</span></th><th><span class="zh">说明</span><span class="en">Notes</span></th></tr></thead>
@@ -241,6 +256,7 @@
         <tr><td><b>macOS 14.4+</b></td><td><span class="y" aria-label="yes"></span></td><td><span class="y" aria-label="yes"></span></td><td><span class="y" aria-label="yes"></span></td><td><small><span class="zh">Core Audio tap；首次使用按提示授权</span><span class="en">Core Audio tap; grant access when asked</span></small></td></tr>
         <tr><td><b>macOS 12 – 14.3</b></td><td><span class="y" aria-label="yes"></span></td><td><span class="n" aria-label="no"></span></td><td><span class="n" aria-label="no"></span></td><td><small><span class="zh">process tap 是 14.4 才有的系统接口</span><span class="en">Process taps arrived in 14.4</span></small></td></tr>
         <tr><td><b>Ubuntu 22.04+</b></td><td><span class="y" aria-label="yes"></span></td><td><span class="y" aria-label="yes"></span></td><td><span class="n" aria-label="no"></span></td><td><small><span class="zh">PulseAudio / PipeWire 的 monitor 源；录系统声音时不朗读</span><span class="en">PulseAudio / PipeWire monitor sources; no read-aloud while capturing system audio</span></small></td></tr>
+        <tr><td><b>Android 8.0+ · Beta</b></td><td><span class="y" aria-label="yes"></span></td><td><span class="y" aria-label="yes"></span></td><td><span class="y" aria-label="yes"></span></td><td><small><span class="zh">系统声音需 Android 10+，使用系统授权；排除本应用音频，受保护内容可能静音</span><span class="en">System audio requires Android 10+ and system consent; excludes this app, while protected content may be silent</span></small></td></tr>
       </tbody>
     </table></div>
   </div>
@@ -302,7 +318,7 @@
       <details><summary><span class="zh">macOS 提示「已损坏」或打不开？</span><span class="en">macOS says the app is damaged?</span></summary><p><span class="zh">应用没有经过 Apple 公证。把它拖进「应用程序」后，在终端执行 <code>xattr -dr com.apple.quarantine /Applications/ReaLingo.app</code>，或到「系统设置 → 隐私与安全性」点「仍要打开」。升级后系统声音没反应，就在「屏幕与系统录音」里删掉 ReaLingo 重新授权。</span><span class="en">It is not notarised. After moving it to Applications, run <code>xattr -dr com.apple.quarantine /Applications/ReaLingo.app</code>, or click “Open Anyway” in System Settings → Privacy &amp; Security. If system audio goes quiet after an update, remove ReaLingo under Screen &amp; System Audio Recording and grant it again.</span></p></details>
       <details><summary><span class="zh">朗读会不会被录回去，越翻越乱？</span><span class="en">Will it record its own voice and loop?</span></summary><p><span class="zh">录系统声音时不会：Windows 和 macOS 都会把 ReaLingo 自己的进程排除在采集之外，Linux 上则不朗读。用麦克风时，扬声器的声音会被物理地收进去，请戴耳机。</span><span class="en">Not with system audio: Windows and macOS leave ReaLingo’s own process out of the capture, and Linux does not speak at all. With a microphone the speakers are physically picked up — use headphones.</span></p></details>
       <details><summary><span class="zh">翻译记录会存在哪？</span><span class="en">Where are transcripts kept?</span></summary><p><span class="zh">默认不保存。打开翻译流右上角的「记录」后，每场存成 <code>app-data/history/</code> 下的一个 JSONL 文件，可以在「翻译历史」里打开文件夹、导出或删除。</span><span class="en">Nothing is saved by default. Turn on “Record” and each session becomes one JSONL file in <code>app-data/history/</code>, which the History panel can open, export or delete.</span></p></details>
-      <details><summary><span class="zh">Linux 怎么装？</span><span class="en">How do I install on Linux?</span></summary><p><span class="zh">用 apt 装本地包，依赖会一起装上：<code>sudo apt install ./ReaLingo_*_linux_x86_64.deb</code>。用 <code>dpkg -i</code> 不会解析依赖。</span><span class="en">Install with apt so the dependencies come along: <code>sudo apt install ./ReaLingo_*_linux_x86_64.deb</code>. <code>dpkg -i</code> resolves none of them.</span></p></details>
+      <details><summary><span class="zh">Linux 怎么装？</span><span class="en">How do I install on Linux?</span></summary><p><span class="zh">用 apt 装本地包，依赖会一起装上：<code>sudo apt install ./ReaLingo_*.deb</code>。用 <code>dpkg -i</code> 不会解析依赖。</span><span class="en">Install with apt so the dependencies come along: <code>sudo apt install ./ReaLingo_*.deb</code>. <code>dpkg -i</code> resolves none of them.</span></p></details>
     </div>
   </div>
 </section>
@@ -468,13 +484,12 @@
      link breaks on every release. Ask the API once and rewrite the hrefs; if
      that fails (offline, rate limited), the markup's releases-page href stands. */
   var REPO = "noSugarK/ReaLingo";
-  var PICK = { win: /(?:x64|windows_x86_64)-setup\.exe$/i, mac: /\.dmg$/i, linux: /\.deb$/i };
-  var release = null;
+  var PICK = { win: /(?:x64|windows_x86_64)-setup\.exe$/i, mac: /\.dmg$/i, linux: /\.deb$/i, android: /\.apk$/i };
+  var release = null, androidRelease = null;
   function fmtSize(b) { var mb = b / 1048576; return mb >= 1 ? mb.toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
   function detectOS() {
     var ua = (((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "") + " " + (navigator.userAgent || "")).toLowerCase();
-    // Android reports "linux" too, and there is no build for it — claim nothing.
-    if (ua.indexOf("android") >= 0) return null;
+    if (ua.indexOf("android") >= 0) return "android";
     if (ua.indexOf("win") >= 0) return "win";
     if (ua.indexOf("mac") >= 0 || ua.indexOf("iphone") >= 0 || ua.indexOf("ipad") >= 0) return "mac";
     if (ua.indexOf("linux") >= 0 || ua.indexOf("x11") >= 0) return "linux";
@@ -483,19 +498,29 @@
   var mine = detectOS();
   function renderDownloads() {
     var z = zh();
-    var NAMES = { win: "Windows", mac: "macOS", linux: "Linux" };
-    var own = release && mine && release.assets.filter(function (a) { return PICK[mine].test(a.name); })[0];
+    var NAMES = { win: "Windows", mac: "macOS", linux: "Linux", android: "Android" };
+    var chosen = mine === "android" ? androidRelease : release;
+    var own = chosen && mine && chosen.assets.filter(function (a) { return PICK[mine].test(a.name); })[0];
+    var apk = androidRelease && androidRelease.assets.filter(function (a) { return PICK.android.test(a.name); })[0];
+    $("#android-dl").href = apk ? apk.browser_download_url : "download.html#android";
     // The button hands out the visitor's own file; anything else goes to the download page.
     $("#hero-dl").href = own ? own.browser_download_url : "download.html";
-    $("#hero-dl-text").textContent = own ? (z ? "下载 " + NAMES[mine] + " 版" : "Download for " + NAMES[mine]) : (z ? "选择你的系统" : "Pick your system");
+    $("#hero-dl-text").textContent = own ? (z ? "下载 " + NAMES[mine] + " 版" : "Download for " + NAMES[mine]) + (chosen.prerelease ? " · Beta" : "") : (z ? "选择你的系统" : "Pick your system");
     // The version under it leads to the release notes and the other systems.
-    $("#hero-note").innerHTML = release ? '<a href="download.html#history">' + release.tag_name + (own ? " · " + fmtSize(own.size) : "") +
+    $("#hero-note").innerHTML = chosen ? '<a href="download.html#history">' + chosen.tag_name + (own ? " · " + fmtSize(own.size) : "") +
       " · " + (z ? "更新说明与其他系统" : "Release notes &amp; other systems") + " ›</a>" : "";
   }
   fetch("https://api.github.com/repos/" + REPO + "/releases/latest")
     .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function (data) { release = data; renderDownloads(); })
     .catch(function () { renderDownloads(); });
+  fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=20")
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (data) {
+      var available = data.filter(function (r) { return !r.draft && r.assets.some(function (a) { return PICK.android.test(a.name); }); });
+      androidRelease = available.find(function (r) { return !r.prerelease; }) || available[0] || null;
+      renderDownloads();
+    }).catch(function () {});
   renderDownloads();
 
   /* ---- links to the tutorial open it ---- */
