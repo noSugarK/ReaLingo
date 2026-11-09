@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>下载 — ReaLingo</title>
-<meta name="description" content="下载 ReaLingo：Windows、macOS、Linux 安装包与 Android Beta APK，安装说明，以及全部历史版本和更新说明。" />
+<meta name="description" content="下载 ReaLingo：Windows、macOS、Linux 安装包与 Android APK，安装说明，以及全部历史版本和更新说明。" />
 <link rel="icon" href="mark.png" />
 <script src="site.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -74,7 +74,7 @@ pre code { padding: 0; background: none; }
   <div class="wrap"><div class="head">
     <div class="kicker"><span class="zh">下载</span><span class="en">Download</span></div>
     <h2 class="h2"><span class="zh">下载 ReaLingo</span><span class="en">Download ReaLingo</span></h2>
-    <p class="lead" id="rel-meta"><span class="zh">免费开源 · Windows、macOS、Linux、Android Beta</span><span class="en">Free and open source · Windows, macOS, Linux, Android Beta</span></p>
+    <p class="lead" id="rel-meta"><span class="zh">免费开源 · Windows、macOS、Linux、Android</span><span class="en">Free and open source · Windows, macOS, Linux, Android</span></p>
   </div></div>
 </div>
 
@@ -115,10 +115,10 @@ sudo dnf install ./ReaLingo_*_linux_x86_64.rpm</code></pre></li>
         <li><span class="zh">系统声音需要 PulseAudio 或 PipeWire（Ubuntu 桌面默认就有）。托盘图标不响应左键，用右键菜单里的「显示主窗口」。</span><span class="en">System audio needs PulseAudio or PipeWire (standard on the Ubuntu desktop). The tray icon ignores left clicks; use "Show main window" in its right-click menu.</span></li>
       </ol>
       <ol data-os="android">
-        <li><span class="zh">下载 <b>Android arm64 APK</b>（Beta 测试版），在 Android 8.0 或更新版本的 64 位设备上安装。按系统提示允许浏览器或文件管理器安装此应用。</span><span class="en">Download the <b>Android arm64 APK</b> (Beta) for a 64-bit device running Android 8.0 or later. Allow installation from your browser or file manager when prompted.</span></li>
+        <li><span class="zh">下载 <b>Android arm64 APK</b>，在 Android 8.0 或更新版本的 64 位设备上安装。按系统提示允许浏览器或文件管理器安装此应用。</span><span class="en">Download the <b>Android arm64 APK</b> for a 64-bit device running Android 8.0 or later. Allow installation from your browser or file manager when prompted.</span></li>
         <li><span class="zh">在设置中选择接口并填写你自己的 API Key，然后选择语言和麦克风、系统声音或音频文件。</span><span class="en">Choose a provider and enter your own API key in Settings, then select languages and a microphone, system audio, or audio file.</span></li>
         <li><span class="zh">按提示授予麦克风权限；系统声音需要 <b>Android 10+</b>，每次启动均需同意系统录制提示。受保护或禁止采集的应用可能没有声音。</span><span class="en">Grant microphone permission when asked. System audio needs <b>Android 10+</b> and consent to the system capture prompt for each session. Protected audio or apps that block capture may be silent.</span></li>
-        <li><span class="zh">需要跨应用字幕时，授予「显示在其他应用上层」权限。Beta 阶段不同厂商的后台和录音行为仍需测试；反馈请附机型、系统版本和复现步骤。</span><span class="en">Allow “Display over other apps” to use floating subtitles. Background and audio behavior still needs testing across vendors; include your device, OS version, and reproduction steps in feedback.</span></li>
+        <li><span class="zh">需要跨应用字幕时，授予「显示在其他应用上层」权限。不同厂商的后台和录音行为仍需测试；反馈请附机型、系统版本和复现步骤。</span><span class="en">Allow “Display over other apps” to use floating subtitles. Background and audio behavior still needs testing across vendors; include your device, OS version, and reproduction steps in feedback.</span></li>
       </ol>
     </div>
     <div class="guide tut" id="use">
@@ -213,7 +213,7 @@ sudo dnf install ./ReaLingo_*_linux_x86_64.rpm</code></pre></li>
     { os: "win", name: "Windows", req: "Windows 10 / 11 · x64", fmts: [[".exe", /(?:x64|windows_x86_64)-setup\.exe$/i], [".msi", /\.msi$/i]] },
     { os: "mac", name: "macOS", req: ["macOS 12+ · Apple 芯片 / Intel", "macOS 12+ · Apple silicon / Intel"], fmts: [[".dmg", /\.dmg$/i]] },
     { os: "linux", name: "Linux", req: "Ubuntu 22.04+ / Fedora · x64", fmts: [[".deb", /\.deb$/i], [".rpm", /\.rpm$/i]] },
-    { os: "android", name: "Android", req: "Android 8.0+ · arm64 · Beta", fmts: [[".apk", /\.apk$/i]] }
+    { os: "android", name: "Android", req: "Android 8.0+ · arm64", fmts: [[".apk", /\.apk$/i]] }
   ];
   var assetFor = function (rel, re) { return rel && rel.assets.filter(function (a) { return re.test(a.name); })[0]; };
   function fmtSize(b) { var mb = b / 1048576; return mb >= 1 ? mb.toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
@@ -268,7 +268,7 @@ sudo dnf install ./ReaLingo_*_linux_x86_64.rpm</code></pre></li>
           var source = releases && (releases.find(function (r) { return !r.prerelease && assetFor(r, f[1]); }) || releases.find(function (r) { return assetFor(r, f[1]); }));
           var x = assetFor(source, f[1]);
           return '<a href="' + (x ? x.browser_download_url : RELEASES) + '"' +
-            (x ? ' title="' + x.name + " · " + fmtSize(x.size) + '"' : "") + ">" + f[0] + (source && source.prerelease ? " · Beta" : "") + "</a>";
+            (x ? ' title="' + x.name + " · " + fmtSize(x.size) + '"' : "") + ">" + f[0] + (source && source.prerelease ? t(" · 预发布", " · Pre-release") : "") + "</a>";
         }).join("") + "</div></div>";
     }).join("");
   }

@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   # Runs on every trigger but does its work only for a tag, so `bundle` can depend on it
@@ -237,6 +238,19 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
+      - name: Require CI and Android smoke tests for the release commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for workflow in ci.yml android-test.yml; do
+            run_id=$(gh run list --workflow "$workflow" --branch main --commit "$GITHUB_SHA" --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            if [[ -z "$run_id" ]]; then
+              echo "No $workflow run found for release commit $GITHUB_SHA" >&2
+              exit 1
+            fi
+            gh run watch "$run_id" --exit-status --interval 30
+          done
       # `needs` already guarantees every platform succeeded, so the draft can go public.
       - name: Publish
         env:
