@@ -32,15 +32,19 @@
 | 临时签名无法升级，模板版本阻断安装 | 稳定密钥与包名，验证最终 APK 的 versionCode 与签名 | `eb65099` |
 | Gradle 下载/插件仓库持续失败 | 官方资产摘要校验，区分 pluginManagement 与普通 repositories | `b0ef5d6`, `291ff09`, `62f0a31`, `1d58796` |
 
-## 当前实现的反例
+## 初始审查与后续修复
 
-以下是 `0cf81f9` 审查发现，不应复制成开发惯例：
+以下区分 `0cf81f9` 审查结论和随后发布的 `v0.8.0`，不把旧风险当作当前缺陷：
 
-- Android `secret.rs` 固定无凭据库，前端将 API Key 明文写 settings；这是与仓库密钥规范的冲突。需要 Android 安全持久化方案和迁移。
-- `realtime.rs` 把 raw 事件发送移到音频裁剪之前，导致 base64 重新穿过 IPC。测试应检查发出的诊断事件，而不只是 `take_audio` 的返回结果。
-- 权限轮询 30 秒结束后未保留此次自动启动意图，用户稍后同意仍需重按开始。
-- 字幕纵向 flex 使用 `justify-content:flex-end`；长内容可能从滚动起点负溢出。审查依据为布局结构，尚未运行浏览器/设备复现；需要用超过一屏的真实内容验证回看。
+| 初始发现 | 截至 v0.8.0 的状态 |
+| --- | --- |
+| Android 无凭据库，API Key 明文写 settings | 仍存在；文档明确披露应用私有目录中的明文回退。安全持久化和迁移仍需实现，不作为推荐模式 |
+| raw 事件先于音频裁剪发送，base64 经过 IPC | `a67626f` 已改为裁剪后发送；验证仍应检查实际诊断 payload |
+| 轮询 30 秒结束丢失自动启动意图 | `403466c` 保留 pendingStart，让稍后同意可继续启动 |
+| 尾部对齐可能让长字幕无法回到第一条 | `e535d70`、`896fae1` 修复列表和全屏字幕的滚动起点 |
 
 ## 验证证据的边界
 
 本次主机验证通过 Node 66 项、Python 7 项、Rust 60 项（1 项硬件测试按原设置跳过）、vue-tsc、Vite 构建、Clippy。主机为 Windows，未重新构建/安装 APK，也未运行远端 CI 或厂商真机。测试文档中的“workflow 会检查”只描述检查设计，不能报告成此次设备验证通过。
+
+上述数字是初始审查记录。后续 `v0.8.0` 的 [main CI](https://github.com/noSugarK/ReaLingo/actions/runs/42559374377)、[API35/4KB 与 API36/16KB 冒烟](https://github.com/noSugarK/ReaLingo/actions/runs/42559374379)和[四平台发布构建](https://github.com/noSugarK/ReaLingo/actions/runs/42559402548)均成功；ARM64 包构建不等于所有厂商真机已验证。
