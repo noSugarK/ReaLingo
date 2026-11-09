@@ -181,7 +181,7 @@ async fn start_stream(
         // Before capture: on macOS the process has to be a Core Audio client already for the
         // capture to be able to exclude it.
         let player = if settings.speak {
-            Some(player::Player::start().map_err(|e| e.to_string())?)
+            Some(player::Player::start(&settings.output).map_err(|e| e.to_string())?)
         } else {
             None
         };
@@ -345,7 +345,8 @@ pub fn run() {
             history::history_delete,
             history::history_clear,
             history::history_dir,
-            tray::sync_tray
+            tray::sync_tray,
+            player::output_kinds
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -118,6 +118,10 @@ pub struct Settings {
     pub speak: bool,
     #[serde(default = "default_voice")]
     pub voice: String,
+    /// Phone only: where the voice plays: "" (the system's choice), "speaker", "earpiece"
+    /// or "headphones". See `player::output_kinds`.
+    #[serde(default)]
+    pub output: String,
     /// Translate both ways between the two languages. Only Volc (Chinese–English) does.
     #[serde(default)]
     pub two_way: bool,
@@ -475,6 +479,7 @@ mod tests {
             hotwords: BTreeMap::new(),
             speak: false,
             voice: VOICE.into(),
+            output: String::new(),
             two_way: false,
         }
     }

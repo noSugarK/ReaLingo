@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import Sheet from "./Sheet.vue";
 import { session } from "../core/session";
-import { settings } from "../core/store";
+import { settings, type OutputKind } from "../core/store";
 import { isRunning } from "../core/stream";
 import { t } from "../core/i18n";
 
@@ -24,6 +25,17 @@ const voices = computed(() => {
   return q ? all.filter((v) => `${v.label} ${v.value} ${v.note ?? ""} ${v.keywords}`.toLowerCase().includes(q)) : all;
 });
 
+// Outputs present now (headphones only while connected). Empty on hosts that cannot tell
+// a speaker from an earpiece, and then the row is not shown at all.
+const ORDER: OutputKind[] = ["speaker", "earpiece", "headphones"];
+const LABEL = { speaker: "outSpeaker", earpiece: "outEarpiece", headphones: "outHeadphones" } as const;
+const kinds = ref<OutputKind[]>([]);
+onMounted(async () => {
+  const have = await invoke<OutputKind[]>("output_kinds").catch((): OutputKind[] => []);
+  kinds.value = ORDER.filter((k) => have.includes(k));
+});
+const missing = computed(() => settings.output !== "" && kinds.value.length > 0 && !kinds.value.includes(settings.output));
+
 function toggle() {
   if (running.value || blocked.value) return;
   settings.speak = !settings.speak;
@@ -39,6 +51,22 @@ function toggle() {
       </span>
       <span class="tog" :class="{ on }" />
     </button>
+
+    <section v-if="kinds.length" :class="{ off: !on }">
+      <div class="m-group">
+        <label class="m-row m-pick">
+          <span class="m-tx"><b>{{ t('outputTitle') }}</b></span>
+          <select v-model="settings.output" :disabled="running">
+            <option value="">{{ t('outAuto') }}</option>
+            <option v-for="k in kinds" :key="k" :value="k">{{ t(LABEL[k]) }}</option>
+            <!-- keep a disconnected pick visible instead of showing a blank value -->
+            <option v-if="missing" :value="settings.output">{{ t(LABEL[settings.output as OutputKind]) }}</option>
+          </select>
+          <svg class="m-chev" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+        </label>
+      </div>
+      <p class="hint" :class="{ warn: missing }">{{ missing ? t('outputMissing') : t('outputHint') }}</p>
+    </section>
 
     <section v-if="session.voiceList.value" :class="{ off: !on }">
       <span class="glabel">{{ t('voice') }}</span>
@@ -93,5 +121,7 @@ section.off { opacity: 0.55; }
 .vrow.on b { color: var(--accent); font-weight: 700; }
 .vrow:disabled { cursor: default; }
 .none { margin: 0; padding: 14px; text-align: center; color: var(--ink-2); font-size: 13.5px; }
+.hint { margin: 8px 4px 0; font-size: 12px; line-height: 1.55; color: var(--ink-3); }
+.hint.warn { color: #b7791f; }
 .note { margin: 0; padding: 14px; border-radius: 15px; background: var(--shade); text-align: center; color: var(--ink-2); font-size: 13.5px; line-height: 1.6; }
 </style>

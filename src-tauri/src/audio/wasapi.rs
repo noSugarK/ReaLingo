@@ -176,7 +176,7 @@ mod tests {
     #[test]
     #[ignore]
     fn own_playback_is_heard_by_plain_loopback_but_not_by_process_loopback() {
-        let mut player = Player::start().unwrap();
+        let mut player = Player::start("").unwrap();
         let tone: Vec<u8> = (0..24_000 * 4)
             .map(|i| ((i as f32 * 440.0 * std::f32::consts::TAU / 24_000.0).sin() * 8000.0) as i16)
             .flat_map(i16::to_le_bytes)

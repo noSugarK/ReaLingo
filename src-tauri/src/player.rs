@@ -1,4 +1,5 @@
-//! Plays the spoken translation on the default output device.
+//! Plays the spoken translation on the default output device, or on a phone on the kind of
+//! output the user picked (speaker, earpiece, headphones).
 //!
 //! Playback stays in this process on purpose: the "exclude myself" system-audio capture
 //! (see [`crate::audio`]) works per process, and audio played by the webview would come out
@@ -6,6 +7,7 @@
 
 use anyhow::{anyhow, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{DeviceType, InterfaceType};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -28,14 +30,15 @@ impl Player {
     /// Opens the default output and returns once it is running. The stream lives on its own
     /// thread (cpal streams are `!Send` on Windows) until the `Player` is dropped *and*
     /// everything queued has been played, so the last sentence is not cut off.
-    pub fn start() -> Result<Self> {
+    pub fn start(output: &str) -> Result<Self> {
+        let output = output.to_owned();
         let queue = Arc::new(Mutex::new(VecDeque::<f32>::new()));
         let closed = Arc::new(AtomicBool::new(false));
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<u32, String>>();
 
         let (q, done) = (queue.clone(), closed.clone());
         std::thread::spawn(move || {
-            let (stream, rate) = match build(q.clone()) {
+            let (stream, rate) = match build(q.clone(), &output) {
                 Ok(s) => s,
                 Err(e) => return drop(ready_tx.send(Err(e.to_string()))),
             };
@@ -86,11 +89,48 @@ impl Drop for Player {
     }
 }
 
+/// Which user-facing output a device is. Stored as a kind, not a device id: ids change
+/// whenever headphones are plugged in or a Bluetooth link comes back.
+fn kind_of(device: DeviceType, interface: InterfaceType) -> Option<&'static str> {
+    match (device, interface) {
+        (DeviceType::Earpiece, _) => Some("earpiece"),
+        (DeviceType::Speaker, InterfaceType::BuiltIn) => Some("speaker"),
+        (DeviceType::Headphones | DeviceType::Headset, _) => Some("headphones"),
+        // A2DP earbuds report no device type, only how they are connected.
+        (_, InterfaceType::Bluetooth | InterfaceType::Usb) => Some("headphones"),
+        _ => None,
+    }
+}
+
+fn output_devices() -> Vec<(&'static str, cpal::Device)> {
+    let Ok(devices) = cpal::default_host().output_devices() else { return Vec::new() };
+    devices
+        .filter_map(|d| {
+            let desc = d.description().ok()?;
+            Some((kind_of(desc.device_type(), desc.interface_type())?, d))
+        })
+        .collect()
+}
+
+/// The output kinds present right now, for the picker. Empty where the host does not
+/// describe its devices that way (the desktops), so the picker stays hidden there.
+#[tauri::command]
+pub fn output_kinds() -> Vec<&'static str> {
+    let mut kinds: Vec<_> = output_devices().into_iter().map(|(k, _)| k).collect();
+    kinds.sort_unstable();
+    kinds.dedup();
+    kinds
+}
+
 /// The stream plus the device rate the queue has to be filled at.
-fn build(queue: Arc<Mutex<VecDeque<f32>>>) -> Result<(cpal::Stream, u32)> {
-    let device = cpal::default_host()
-        .default_output_device()
-        .ok_or_else(|| anyhow!("no audio output device"))?;
+fn build(queue: Arc<Mutex<VecDeque<f32>>>, output: &str) -> Result<(cpal::Stream, u32)> {
+    // A kind that is no longer connected (headphones unplugged) falls back to the system's
+    // own routing rather than failing the session.
+    let picked = output_devices().into_iter().find(|(k, _)| *k == output).map(|(_, d)| d);
+    let device = match picked {
+        Some(d) => d,
+        None => cpal::default_host().default_output_device().ok_or_else(|| anyhow!("no audio output device"))?,
+    };
     let supported = device.default_output_config()?;
     let channels = supported.channels() as usize;
     let rate = supported.sample_rate();
@@ -112,4 +152,22 @@ fn build(queue: Arc<Mutex<VecDeque<f32>>>) -> Result<(cpal::Stream, u32)> {
     )?;
     stream.play()?;
     Ok((stream, rate))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn devices_map_to_the_three_outputs_a_user_can_pick() {
+        assert_eq!(kind_of(DeviceType::Earpiece, InterfaceType::BuiltIn), Some("earpiece"));
+        assert_eq!(kind_of(DeviceType::Speaker, InterfaceType::BuiltIn), Some("speaker"));
+        assert_eq!(kind_of(DeviceType::Headphones, InterfaceType::Unknown), Some("headphones"));
+        assert_eq!(kind_of(DeviceType::Headset, InterfaceType::Usb), Some("headphones"));
+        assert_eq!(kind_of(DeviceType::Unknown, InterfaceType::Bluetooth), Some("headphones"));
+        // A Bluetooth speaker is not the phone's own speaker; HDMI and mics are not outputs to offer.
+        assert_eq!(kind_of(DeviceType::Speaker, InterfaceType::Bluetooth), Some("headphones"));
+        assert_eq!(kind_of(DeviceType::Unknown, InterfaceType::Hdmi), None);
+        assert_eq!(kind_of(DeviceType::Microphone, InterfaceType::BuiltIn), None);
+    }
 }
