@@ -1,5 +1,5 @@
 import { createApp } from "vue";
-import App from "./App.vue";
+import App from "./desktop/App.vue";
 import MobileApp from "./mobile/MobileApp.vue";
 import "./styles/glass.css";
 

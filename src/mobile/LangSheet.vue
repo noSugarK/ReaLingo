@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import Sheet from "./Sheet.vue";
-import { session } from "../session";
-import { settings } from "../store";
-import { t } from "../i18n";
+import { session } from "../core/session";
+import { settings } from "../core/store";
+import { t } from "../core/i18n";
 
 defineEmits<{ close: [] }>();
 

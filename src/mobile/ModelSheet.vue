@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import Sheet from "./Sheet.vue";
-import { settings, switchProtocol, type Protocol } from "../store";
-import { PRESETS, modelName } from "../languages";
-import { t, tf } from "../i18n";
+import { settings, switchProtocol, type Protocol } from "../core/store";
+import { PRESETS, modelName } from "../core/languages";
+import { t, tf } from "../core/i18n";
 import { toast } from "./toasts";
 
 const props = defineProps<{ running: boolean }>();

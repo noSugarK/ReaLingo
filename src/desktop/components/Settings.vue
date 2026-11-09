@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch, toRaw } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { activeKey, keyringOk, REGION_ID, setActiveKey, settings, type Protocol, type Region } from "../store";
-import { isRunning } from "../stream";
-import { PRESETS, PROTOCOLS, type Vendor } from "../languages";
-import { t } from "../i18n";
-import Hotwords from "./Hotwords.vue";
+import { activeKey, keyringOk, REGION_ID, setActiveKey, settings, type Protocol, type Region } from "../../core/store";
+import { isRunning } from "../../core/stream";
+import { PRESETS, PROTOCOLS, type Vendor } from "../../core/languages";
+import { t } from "../../core/i18n";
+import Hotwords from "../../shared/Hotwords.vue";
 import Picker from "./Picker.vue";
-import Sheet from "./Sheet.vue";
+import Sheet from "../../shared/Sheet.vue";
 
 defineEmits<{ close: [] }>();
 

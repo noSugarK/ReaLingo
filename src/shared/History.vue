@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { langName } from "../languages";
-import { locale, t } from "../i18n";
-import { saveAs, type Line } from "../stream";
-import { settings } from "../store";
-import { caps } from "../platform";
+import { langName } from "../core/languages";
+import { locale, t } from "../core/i18n";
+import { saveAs, type Line } from "../core/stream";
+import { settings } from "../core/store";
+import { caps } from "../core/platform";
 import Sheet from "./Sheet.vue";
 
 defineEmits<{ close: [] }>();

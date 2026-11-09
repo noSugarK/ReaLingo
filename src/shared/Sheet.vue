@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../i18n";
+import { t } from "../core/i18n";
 
 defineProps<{ title: string; wide?: boolean }>();
 defineEmits<{ close: [] }>();

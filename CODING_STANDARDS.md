@@ -22,7 +22,7 @@ cd src-tauri && cargo test --lib
   （采样率、握手、发什么帧、怎样算准备好 / 结束、二进制帧怎么解）。
   `realtime.rs` 只调用这些方法，**不出现 `Protocol::Xxx` 判断**。
   某个接口自己的线上格式（如豆包的 Protobuf）放进它自己的模块（`volc.rs`），由 `config.rs` 调用。
-- **前端**：界面上按接口的取舍只来自 `src/languages.ts` 的 `PROTOCOLS` 表
+- **前端**：界面上按接口的取舍只来自 `src/core/languages.ts` 的 `PROTOCOLS` 表
   （语言、朗读、音色、源语言模式、互译、语言对限制……）。
   组件和其他函数里**不写 `protocol === "xxx"`**，要新的区别就给 `PROTOCOLS` 加字段。
 - 加一个接口时，应该只需要：`config.rs` 里补各方法的分支、`PROTOCOLS` / `PRESETS` 加一行、
@@ -60,7 +60,7 @@ cd src-tauri && cargo test --lib
 
 ## 界面文案
 
-- 每条界面文字都同时写进 `src/i18n.ts` 的中文和英文两份。
+- 每条界面文字都同时写进 `src/core/i18n.ts` 的中文和英文两份。
 - README 有中英两份（`README.md` / `README.en.md`），改一份就同步另一份。
 - 项目主页 `docs/index.html` 由 GitHub Pages 从 `main` 直接发布，
   只描述**已经发布**的版本里有的功能；新功能的主页改动随发版一起提交。

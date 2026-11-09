@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Sheet from "./Sheet.vue";
-import { settings } from "../store";
-import { t } from "../i18n";
+import { settings } from "../core/store";
+import { t } from "../core/i18n";
 import { native, resetOverlayPosition } from "./native";
 defineEmits<{ close: []; toggle: []; fullscreen: [] }>();
 </script>

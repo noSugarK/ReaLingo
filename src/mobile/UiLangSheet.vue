@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Sheet from "./Sheet.vue";
-import { settings } from "../store";
-import { locale, t, type Locale } from "../i18n";
+import { settings } from "../core/store";
+import { locale, t, type Locale } from "../core/i18n";
 
 defineEmits<{ close: [] }>();
 

@@ -1,6 +1,6 @@
 import { reactive } from "vue";
 import { droid } from "./perms";
-import { t } from "../i18n";
+import { t } from "../core/i18n";
 
 export const native = reactive({
   supported: !!droid && typeof droid.overlayStatus === "function",

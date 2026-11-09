@@ -10,9 +10,9 @@ import {
   PhysicalPosition,
   PhysicalSize,
 } from "@tauri-apps/api/window";
-import { initSettings, settings, type SubtitleStyle } from "./store";
-import { current, lines } from "./stream";
-import { t } from "./i18n";
+import { initSettings, settings, type SubtitleStyle } from "../core/store";
+import { current, lines } from "../core/stream";
+import { t } from "../core/i18n";
 
 const style = ref<SubtitleStyle>(settings.sub);
 const barEl = ref<HTMLElement | null>(null);

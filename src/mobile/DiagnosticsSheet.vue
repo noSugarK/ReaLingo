@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import Sheet from "./Sheet.vue";
-import { session } from "../session";
-import { settings } from "../store";
-import { audioMs, lastServerEvent, lastServerError, connectionPhase } from "../stream";
-import { t } from "../i18n";
+import { session } from "../core/session";
+import { settings } from "../core/store";
+import { audioMs, lastServerEvent, lastServerError, connectionPhase } from "../core/stream";
+import { t } from "../core/i18n";
 defineEmits<{ close: [] }>();
 </script>
 <template>

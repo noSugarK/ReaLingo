@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
-import { settings } from "../store";
-import type { Line } from "../stream";
-import { current } from "../session";
+import { settings } from "../core/store";
+import type { Line } from "../core/stream";
+import { current } from "../core/session";
 
 const props = defineProps<{ lines: Line[]; empty?: string; big?: boolean }>();
 

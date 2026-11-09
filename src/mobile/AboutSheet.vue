@@ -3,9 +3,9 @@ import { onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import Sheet from "./Sheet.vue";
-import { check, checkUpdate, openHome, REPO } from "../update";
-import { isMobile } from "../platform";
-import { t } from "../i18n";
+import { check, checkUpdate, openHome, REPO } from "../core/update";
+import { isMobile } from "../core/platform";
+import { t } from "../core/i18n";
 import appIcon from "../../app-icon.png";
 
 defineEmits<{ close: [] }>();

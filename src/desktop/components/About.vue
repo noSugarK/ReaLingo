@@ -2,10 +2,10 @@
 import { computed, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
-import { locale, t } from "../i18n";
-import { check, checkUpdate, openHome, REPO, whatsNew } from "../update";
-import Sheet from "./Sheet.vue";
-import mark from "../assets/mark.png";
+import { locale, t } from "../../core/i18n";
+import { check, checkUpdate, openHome, REPO, whatsNew } from "../../core/update";
+import Sheet from "../../shared/Sheet.vue";
+import mark from "../../assets/mark.png";
 
 defineEmits<{ close: [] }>();
 

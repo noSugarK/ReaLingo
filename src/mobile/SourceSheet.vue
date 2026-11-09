@@ -2,12 +2,12 @@
 import { computed, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import Sheet from "./Sheet.vue";
-import { session } from "../session";
-import { caps } from "../platform";
+import { session } from "../core/session";
+import { caps } from "../core/platform";
 import { perms, askMic } from "./perms";
-import { isRunning } from "../stream";
+import { isRunning } from "../core/stream";
 import { toast } from "./toasts";
-import { t } from "../i18n";
+import { t } from "../core/i18n";
 import Icon from "./Icon.vue";
 import { native, beginCapture, stopCapture } from "./native";
 

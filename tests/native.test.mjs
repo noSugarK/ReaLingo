@@ -8,7 +8,7 @@ registerHooks({
   resolve(specifier, context, next) {
     if (specifier === 'vue') return { url: 'test:vue', shortCircuit: true };
     if (specifier === './perms' && context.parentURL.includes('/mobile/native.ts')) return { url: 'test:bridge?' + context.parentURL.split('?')[1], shortCircuit: true };
-    if (specifier === '../i18n' && context.parentURL.includes('/mobile/native.ts')) return { url: 'test:i18n', shortCircuit: true };
+    if (specifier === '../core/i18n' && context.parentURL.includes('/mobile/native.ts')) return { url: 'test:i18n', shortCircuit: true };
     return next(specifier);
   },
   load(url, context, next) {

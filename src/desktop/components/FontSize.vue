@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import Slider from "./Slider.vue";
-import { t } from "../i18n";
-import { STREAM_SIZE } from "../store";
+import { t } from "../../core/i18n";
+import { STREAM_SIZE } from "../../core/store";
 
 /** The two rows of the translation stream, sized independently. */
 const props = defineProps<{ src: number; tgt: number }>();

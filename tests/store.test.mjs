@@ -31,7 +31,7 @@ registerHooks({
   },
 });
 let seq = 0;
-const fresh = () => import(`../src/store.ts?test=${++seq}`);
+const fresh = () => import(`../src/core/store.ts?test=${++seq}`);
 
 test('Android retains a user key in its settings fallback and saves edits', async () => {
   secure = false;

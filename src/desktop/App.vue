@@ -12,11 +12,11 @@ import Picker from "./components/Picker.vue";
 import Slider from "./components/Slider.vue";
 import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
-import History from "./components/History.vue";
-import { locale, setLocale, t } from "./i18n";
-import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICE_LISTS, voiceLabel } from "./languages";
-import { check, checkUpdateAtStartup, openHome } from "./update";
-import { activeKey, settings, initSettings, resolvedTheme, SUB_SIZE, type SubAlign, type SubMode, type SubtitleStyle } from "./store";
+import History from "../shared/History.vue";
+import { locale, setLocale, t } from "../core/i18n";
+import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICE_LISTS, voiceLabel } from "../core/languages";
+import { check, checkUpdateAtStartup, openHome } from "../core/update";
+import { activeKey, settings, initSettings, resolvedTheme, SUB_SIZE, type SubAlign, type SubMode, type SubtitleStyle } from "../core/store";
 import {
   current,
   detectedLang,
@@ -31,7 +31,7 @@ import {
   status,
   stop,
   warnMsg,
-} from "./stream";
+} from "../core/stream";
 
 type SourceKind = "mic" | "system" | "file";
 
@@ -341,7 +341,7 @@ watch([lines, current], async () => {
            drag region, and a mis-aimed window drag should not launch a browser tab. The
            repository link lives one click away, in the sheet. -->
       <button class="brand" :title="t('about')" @click="showAbout = true">
-        <img class="mark" src="./assets/mark.png" alt="" draggable="false" />
+        <img class="mark" src="../assets/mark.png" alt="" draggable="false" />
         <div class="brand-text">
           <strong>{{ t("appTitle") }}</strong>
           <!-- Its own target inside the brand button: what it names is changed in Settings. -->

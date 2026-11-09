@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { settings } from "../store";
-import { isRunning } from "../stream";
-import { t } from "../i18n";
-import { parseHotwords } from "../hotwords";
+import { settings } from "../core/store";
+import { isRunning } from "../core/stream";
+import { t } from "../core/i18n";
+import { parseHotwords } from "../core/hotwords";
 // Keep incomplete lines while typing; serializing the map would move the caret.
 const text = ref(Object.entries(settings.hotwords).map(([k, v]) => `${k}=${v}`).join("\n"));
 watch(text, (value) => { settings.hotwords = parseHotwords(value); });
