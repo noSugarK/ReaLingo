@@ -74,12 +74,14 @@ watch([() => current.target, () => current.targetStash, () => props.lines.length
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 16px;
   padding: 4px 4px 16px;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+/* Bottom-anchor a short list without justify-content:flex-end, which pushes the overflow of
+   a long one past the scroll start where the oldest lines can't be scrolled back to. */
+.stream > article:first-of-type { margin-top: auto; }
 .empty {
   margin: auto;
   text-align: center;
