@@ -5,3 +5,5 @@ src-tauri/gen/
 *.log
 .DS_Store
 promo/
+.claude/
+.scratch/
