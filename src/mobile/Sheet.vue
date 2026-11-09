@@ -7,9 +7,9 @@ defineEmits<{ close: [] }>();
 <template>
   <Teleport to="body">
     <div class="sheet-bg" @click.self="$emit('close')">
-      <section class="sheet glass" role="dialog" :aria-label="title">
+      <section class="sheet glass m-sheet" role="dialog" :aria-label="title">
         <div class="grab" />
-        <button class="sheet-close" :aria-label="t('close')" @click="$emit('close')">×</button>
+        <button class="sheet-close" :aria-label="t('close')" @click="$emit('close')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m3.5 3.5 9 9m0-9-9 9"/></svg></button>
         <h3 v-if="title">{{ title }}</h3>
         <div class="sheet-body"><slot /></div>
       </section>
@@ -40,7 +40,7 @@ defineEmits<{ close: [] }>();
   padding: 10px 20px calc(26px + env(safe-area-inset-bottom));
   animation: rise 0.32s var(--ease);
 }
-.sheet-close { position: absolute; top: 10px; right: 12px; width: 36px; height: 36px; border-radius: 50%; background: var(--shade); color: var(--ink-2); font-size: 24px; }
+.sheet-close { position: absolute; top: 10px; right: 12px; width: 36px; height: 36px; border-radius: 50%; background: var(--shade); color: var(--ink-2); display: grid; place-items: center; }
 @keyframes rise { from { transform: translateY(6%); opacity: 0.6; } }
 
 .grab {

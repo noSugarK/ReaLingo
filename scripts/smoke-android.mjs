@@ -289,6 +289,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await tap(['Close', '关闭']);
     await tap(['Settings', '设置']);
     await fill(['API Key'], 'android-ci-key', 'up');
+    await tap(['Advanced', '高级']); // region / workspace / URL sit in a collapsed group
     await fill(['Custom URL', '自定义地址'], peer.url);
     screenshot('session-settings');
     await tap(['Back', '返回']);

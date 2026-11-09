@@ -10,6 +10,8 @@ import OverlaySheet from "./OverlaySheet.vue";
 import { native, refreshNative, requestOverlay, showOverlay, updateOverlay, beginCapture, stopCapture } from "./native";
 import SourceSheet from "./SourceSheet.vue";
 import LangSheet from "./LangSheet.vue";
+import SpeakSheet from "./SpeakSheet.vue";
+import "./controls.css";
 import ModelSheet from "./ModelSheet.vue";
 import AboutSheet from "./AboutSheet.vue";
 import UiLangSheet from "./UiLangSheet.vue";
@@ -29,8 +31,13 @@ import { toast } from "./toasts";
 
 type Page = "home" | "settings" | "perms";
 const page = ref<Page>("home");
-type Drawer = null | "src" | "lang" | "model" | "about" | "uilang" | "overlay" | "history" | "diagnostics";
+type Drawer = null | "src" | "lang" | "speak" | "model" | "about" | "uilang" | "overlay" | "history" | "diagnostics";
 const drawer = ref<Drawer>(null);
+const langSide = ref<"source" | "target">("target");
+function openLang(side: "source" | "target") {
+  langSide.value = side;
+  drawer.value = "lang";
+}
 
 /** Modes layered over the home layout: the room reads these, the hand does not. */
 const mode = ref<"normal" | "face" | "big">("normal");
@@ -196,13 +203,11 @@ watch(session.sourceKind, (k) => {
   if (k === "file" && !session.filePath.value) void chooseFile();
 });
 
-/* ---------- theme cycle: follow system -> light -> dark ---------- */
-function cycleTheme() {
-  settings.theme = settings.theme === "system" ? "light" : settings.theme === "light" ? "dark" : "system";
-}
-const themeLabel = computed(() =>
-  `${t("theme")} · ${settings.theme === "system" ? t("themeSystem") : settings.theme === "light" ? t("themeLight") : t("themeDark")}`,
-);
+/** Settings row value: the chosen voice, or why there is none. */
+const speakValue = computed(() => {
+  if (!settings.speak || session.speakBlocked.value) return t("off");
+  return session.voiceList.value ? session.voiceOptions.value.find((v) => v.value === settings.voice)?.label ?? "" : t("on");
+});
 
 /* ---------- language card ---------- */
 function swap() {
@@ -244,16 +249,6 @@ function toggleFace() {
   if (mode.value === "face" && PROTOCOLS[settings.protocol].twoWay) settings.twoWay = true;
 }
 
-/** Speak-aloud honours the same block list as the desktop (target language the model
- *  refuses, etc.): turning it on when it cannot work explains why instead of going mute. */
-function toggleSpeak() {
-  if (!settings.speak && session.speakBlocked.value) {
-    toast(t(session.speakBlocked.value));
-    return;
-  }
-  settings.speak = !settings.speak;
-}
-
 /** Ask from the permission centre: on a permanent denial the same guide the start button
  *  uses, otherwise just the system dialog. */
 async function askFromCenter() {
@@ -282,7 +277,6 @@ async function askFromCenter() {
             <small>{{ modelLine }}</small>
           </span>
         </button>
-        <span class="spacer" />
         <!-- Narrow screens drop the label and keep the icon: the source always has a
              distinct glyph, so no text is needed to tell the three states apart. -->
         <button class="pill" :aria-label="t('srcTitle')" @click="drawer = 'src'">
@@ -292,11 +286,6 @@ async function askFromCenter() {
           <span class="tx">{{ srcLabel }}</span>
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round"><path d="m4 6 4 4 4-4"/></svg>
         </button>
-        <button class="icobtn xs" :aria-label="themeLabel" @click="cycleTheme">
-          <svg v-if="settings.theme === 'system'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7"/></svg>
-          <svg v-else-if="settings.theme === 'light'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>
-          <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.2A8.2 8.2 0 0 1 10.8 4 7.6 7.6 0 1 0 20 13.2z"/></svg>
-        </button>
         <button class="icobtn xs" :aria-label="t('settings')" @click="page = 'settings'">
           <Icon name="settings" :size="19" />
           <em v-if="bad.length" class="dot" />
@@ -305,14 +294,14 @@ async function askFromCenter() {
 
       <!-- language card: same slot idle and running (design rule), target is the protagonist -->
       <div class="langcard glass-thin">
-        <button class="side" @click="drawer = 'lang'">
+        <button class="side" @click="openLang('source')">
           <span class="cap">{{ t("from") }}</span>
           <span class="val dim">{{ settings.sourceLang === "auto" || session.sourceMode.value === "detected" ? langName("auto", locale) : langName(settings.sourceLang, locale) }}</span>
         </button>
         <button class="swap" :aria-label="t('swap')" :disabled="session.sourceMode.value === 'detected'" @click="swap">
           <Icon name="swap" :size="19" />
         </button>
-        <button class="side right" @click="drawer = 'lang'">
+        <button class="side right" @click="openLang('target')">
           <span class="cap">{{ t("to") }}</span>
           <span class="val strong">{{ langName(settings.targetLang, locale) }}</span>
         </button>
@@ -327,9 +316,16 @@ async function askFromCenter() {
             {{ fileProgress.total ? `${Math.round((fileProgress.sent / fileProgress.total) * 100)}%` : "…" }}
           </span>
           <span class="spacer" />
-          <button v-if="lines.length" class="exp" @click="exportRows('txt')">{{ t("exportTxt") }}</button>
-          <button v-if="lines.length" class="exp" @click="exportRows('srt')">{{ t("exportSrt") }}</button>
-          <button class="exp" @click="lines = []">{{ t("clear") }}</button>
+          <template v-if="lines.length">
+            <button class="exp" @click="exportRows('txt')">TXT</button>
+            <button class="exp" @click="exportRows('srt')">SRT</button>
+            <button class="exp" :aria-label="t('clear')" @click="lines = []">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6"/></svg>
+            </button>
+          </template>
+          <button class="exp" :aria-label="t('fullscreenSub')" @click="mode = 'big'">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>
+          </button>
         </div>
         <div class="stream-half top">
           <StreamList :lines="lines" :empty="emptyText" :big="mode === 'big'" />
@@ -347,15 +343,19 @@ async function askFromCenter() {
       <p v-else-if="warnMsg" class="warn-line" role="status" :aria-label="warnMsg">{{ warnMsg }}</p>
 
       <!-- dock -->
+      <!-- Every tool says what it is: icon over a short label, lit while it is on. -->
       <footer class="dock">
-        <button class="icobtn" :class="{ on: native.visible }" :aria-label="t('subTitle')" @click="toggleSub">
-          <svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="1.5" y="3" width="13" height="10" rx="2.4"/><path d="M4.5 9.4h4M4.5 6.8h7"/></svg>
+        <button class="tool" :class="{ on: native.visible }" :aria-label="t('subTitle')" @click="toggleSub">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="3" width="13" height="10" rx="2.4"/><path d="M4.5 9.4h4M4.5 6.8h7"/></svg>
+          <span>{{ t("dockSub") }}</span>
         </button>
-        <button v-if="PROTOCOLS[settings.protocol].twoWay" class="icobtn" :class="{ on: mode === 'face' }" :aria-label="t('faceMode')" :title="t('faceModeHint')" @click="toggleFace">
-          <svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v13M8 5 5.5 2.5M8 5l2.5-2.5M8 11 5.5 13.5M8 11l2.5 2.5"/></svg>
+        <button v-if="PROTOCOLS[settings.protocol].twoWay" class="tool" :class="{ on: mode === 'face' }" :title="t('faceModeHint')" @click="toggleFace">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v13M8 5 5.5 2.5M8 5l2.5-2.5M8 11 5.5 13.5M8 11l2.5 2.5"/></svg>
+          <span>{{ t("faceMode") }}</span>
         </button>
-        <button class="icobtn" :class="{ on: settings.speak }" :aria-label="t('speak')" @click="toggleSpeak">
-          <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.5 7 8H4v4h3l4 3.5z"/><path d="M14 7.6a3.4 3.4 0 0 1 0 4.8"/></svg>
+        <button class="tool" :class="{ on: settings.speak && !session.speakBlocked.value }" @click="drawer = 'speak'">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.5 7 8H4v4h3l4 3.5z"/><path d="M14 7.6a3.4 3.4 0 0 1 0 4.8"/></svg>
+          <span>{{ t("dockSpeak") }}</span>
         </button>
         <button class="go" :class="{ running }" :disabled="status === 'stopping'" @click="running ? stop() : start()">
           <span class="go-ring" />
@@ -365,8 +365,11 @@ async function askFromCenter() {
         </button>
       </footer>
 
-      <!-- big mode dismiss: a tap anywhere on the full-screen layer exits it -->
-      <button v-if="mode === 'big'" class="big-exit" @click="mode = 'normal'">{{ t("exitMode") }}</button>
+      <!-- big mode: the transcript takes the whole screen; one control leaves it -->
+      <button v-if="mode === 'big'" class="big-exit" :aria-label="t('exitMode')" @click="mode = 'normal'">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5"/></svg>
+        {{ t("exitMode") }}
+      </button>
     </div>
 
     <!-- ══ SETTINGS ══ -->
@@ -391,93 +394,126 @@ async function askFromCenter() {
         </button>
 
         <section>
-          <span class="glabel">{{ t("groupConn") }}</span>
-          <div class="rows">
-            <button class="rowbtn" @click="drawer = 'model'">
-              <span class="rt"><b>{{ t("protocol") }}</b><small>{{ t("ifaceSub") }}</small></span>
-              <span class="rv">{{ modelName(settings.protocol, PRESETS[settings.protocol][0].id) }}</span>
+          <span class="m-glabel">{{ t("groupConn") }}</span>
+          <div class="m-group">
+            <button class="m-row" @click="drawer = 'model'">
+              <span class="m-tx"><b>{{ t("protocol") }}</b><small class="mono">{{ settings.model }}</small></span>
+              <span class="m-val">{{ modelName(settings.protocol, PRESETS[settings.protocol][0].id) }}</span>
+              <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
             </button>
-            <button class="rowbtn" @click="drawer = 'model'">
-              <span class="rt"><b>{{ t("model") }}</b><small class="mono">{{ settings.model }}</small></span>
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
-            </button>
-            <label class="connection-field">
+            <label class="m-field">
               <b>{{ t("apiKey") }}</b>
               <input v-model.trim="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="running" />
               <small>{{ keyringOk ? t("apiKeyHint") : t("apiKeyPlain") }}</small>
             </label>
-            <label v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="connection-field">
-              <b>{{ t("region") }}</b><select v-model="settings.region" :disabled="running"><option value="beijing">{{ t("regionBJ") }}</option><option value="singapore">{{ t("regionSG") }}</option></select>
-            </label>
-            <label v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="connection-field">
-              <b>{{ t("workspace") }}</b><input v-model.trim="settings.workspaceId" :disabled="running" spellcheck="false" autocapitalize="off" /><small>{{ t("workspaceHint") }}</small>
-            </label>
-            <label class="connection-field">
-              <b>{{ t("url") }}</b>
-              <input v-model.trim="settings.url" type="url" placeholder="wss://…" autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="running" />
-              <small>{{ PROTOCOLS[settings.protocol].urlAsIs ? t("urlHintAsIs") : t("urlHint") }}</small>
-            </label>
+            <!-- Rarely touched: closed until asked for, so the key field is not buried. -->
+            <details class="m-more">
+              <summary class="m-row">
+                <span class="m-tx"><b>{{ t("advanced") }}</b><small>{{ t("advancedSub") }}</small></span>
+                <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
+              </summary>
+              <label v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="m-field">
+                <b>{{ t("region") }}</b><select v-model="settings.region" :disabled="running"><option value="beijing">{{ t("regionBJ") }}</option><option value="singapore">{{ t("regionSG") }}</option></select>
+              </label>
+              <label v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="m-field">
+                <b>{{ t("workspace") }}</b><input v-model.trim="settings.workspaceId" :disabled="running" spellcheck="false" autocapitalize="off" /><small>{{ t("workspaceHint") }}</small>
+              </label>
+              <label class="m-field">
+                <b>{{ t("url") }}</b>
+                <input v-model.trim="settings.url" type="url" placeholder="wss://…" autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="running" />
+                <small>{{ PROTOCOLS[settings.protocol].urlAsIs ? t("urlHintAsIs") : t("urlHint") }}</small>
+              </label>
+            </details>
           </div>
         </section>
 
         <section>
-          <span class="glabel">{{ t("groupPerm") }}</span>
-          <div class="rows">
-            <button class="rowbtn" @click="page = 'perms'">
-              <span class="rt"><b>{{ t("permCenter") }}</b><small>{{ t("permCenterSub") }}</small></span>
+          <span class="m-glabel">{{ t("groupTranslate") }}</span>
+          <div class="m-group">
+            <button class="m-row" @click="drawer = 'speak'">
+              <span class="m-tx"><b>{{ t("speak") }}</b></span>
+              <span class="m-val">{{ speakValue }}</span>
+              <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
+            </button>
+            <button v-if="PROTOCOLS[settings.protocol].twoWay" class="m-row" role="switch" :aria-checked="settings.twoWay" :disabled="running" @click="settings.twoWay = !settings.twoWay">
+              <span class="m-tx"><b>{{ t("twoWay") }}</b><small>{{ t("twoWayHint") }}</small></span>
+              <span class="sw" :class="{ on: settings.twoWay }" />
+            </button>
+            <div v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="m-field"><Hotwords /></div>
+          </div>
+        </section>
+
+        <section>
+          <span class="m-glabel">{{ t("groupDisplay") }}</span>
+          <div class="m-group">
+            <button class="m-row" @click="drawer = 'overlay'">
+              <span class="m-tx"><b>{{ t("subTitle") }}</b></span>
+              <span class="m-val">{{ native.visible ? t("on") : t("off") }}</span>
+              <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
+            </button>
+            <label class="m-field">
+              <b>{{ t("streamTgtSize") }}<output>{{ settings.stream.tgtSize }}</output></b>
+              <input v-model.number="settings.stream.tgtSize" class="m-range" type="range" :min="STREAM_SIZE.min" :max="STREAM_SIZE.max" />
+            </label>
+            <label class="m-field">
+              <b>{{ t("streamSrcSize") }}<output>{{ settings.stream.srcSize }}</output></b>
+              <input v-model.number="settings.stream.srcSize" class="m-range" type="range" :min="STREAM_SIZE.min" :max="STREAM_SIZE.max" />
+            </label>
+            <div class="m-field">
+              <b>{{ t("theme") }}</b>
+              <div class="m-seg">
+                <button v-for="v in (['system', 'light', 'dark'] as const)" :key="v" :class="{ on: settings.theme === v }" @click="settings.theme = v">
+                  {{ t(v === "system" ? "themeSystem" : v === "light" ? "themeLight" : "themeDark") }}
+                </button>
+              </div>
+            </div>
+            <button class="m-row" @click="drawer = 'uilang'">
+              <span class="m-tx"><b>{{ t("uiLang") }}</b></span>
+              <span class="m-val">{{ settings.uiLang === "system" ? t("uiSystem") : settings.uiLang === "zh" ? "简体中文" : "English" }}</span>
+              <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <span class="m-glabel">{{ t("groupPerm") }}</span>
+          <div class="m-group">
+            <button class="m-row" @click="page = 'perms'">
+              <span class="m-tx"><b>{{ t("permCenter") }}</b><small>{{ t("permCenterSub") }}</small></span>
               <span class="statpill" :class="bad.length ? (perms.mic === 'permanent' ? 'r' : 'y') : 'g'">
                 {{ bad.length ? tf("permPending", { n: bad.length }) : t("permAllOk") }}
               </span>
             </button>
-            <label class="rowbtn noscroll">
-              <span class="rt"><b>{{ t("keepScreen") }}</b><small>{{ t("keepScreenSub") }}</small></span>
-              <button class="sw" :class="{ on: settings.keepScreenOn }" @click.prevent="settings.keepScreenOn = !settings.keepScreenOn" />
-            </label>
-          </div>
-        </section>
-
-        <section>
-          <span class="glabel">{{ t("groupTranslate") }}</span>
-          <div class="rows">
-            <div v-if="PROTOCOLS[settings.protocol].vendor === 'qwen'" class="connection-field"><Hotwords /></div>
-            <label class="rowbtn"><span class="rt"><b>{{ t("speak") }}</b></span><button class="sw" :class="{ on: settings.speak }" :disabled="running" @click.prevent="toggleSpeak" /></label>
-            <label v-if="session.voiceList.value" class="connection-field"><b>{{ t("voice") }}</b><select v-model="settings.voice" :disabled="running"><option v-for="v in session.voiceOptions.value" :key="v.value" :value="v.value">{{ v.label }}</option></select></label>
-            <small v-else>{{ t("voiceServer") }}</small>
-            <button class="rowbtn" @click="drawer = 'overlay'"><span class="rt"><b>{{ t("subTitle") }}</b></span></button>
-            <label class="connection-field"><b>{{ t("subSrcSize") }} · {{ settings.stream.srcSize }}</b><input v-model.number="settings.stream.srcSize" type="range" :min="STREAM_SIZE.min" :max="STREAM_SIZE.max" /></label>
-            <label class="connection-field"><b>{{ t("subTgtSize") }} · {{ settings.stream.tgtSize }}</b><input v-model.number="settings.stream.tgtSize" type="range" :min="STREAM_SIZE.min" :max="STREAM_SIZE.max" /></label>
-            <label v-if="PROTOCOLS[settings.protocol].twoWay" class="rowbtn noscroll">
-              <span class="rt"><b>{{ t("twoWay") }}</b><small>{{ t("twoWayHint") }}</small></span>
-              <button class="sw" :class="{ on: settings.twoWay }" :disabled="running" @click.prevent="settings.twoWay = !settings.twoWay" />
-            </label>
-          </div>
-        </section>
-
-        <section>
-          <span class="glabel">{{ t("groupData") }}</span>
-          <div class="rows">
-            <label class="rowbtn noscroll">
-              <span class="rt"><b>{{ t("history") }}</b><small>{{ t("historyHint") }}</small></span>
-              <button class="sw" :class="{ on: settings.history }" @click.prevent="settings.history = !settings.history" />
-            </label>
-            <button class="rowbtn" @click="drawer = 'history'"><span class="rt"><b>{{ t("history") }}</b></span></button>
-            <button class="rowbtn" @click="drawer = 'uilang'">
-              <span class="rt"><b>{{ t("uiLang") }}</b></span>
-              <span class="rv">{{ settings.uiLang === "system" ? t("uiSystem") : settings.uiLang === "zh" ? "简体中文" : "English" }}</span>
-            </button>
-            <button class="rowbtn" @click="cycleTheme">
-              <span class="rt"><b>{{ t("theme") }}</b><small>{{ t("themeSub") }}</small></span>
-              <span class="rv">{{ settings.theme === "system" ? t("themeSystem") : settings.theme === "light" ? t("themeLight") : t("themeDark") }}</span>
+            <button class="m-row" role="switch" :aria-checked="settings.keepScreenOn" @click="settings.keepScreenOn = !settings.keepScreenOn">
+              <span class="m-tx"><b>{{ t("keepScreen") }}</b><small>{{ t("keepScreenSub") }}</small></span>
+              <span class="sw" :class="{ on: settings.keepScreenOn }" />
             </button>
           </div>
         </section>
 
         <section>
-          <div class="rows">
-            <button class="rowbtn" @click="drawer = 'diagnostics'"><span class="rt"><b>{{ t("diagnostics") }}</b></span></button>
-            <button class="rowbtn" @click="drawer = 'about'">
-              <span class="rt"><b>{{ t("about") }}</b></span>
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
+          <span class="m-glabel">{{ t("groupHistory") }}</span>
+          <div class="m-group">
+            <button class="m-row" role="switch" :aria-checked="settings.history" @click="settings.history = !settings.history">
+              <span class="m-tx"><b>{{ t("historySave") }}</b><small>{{ t("historyHint") }}</small></span>
+              <span class="sw" :class="{ on: settings.history }" />
+            </button>
+            <button class="m-row" @click="drawer = 'history'">
+              <span class="m-tx"><b>{{ t("historyBrowse") }}</b></span>
+              <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <div class="m-group">
+            <button class="m-row" @click="drawer = 'diagnostics'">
+              <span class="m-tx"><b>{{ t("diagnostics") }}</b></span>
+              <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
+            </button>
+            <button class="m-row" @click="drawer = 'about'">
+              <span class="m-tx"><b>{{ t("about") }}</b></span>
+              <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
             </button>
           </div>
         </section>
@@ -540,7 +576,8 @@ async function askFromCenter() {
     <History v-if="drawer === 'history'" @close="drawer = null" />
     <OverlaySheet v-if="drawer === 'overlay'" @close="drawer = null" @toggle="toggleOverlay" @fullscreen="drawer = null; mode = 'big'" />
     <SourceSheet v-if="drawer === 'src'" @close="drawer = null" />
-    <LangSheet v-if="drawer === 'lang'" @close="drawer = null" />
+    <LangSheet v-if="drawer === 'lang'" :side="langSide" @close="drawer = null" />
+    <SpeakSheet v-if="drawer === 'speak'" @close="drawer = null" />
     <ModelSheet v-if="drawer === 'model'" :running="running" @close="drawer = null" @restart="restartNow" />
     <AboutSheet v-if="drawer === 'about'" @close="drawer = null" />
     <UiLangSheet v-if="drawer === 'uilang'" @close="drawer = null" />
@@ -576,15 +613,15 @@ async function askFromCenter() {
 
 /* ---------- topbar ---------- */
 .topbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 2px; }
-.brand { display: flex; align-items: center; gap: 8px; text-align: left; padding: 2px 4px; border-radius: 8px; }
+.brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; text-align: left; padding: 2px 4px 2px 0; border-radius: 10px; }
 .brand .mark { width: 34px; height: 34px; flex: none; object-fit: contain; }
 .boot-error { position: absolute; inset: 0; z-index: 150; padding: 28px; display: flex; flex-direction: column; justify-content: center; gap: 16px; background: var(--canvas); }
 .boot-error small { overflow-wrap: anywhere; color: var(--ink-2); }
-.brand-col { display: flex; flex-direction: column; line-height: 1.18; }
-.brand-col strong { font-size: 13px; font-weight: 730; letter-spacing: -0.022em; }
-.brand-col small { font-size: 10px; color: var(--ink-3); font-weight: 600; }
+.brand-col { min-width: 0; display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
+.brand-col strong { font-size: 16px; font-weight: 740; letter-spacing: -0.025em; }
+.brand-col small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--ink-3); font-weight: 600; }
 .pill {
-  position: relative; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px;
+  position: relative; flex: none; height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px;
   border-radius: 999px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline);
   font-size: 12px; font-weight: 680; color: var(--ink-2);
 }
@@ -592,7 +629,7 @@ async function askFromCenter() {
 
 /* Topbar icon buttons share the pill's height so the row stays one line tall. */
 .icobtn.xs {
-  position: relative; width: 32px; height: 32px; flex: none; border-radius: 999px;
+  position: relative; width: 36px; height: 36px; flex: none; border-radius: 999px;
   display: grid; place-items: center; background: var(--shade); color: var(--ink-2);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
@@ -625,19 +662,33 @@ async function askFromCenter() {
 .st { font-size: 12.5px; font-weight: 700; }
 .st.ok { color: var(--ok); }
 .meta { font-size: 11.5px; color: var(--ink-3); font-weight: 600; font-family: ui-monospace, monospace; }
-.exp { font-size: 11px; font-weight: 650; color: var(--ink-3); padding: 4px 8px; border-radius: 8px; }
+.exp { min-width: 32px; height: 30px; padding: 0 9px; display: grid; place-items: center; border-radius: 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; color: var(--ink-2); background: var(--shade); }
+.stream-head .exp + .exp { margin-left: -3px; }
 .stream-half { flex: 1; min-height: 0; display: flex; }
 .stream-half.bottom { border-top: 1px solid var(--hairline); }
 .flip { flex: 1; min-height: 0; display: flex; flex-direction: column; transform: rotate(180deg); }
 .mini-head { padding: 8px 18px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
-.stream-card.big { position: absolute; inset: 0; z-index: 20; border-radius: 0; }
+/* Full screen: an opaque layer over everything (the glass would let the home page show
+   through), with the safe areas honoured and the head replaced by one exit control. */
+.stream-card.big {
+  position: fixed; inset: 0; z-index: 20; border-radius: 0; background: var(--canvas); box-shadow: none;
+  padding: calc(env(safe-area-inset-top) + 64px) 12px calc(env(safe-area-inset-bottom) + 16px);
+}
+.stream-card.big .stream-head { display: none; }
 
 .err-line, .warn-line { flex: none; margin: 0; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.45; }
 .err-line { color: var(--danger); user-select: text; }
 .warn-line { color: #b7791f; }
 
 /* ---------- dock ---------- */
-.dock { flex: none; display: flex; gap: 10px; align-items: center; }
+.dock { flex: none; display: flex; gap: 8px; align-items: center; }
+.tool {
+  width: 58px; height: 56px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border-radius: 17px; background: var(--shade); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--hairline);
+  transition: background 0.25s var(--ease), color 0.25s var(--ease);
+}
+.tool span { font-size: 11px; font-weight: 680; letter-spacing: 0.01em; }
+.tool.on { background: rgba(10, 132, 255, 0.16); color: var(--accent); box-shadow: inset 0 0 0 1.2px rgba(10, 132, 255, 0.45); }
 .icobtn { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 15px; background: var(--shade); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--hairline); }
 .icobtn.on { background: var(--accent); color: #fff; box-shadow: none; }
 .icobtn.sm { width: 38px; height: 38px; border-radius: 12px; }
@@ -657,28 +708,19 @@ async function askFromCenter() {
 .go.danger { height: 40px; flex: 1; font-size: 13.5px; background: var(--danger); box-shadow: none; }
 .go.gd { height: 48px; font-size: 15px; flex: none; width: 100%; }
 
-.big-exit { position: absolute; top: 14px; right: 14px; z-index: 25; height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(11, 13, 19, 0.6); color: #fff; font-size: 12.5px; font-weight: 700; }
+.big-exit {
+  position: fixed; top: calc(env(safe-area-inset-top) + 14px); right: 16px; z-index: 25;
+  height: 38px; padding: 0 15px; display: inline-flex; align-items: center; gap: 7px; border-radius: 999px;
+  background: var(--shade); color: var(--ink); box-shadow: inset 0 0 0 1px var(--hairline); font-size: 13.5px; font-weight: 700;
+}
 
 /* ---------- settings ---------- */
 .pt { flex: 1; }
 .pt1 { font-size: 22px; font-weight: 730; letter-spacing: -0.03em; }
 .pt2 { font-size: 11px; color: var(--ink-3); font-weight: 600; margin-top: 2px; }
-.settings-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; padding-bottom: 8px; }
+.settings-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; padding-bottom: 8px; }
 section { display: flex; flex-direction: column; }
-.glabel { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); margin: 0 4px 8px; }
-.rows { border-radius: 18px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--hairline); padding: 0 15px; }
-.connection-field { display: flex; flex-direction: column; gap: 8px; padding: 13px 0; border-top: 1px solid var(--hairline); }
-.connection-field b { font-size: 14.5px; font-weight: 560; }
-.connection-field select { padding: 10px; border-radius: 10px; background: var(--shade); color: var(--ink); font: inherit; }
-.connection-field input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 11px; background: var(--shade); color: var(--ink); font: inherit; font-size: 16px; }
-.connection-field small { color: var(--ink-3); font-size: 11.5px; line-height: 1.45; }
-.rowbtn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 0; text-align: left; color: var(--ink); }
-.rowbtn + .rowbtn { box-shadow: inset 0 1px 0 var(--hairline); }
-.rowbtn .rt { flex: 1; min-width: 0; }
-.rowbtn .rt b { display: block; font-size: 14.5px; font-weight: 560; }
-.rowbtn .rt small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--ink-3); line-height: 1.45; }
-.rowbtn .rt small.mono { font-family: ui-monospace, monospace; word-break: break-all; }
-.rowbtn .rv { font-size: 13px; color: var(--ink-3); font-weight: 550; }
+.m-tx small.mono { font-family: ui-monospace, monospace; word-break: break-all; }
 .statpill { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
 .statpill.g { color: var(--ok); background: rgba(48, 209, 88, 0.14); }
 .statpill.r { color: var(--danger); background: rgba(255, 69, 58, 0.15); }

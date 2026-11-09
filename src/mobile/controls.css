@@ -1,0 +1,44 @@
+/* Phone-shell form vocabulary, shared by the settings page and the sheets: one grouped
+   list, one row, one slider, one segmented control. Global on purpose (prefixed m-) so a
+   sheet and a page cannot drift into two looks for the same control. */
+
+.m-glabel { display: block; margin: 0 6px 8px; font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.m-group { border-radius: 18px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--hairline); padding: 0 16px; }
+.m-sheet .m-group { background: var(--shade); }
+
+.m-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 9px 0; text-align: left; color: var(--ink); }
+.m-row + .m-row, .m-row + .m-field, .m-field + .m-row, .m-field + .m-field { box-shadow: inset 0 1px 0 var(--hairline); }
+.m-row .m-tx { flex: 1; min-width: 0; }
+.m-row .m-tx b, .m-field > b { display: block; font-size: 15px; font-weight: 560; }
+.m-row .m-tx small, .m-field > small { display: block; margin-top: 2px; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+.m-row .m-val { flex: none; max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--ink-3); font-weight: 550; }
+.m-chev { flex: none; color: var(--ink-3); }
+
+/* A field that needs the full width below its label: inputs, sliders. */
+.m-field { display: flex; flex-direction: column; gap: 9px; padding: 13px 0; }
+.m-field > b { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.m-field > b output { font-size: 13px; font-weight: 650; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.m-field input:not([type="range"]):not([type="color"]), .m-field select {
+  width: 100%; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 12px;
+  background: var(--shade); color: var(--ink); font: inherit; font-size: 16px;
+}
+
+/* Native range, themed: a 44 px tall hit area around a thin track. */
+.m-range { width: 100%; height: 28px; margin: 0; accent-color: var(--accent); background: none; }
+
+.m-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 3px; border-radius: 12px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline); }
+.m-seg button { min-height: 36px; padding: 4px 6px; line-height: 1.2; border-radius: 9px; font-size: 13.5px; font-weight: 620; color: var(--ink-2); }
+.m-seg button.on { background: var(--glass-hi); color: var(--ink); box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.35); }
+:root[data-theme="dark"] .m-seg button.on { background: rgba(255, 255, 255, 0.16); }
+
+.m-swatch { position: relative; flex: none; width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--hairline), 0 0 0 3px var(--shade); overflow: hidden; }
+.m-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 16px; border-radius: 14px; font-size: 14.5px; font-weight: 660; background: var(--shade); color: var(--ink); box-shadow: inset 0 0 0 1px var(--hairline); }
+.m-btn.primary { background: var(--accent); color: #fff; box-shadow: 0 10px 24px -12px rgba(10, 132, 255, 0.9); }
+.m-btn.danger { color: var(--danger); }
+
+details.m-more > summary { list-style: none; cursor: pointer; }
+details.m-more > summary::-webkit-details-marker { display: none; }
+details.m-more > summary .m-chev { transition: transform 0.25s var(--ease); }
+details.m-more[open] > summary .m-chev { transform: rotate(90deg); }
