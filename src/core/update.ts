@@ -48,13 +48,24 @@ export function whatsNew(body: string, locale: "zh" | "en"): string {
   return (end < 0 ? lines : lines.slice(0, end)).join("\n").trim();
 }
 
-/** "1.2.10" > "1.2.9": compare numerically per segment, not as strings. */
+/** Compare numeric versions and SemVer prereleases; stable follows its betas. */
 export function isNewer(tag: string, current: string) {
-  const parts = (v: string) => v.replace(/^v/, "").split(".").map(Number);
-  const [a, b] = [parts(tag), parts(current)];
+  const parts = (v: string) => v.replace(/^v/, "").split("+")[0].split("-");
+  const [next, installed] = [parts(tag), parts(current)];
+  const [a, b] = [next[0].split(".").map(Number), installed[0].split(".").map(Number)];
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
     const d = (a[i] ?? 0) - (b[i] ?? 0);
     if (d) return d > 0;
+  }
+  if (!next[1] || !installed[1]) return !next[1] && !!installed[1];
+  const [pa, pb] = [next[1].split("."), installed[1].split(".")];
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if (pa[i] === pb[i]) continue;
+    if (pa[i] === undefined || pb[i] === undefined) return pb[i] === undefined;
+    const [na, nb] = [/^\d+$/.test(pa[i]), /^\d+$/.test(pb[i])];
+    if (na && nb) return Number(pa[i]) > Number(pb[i]);
+    if (na !== nb) return nb;
+    return pa[i] > pb[i];
   }
   return false;
 }
