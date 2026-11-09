@@ -282,6 +282,7 @@ const zh = {
   themeLight: "浅色",
   themeDark: "深色",
   themeSub: "顶栏的日/月图标也可以随时切换",
+  backToLatest: "回到最新",
 };
 
 const en: typeof zh = {
@@ -565,6 +566,7 @@ const en: typeof zh = {
   themeLight: "Light",
   themeDark: "Dark",
   themeSub: "The sun/moon icon in the top bar cycles it too",
+  backToLatest: "Jump to latest",
 };
 
 const DICT = { zh, en };

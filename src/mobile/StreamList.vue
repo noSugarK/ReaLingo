@@ -3,6 +3,7 @@ import { nextTick, ref, watch } from "vue";
 import { settings } from "../core/store";
 import type { Line } from "../core/stream";
 import { current } from "../core/session";
+import { t } from "../core/i18n";
 
 const props = defineProps<{ lines: Line[]; empty?: string; big?: boolean }>();
 
@@ -25,13 +26,14 @@ function backToBottom() {
 
 watch([() => current.target, () => current.targetStash, () => props.lines.length], async () => {
   await nextTick();
-  if (pinned.value) el.value?.scrollTo({ top: el.value.scrollHeight });
+  const s = el.value;
+  if (s && s.scrollHeight <= s.clientHeight) pinned.value = true; // nothing left to scroll back to
+  if (pinned.value) s?.scrollTo({ top: s.scrollHeight });
 });
 </script>
 
 <template>
   <div ref="el" class="stream" :class="{ big }" :style="{ '--mobile-src-size': settings.stream.srcSize + 'px', '--mobile-tgt-size': settings.stream.tgtSize + 'px' }" @scroll.passive="onScroll">
-    <button v-if="!pinned" class="jump" @click="backToBottom">↓</button>
     <p v-if="!lines.length && !current.target && !current.source" class="empty">{{ empty }}</p>
 
     <article v-for="l in lines" :key="l.id" class="line-item">
@@ -47,24 +49,30 @@ watch([() => current.target, () => current.targetStash, () => props.lines.length
         {{ current.target }}<span class="stash">{{ current.targetStash }}</span><span class="caret" />
       </p>
     </article>
+    <button v-if="!pinned" class="jump" :aria-label="t('backToLatest')" @click="backToBottom">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"/></svg>
+    </button>
   </div>
 </template>
 
 <style scoped>
 .jump {
   position: sticky;
-  top: 0;
+  bottom: 6px;
+  flex: none;
   align-self: center;
   z-index: 3;
-  height: 30px;
-  padding: 0 14px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
   border-radius: 999px;
-  background: rgba(11, 13, 19, 0.72);
+  background: var(--accent);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
-  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.7);
-  margin-bottom: -30px;
+  box-shadow: 0 8px 20px -8px rgba(10, 132, 255, 0.9);
+  margin-top: -38px;
 }
 /* Same rows as the desktop stream (glass.css tokens), sized for a hand-held screen: the
    target line is the thing being read, so it carries the weight and the source fades. */
@@ -115,8 +123,11 @@ watch([() => current.target, () => current.targetStash, () => props.lines.length
 @keyframes blink { 50% { opacity: 0.25; } }
 
 /* Full-screen subtitle / face-to-face: the room reads it, not the hand holding it. */
-.stream.big { justify-content: center; gap: 30px; padding: 24px; }
-.stream.big .src { font-size: 21px; }
-.stream.big .tgt { font-size: 40px; line-height: 1.32; letter-spacing: -0.02em; }
+/* Centred when short, scrollable from the first line when long: auto margins, never
+   justify-content, which loses the overflow above the scroll start. */
+.stream.big { gap: 28px; padding: 12px 12px 24px; }
+.stream.big > article:last-of-type { margin-bottom: auto; }
+.stream.big .src { font-size: clamp(16px, 4.8vw, 21px); }
+.stream.big .tgt { font-size: clamp(26px, 8vw, 40px); line-height: 1.3; letter-spacing: -0.02em; }
 @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
 </style>
