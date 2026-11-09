@@ -242,6 +242,8 @@ async fn connect_and_pump(
             Err(e) => return Err(anyhow!("socket error: {e}")),
         };
         last_server = Instant::now();
+        // Elide the PCM before logging: `raw` ships the frame over IPC immediately.
+        let audio = take_audio(&mut value);
         raw(&value);
         if let Some(reason) = settings.rejection(&value) { return Err(anyhow!(reason)); }
         if !configured && settings.is_ready(&value) {
@@ -249,7 +251,7 @@ async fn connect_and_pump(
             ready.notify_one();
             report(Event { kind: "status", text: "connected".into(), ..Default::default() });
         }
-        if let Some(audio) = take_audio(&mut value) {
+        if let Some(audio) = audio {
             if audio.iter().any(|&b| b != 0) { heard = Instant::now(); }
             if let Some(player) = player.as_mut() { player.push(&audio); }
         }
@@ -709,6 +711,8 @@ mod tests {
             socket.send(Message::Text(json!({"type":"session.updated"}).to_string().into())).await.unwrap();
             let audio: Value = serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
             assert_eq!(BASE64_STANDARD.decode(audio["audio"].as_str().unwrap()).unwrap().len(), 3200);
+            let pcm = BASE64_STANDARD.encode([7u8; 64]);
+            socket.send(Message::Text(json!({"type":"response.audio.delta","delta":pcm}).to_string().into())).await.unwrap();
             socket.send(Message::Text(json!({"type":"response.text.done","item_id":"answer","text":"Hello"}).to_string().into())).await.unwrap();
             end.store(true, Ordering::Relaxed);
             let finish = socket.next().await.unwrap().unwrap();
@@ -719,9 +723,13 @@ mod tests {
         tx.send(vec![8192; 1600]).await.unwrap();
         let events = Arc::new(std::sync::Mutex::new(Vec::new()));
         let out = events.clone();
+        let frames = std::sync::Mutex::new(Vec::new());
         tokio::time::timeout(Duration::from_secs(3), connect_and_pump(&network_settings(url), rx, &stop, None, None,
-            move |event| out.lock().unwrap().push(event), |_| {})).await.unwrap().unwrap();
+            move |event| out.lock().unwrap().push(event), |value| frames.lock().unwrap().push(value.clone()))).await.unwrap().unwrap();
         server.await.unwrap();
+        // The diagnostics log gets the frame after its PCM is elided, not the raw base64.
+        let frames = frames.into_inner().unwrap();
+        assert!(frames.iter().any(|v| v["type"] == "response.audio.delta" && v["delta"] == "<64 bytes>"));
         let events = events.lock().unwrap();
         assert!(events.iter().any(|event| event.kind == "target" && event.text == "Hello"));
         assert!(events.iter().any(|event| event.kind == "audio" && event.text == "100"));
