@@ -3,7 +3,7 @@ name: Android tests
 on:
   pull_request:
   push:
-    branches: [feat/android]
+    branches: [main]
   workflow_dispatch:
     inputs:
       apk_run_id:

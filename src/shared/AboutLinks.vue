@@ -31,7 +31,7 @@ async function open(url: string) {
 <template>
   <div>
     <nav class="links" :aria-label="t('about')">
-      <button v-for="link in links" :key="link.url" type="button" :title="link.title" :aria-label="`${link.label} · ${link.title}`" @click="open(link.url)">
+      <button v-for="link in links" :key="link.url" type="button" :title="link.title" :aria-label="link.title" @click="open(link.url)">
         <svg width="20" height="20" :viewBox="link.github ? '0 0 16 16' : '0 0 24 24'" :fill="link.github ? 'currentColor' : 'none'" :stroke="link.github ? 'none' : 'currentColor'" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path :d="link.path" />
         </svg>
