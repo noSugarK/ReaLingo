@@ -204,16 +204,16 @@ xcode-select --install
 # Windows：Visual Studio Build Tools（C++ 桌面开发）+ WebView2（Win11 自带）
 ```
 
-调试运行中的界面（`tools/cdp.mjs`）—— WebView2 里看不到 DevTools 时很有用，
+调试运行中的界面（`scripts/cdp.mjs`）—— WebView2 里看不到 DevTools 时很有用，
 可以直接在真实应用的页面里求值，而不是靠猜：
 
 ```bash
 # 带远程调试端口启动
 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222 npm run tauri dev
 # 另开一个终端
-node tools/cdp.mjs --list                 # 列出可调试页面
-node tools/cdp.mjs probe.js               # 在主窗口求值
-node tools/cdp.mjs probe.js subtitle      # 在字幕窗求值
+node scripts/cdp.mjs --list                 # 列出可调试页面
+node scripts/cdp.mjs probe.js               # 在主窗口求值
+node scripts/cdp.mjs probe.js subtitle      # 在字幕窗求值
 ```
 
 macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，由 `.github/workflows/build.yml`
@@ -280,15 +280,15 @@ cd src-tauri && cargo test
 （直接抠白底会在抗锯齿边缘留白边）。logo 换了就重跑：
 
 ```bash
-node tools/make-icon.mjs brand/ReaLingo.png app-icon.png 1024
-npx tauri icon app-icon.png
+node scripts/make-icon.mjs brand/ReaLingo.png brand/app-icon.png 1024
+npx tauri icon brand/app-icon.png
 ```
 
 应用内标题栏的 logo 不走这条路：白底板是给 OS 图标网格用的，放进界面里就是块贴在标题栏上的
 白卡片，深色主题下尤其突兀。它由 `make-banner.mjs` 的 `--mark` 模式出，只取图形、透明底：
 
 ```bash
-node tools/make-banner.mjs brand/ReaLingo.png src/assets/mark.png 256 --mark
+node scripts/make-banner.mjs brand/ReaLingo.png src/assets/mark.png 256 --mark
 ```
 
 README 顶部的横版 logo 由 `make-banner.mjs` 把上下堆叠的原 logo 重排成「图形在左、彩色字在右」，
@@ -296,8 +296,8 @@ README 顶部的横版 logo 由 `make-banner.mjs` 把上下堆叠的原 logo 重
 在深色主题下变成黑窟窿。`make-anim.mjs` 再给它加一道循环掠过的高光：
 
 ```bash
-node tools/make-banner.mjs brand/ReaLingo.png brand/banner.png 160
-node tools/make-anim.mjs brand/banner.png brand/banner-animated.png
+node scripts/make-banner.mjs brand/ReaLingo.png brand/banner.png 160
+node scripts/make-anim.mjs brand/banner.png brand/banner-animated.png
 ```
 
 抠白底对两半用了**不同规则**，因为没有单一规则能同时做对：图形里气泡中的白色 A / 文 是**内容**，

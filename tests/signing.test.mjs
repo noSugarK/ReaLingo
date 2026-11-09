@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { configureSigning } from '../.github/scripts/configure-android-signing.mjs';
+import { configureSigning } from '../scripts/configure-android-signing.mjs';
 
 function envFor(t) {
   const dir = mkdtempSync(join(tmpdir(), 'realingo-signing-'));

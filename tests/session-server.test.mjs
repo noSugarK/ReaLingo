@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startSessionServer, startSessionPeer } from '../.github/scripts/session-server.mjs';
+import { startSessionServer, startSessionPeer } from '../scripts/session-server.mjs';
 
 async function waitUntil(condition) {
   for (let i = 0; i < 100; i++) {

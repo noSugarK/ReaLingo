@@ -143,7 +143,7 @@ jobs:
   # ARM64 APK, built and signed the same way LittleLobby's release pipeline does it.
   # The generated Gradle project lives in src-tauri/gen/ (gitignored), so CI runs
   # `android init` fresh every time — the repo stays desktop-shaped and the Android
-  # specifics live in .github/scripts/prepare-android.mjs.
+  # specifics live in scripts/prepare-android.mjs.
   #
   # Without the four ANDROID_* secrets, the job still produces an installable test APK
   # (debug key, `.debug` id suffix); on a release tag the signing script refuses to run
@@ -172,7 +172,7 @@ jobs:
 
       - name: Configure Android signing
         id: signing
-        run: node .github/scripts/configure-android-signing.mjs
+        run: node scripts/configure-android-signing.mjs
 
       - uses: android-actions/setup-android@v4
         with:
@@ -200,7 +200,7 @@ jobs:
             npm run tauri -- android init --ci --skip-targets-install
           fi
           chmod +x src-tauri/gen/android/gradlew
-          node .github/scripts/prepare-android.mjs
+          node scripts/prepare-android.mjs
 
       - name: Build APK
         run: npm run tauri -- android build --ci --apk --target aarch64
@@ -221,10 +221,10 @@ jobs:
           cp "${packages[0]}" "installers/ReaLingo_${version}_android-arm64${suffix}.apk"
           expected_id=com.nosugark.realingo
           if [[ "$SIGNED" != true ]]; then expected_id="$expected_id.debug"; fi
-          node .github/scripts/verify-android-package.mjs "${packages[0]}" "$expected_id" "$ANDROID_HOME/build-tools/36.0.0/aapt"
+          node scripts/verify-android-package.mjs "${packages[0]}" "$expected_id" "$ANDROID_HOME/build-tools/36.0.0/aapt"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "${packages[0]}"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 "${packages[0]}"
-          python3 .github/scripts/check-android-apk.py "${packages[0]}"
+          python3 scripts/check-android-apk.py "${packages[0]}"
           ls -lh installers/*.apk
 
       - uses: actions/upload-artifact@v6

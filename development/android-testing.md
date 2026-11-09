@@ -37,10 +37,10 @@ Python tests check malformed ELF data, missing libraries, 4 KB alignment and seg
 
 ```bash
 npm run tauri -- android init --ci --skip-targets-install
-node .github/scripts/prepare-android.mjs
+node scripts/prepare-android.mjs
 npm run tauri -- android build --ci --apk --target aarch64
 # On an emulator or a disposable test device; this clears the test app's data:
-node .github/scripts/smoke-android.mjs /absolute/path/to/app.apk com.nosugark.realingo.debug
+node scripts/smoke-android.mjs /absolute/path/to/app.apk com.nosugark.realingo.debug
 ```
 
 The default package ID above is for a test-signed release. Pass
@@ -141,7 +141,7 @@ local and remove any credentials/transcript content before sharing them.
 npm run icons:android
 ```
 
-This uses the existing `app-icon.png`, generates all Android densities and adaptive
+This uses the existing `brand/app-icon.png`, generates all Android densities and adaptive
 icons, and fixes the CLI's 49px hdpi output to the required 72px. The header uses the
 transparent `src/assets/mark.png`; About uses the same app artwork as the launcher.
 Missing launcher assets fail preparation instead of silently retaining template icons.

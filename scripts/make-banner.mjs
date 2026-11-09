@@ -2,7 +2,7 @@
 // graphic on the left, wordmark on the right, on a transparent background so it sits
 // equally well on GitHub's light and dark themes.
 //
-//   node tools/make-banner.mjs brand/ReaLingo.png brand/banner.png [height]
+//   node scripts/make-banner.mjs brand/ReaLingo.png brand/banner.png [height]
 //
 // Pass `--mark` to emit only the graphic, square and transparent — that is the in-app
 // titlebar logo. The white-plate version `make-icon.mjs` produces is for OS icon grids,

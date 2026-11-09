@@ -1,6 +1,6 @@
 // Animate the banner: a specular sweep travelling across the lockup, on a slow loop.
 //
-//   node tools/make-anim.mjs brand/banner.png brand/banner-animated.png
+//   node scripts/make-anim.mjs brand/banner.png brand/banner-animated.png
 //
 // Output is APNG, not GIF. GIF would quantise the gradient wordmark to 256 colours (visible
 // banding) and only carries 1-bit transparency, which leaves white fringes on GitHub's dark

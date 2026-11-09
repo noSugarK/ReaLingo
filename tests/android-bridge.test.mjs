@@ -10,7 +10,7 @@ import test from 'node:test';
 
 const kt = readFileSync(new URL('../src-tauri/android/MainActivity.kt', import.meta.url), 'utf8');
 const permsTs = readFileSync(new URL('../src/mobile/perms.ts', import.meta.url), 'utf8');
-const prepareMjs = readFileSync(new URL('../.github/scripts/prepare-android.mjs', import.meta.url), 'utf8');
+const prepareMjs = readFileSync(new URL('../scripts/prepare-android.mjs', import.meta.url), 'utf8');
 const libRs = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8');
 const conf = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
 

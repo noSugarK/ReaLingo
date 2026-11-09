@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused, scrollDirection, launcherAnrClose } from '../.github/scripts/smoke-android.mjs';
-import { decode } from '../tools/png.mjs';
+import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused, scrollDirection, launcherAnrClose } from '../scripts/smoke-android.mjs';
+import { decode } from '../scripts/png.mjs';
 
 test('only the emulator launcher ANR can be dismissed; app ANRs remain failures', () => {
   const xml = '<node text="Pixel Launcher isn\'t responding" />' +

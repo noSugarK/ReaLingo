@@ -7,7 +7,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
-    "icons:android": "node tools/make-android-icons.mjs",
+    "icons:android": "node scripts/make-android-icons.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

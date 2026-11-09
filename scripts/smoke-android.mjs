@@ -85,7 +85,7 @@ export function launcherAnrClose(xml) {
 }
 
 export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug') {
-  assert.ok(apk, 'usage: node .github/scripts/smoke-android.mjs APK [package-id]');
+  assert.ok(apk, 'usage: node scripts/smoke-android.mjs APK [package-id]');
   const output = process.env.ANDROID_SMOKE_OUTPUT ?? 'android-smoke';
   mkdirSync(output, { recursive: true });
   const adb = (...args) => execFileSync('adb', args.map(String), { encoding: 'utf8', timeout: 30000 });

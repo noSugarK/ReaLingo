@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { fetchGradle } from '../.github/scripts/fetch-gradle.mjs';
+import { fetchGradle } from '../scripts/fetch-gradle.mjs';
 
 test('Gradle uses the exact official asset and refuses unverified downloads', t => {
   const root = mkdtempSync(join(tmpdir(), 'gradle-download-'));

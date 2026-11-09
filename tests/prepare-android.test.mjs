@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { androidVersionCode } from '../.github/scripts/prepare-android.mjs';
+import { androidVersionCode } from '../scripts/prepare-android.mjs';
 
 const repo = new URL('..', import.meta.url);
 const read = (file) => readFileSync(file, 'utf8');
@@ -19,9 +19,9 @@ const read = (file) => readFileSync(file, 'utf8');
 function fakeTree(t) {
   const root = mkdtempSync(join(tmpdir(), 'prepare-android-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  // Same relative layout the script expects: .github/scripts, src-tauri, gen/android.
-  mkdirSync(join(root, '.github/scripts'), { recursive: true });
-  cpSync(new URL('.github/scripts/prepare-android.mjs', repo), join(root, '.github/scripts/prepare-android.mjs'));
+  // Same relative layout the script expects: scripts, src-tauri, gen/android.
+  mkdirSync(join(root, 'scripts'), { recursive: true });
+  cpSync(new URL('scripts/prepare-android.mjs', repo), join(root, 'scripts/prepare-android.mjs'));
   mkdirSync(join(root, 'src-tauri'), { recursive: true });
   cpSync(new URL('src-tauri/Cargo.toml', repo), join(root, 'src-tauri/Cargo.toml'));
   cpSync(new URL('src-tauri/tauri.conf.json', repo), join(root, 'src-tauri/tauri.conf.json'));
@@ -51,7 +51,7 @@ async function run(root, app) {
   const cwd = process.cwd();
   process.chdir(root);
   try {
-    const mod = await import(pathToFileURL(join(root, '.github/scripts/prepare-android.mjs')).href + '?once=' + Math.random());
+    const mod = await import(pathToFileURL(join(root, 'scripts/prepare-android.mjs')).href + '?once=' + Math.random());
     await mod.prepareAndroid('src-tauri/gen/android/app');
   } finally {
     process.chdir(cwd);

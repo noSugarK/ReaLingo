@@ -13,6 +13,6 @@ export function verifyBadging(badging, expectedId, version) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [apk, packageId, aapt] = process.argv.slice(2);
-  const version = readFileSync(new URL('../../src-tauri/Cargo.toml', import.meta.url), 'utf8').match(/^version\s*=\s*"([^"]+)"/m)[1];
+  const version = readFileSync(new URL('../src-tauri/Cargo.toml', import.meta.url), 'utf8').match(/^version\s*=\s*"([^"]+)"/m)[1];
   console.log(JSON.stringify(verifyBadging(execFileSync(aapt, ['dump', 'badging', apk], { encoding: 'utf8' }), packageId, version)));
 }

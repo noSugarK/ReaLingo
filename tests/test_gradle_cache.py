@@ -4,7 +4,7 @@ import tempfile
 import unittest
 import zipfile
 
-spec = importlib.util.spec_from_file_location("gradle_cache", Path(__file__).resolve().parents[1] / ".github/scripts/cache-gradle-kotlin.py")
+spec = importlib.util.spec_from_file_location("gradle_cache", Path(__file__).resolve().parents[1] / "scripts/cache-gradle-kotlin.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

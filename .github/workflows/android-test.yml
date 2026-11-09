@@ -43,7 +43,7 @@ jobs:
             # across that chain, but never cross an app/build-input change.
             for previous in $(git rev-list --max-count=5 HEAD^); do
               git show "$previous:$workflow" | sed -n '/^  apk:/,/^  launch:/p' > "$RUNNER_TEMP/apk-before.yml"
-              if ! cmp -s "$RUNNER_TEMP/apk-before.yml" "$RUNNER_TEMP/apk-after.yml" || ! git diff --quiet "$previous" HEAD -- . ':!tests/**' ':!.github/scripts/smoke-android.mjs' ':!.github/scripts/session-server.mjs' ':!.github/workflows/android-test.yml'; then break; fi
+              if ! cmp -s "$RUNNER_TEMP/apk-before.yml" "$RUNNER_TEMP/apk-after.yml" || ! git diff --quiet "$previous" HEAD -- . ':!tests/**' ':!scripts/smoke-android.mjs' ':!scripts/session-server.mjs' ':!.github/workflows/android-test.yml'; then break; fi
               run_id=$(gh run list --workflow android-test.yml --commit "$previous" --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
               if [[ -n "$run_id" ]]; then
                 count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" --jq '[.artifacts[] | select(.expired == false and (.name == "android-aarch64-apk" or .name == "android-x86_64-apk"))] | length' || true)
@@ -106,7 +106,7 @@ jobs:
           java-version: 17
       - name: Configure persistent Android signing
         id: signing
-        run: node .github/scripts/configure-android-signing.mjs
+        run: node scripts/configure-android-signing.mjs
       - uses: android-actions/setup-android@v4
         with:
           packages: platform-tools
@@ -132,9 +132,9 @@ jobs:
         run: |
           npm run tauri -- android init --ci --skip-targets-install
           chmod +x src-tauri/gen/android/gradlew
-          node .github/scripts/prepare-android.mjs
-          node .github/scripts/fetch-gradle.mjs
-          python3 .github/scripts/cache-gradle-kotlin.py "$RUNNER_TEMP"/realingo-gradle/gradle-*-bin.zip "$REALINGO_MAVEN_REPO"
+          node scripts/prepare-android.mjs
+          node scripts/fetch-gradle.mjs
+          python3 scripts/cache-gradle-kotlin.py "$RUNNER_TEMP"/realingo-gradle/gradle-*-bin.zip "$REALINGO_MAVEN_REPO"
           npm run tauri -- android build --ci --apk --target ${{ matrix.target }}
       - name: Verify signature and 16 KB ZIP alignment
         env:
@@ -144,12 +144,12 @@ jobs:
           test "${#apks[@]}" -eq 1
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "${apks[0]}"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 "${apks[0]}"
-          python3 .github/scripts/check-android-apk.py "${apks[0]}"
+          python3 scripts/check-android-apk.py "${apks[0]}"
           mkdir -p smoke-apk
           cp "${apks[0]}" smoke-apk/realingo.apk
           expected_id='com.nosugark.realingo'
           if [[ "$SIGNED" != true ]]; then expected_id+='.debug'; fi
-          node .github/scripts/verify-android-package.mjs "${apks[0]}" "$expected_id" "$ANDROID_HOME/build-tools/36.0.0/aapt" > smoke-apk/metadata.json
+          node scripts/verify-android-package.mjs "${apks[0]}" "$expected_id" "$ANDROID_HOME/build-tools/36.0.0/aapt" > smoke-apk/metadata.json
           printf '%s\n' "$expected_id" > smoke-apk/package-id.txt
       - uses: actions/upload-artifact@v6
         with:
@@ -203,8 +203,8 @@ jobs:
           target: ${{ matrix.tag }}
           disable-animations: true
           script: |
-            bash .github/scripts/check-android-pages.sh '${{ matrix.page-size }}'
-            node .github/scripts/smoke-android.mjs smoke-apk/realingo.apk "$(cat smoke-apk/package-id.txt)"
+            bash scripts/check-android-pages.sh '${{ matrix.page-size }}'
+            node scripts/smoke-android.mjs smoke-apk/realingo.apk "$(cat smoke-apk/package-id.txt)"
       - uses: actions/upload-artifact@v6
         if: always()
         with:

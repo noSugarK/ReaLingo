@@ -7,7 +7,7 @@ import { appendFileSync, copyFileSync, existsSync, readFileSync, writeFileSync, 
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const tauri = join(dirname(fileURLToPath(import.meta.url)), '../../src-tauri');
+const tauri = join(dirname(fileURLToPath(import.meta.url)), '../src-tauri');
 const read = (file) => readFileSync(file, 'utf8');
 const write = (file, text) => { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); };
 

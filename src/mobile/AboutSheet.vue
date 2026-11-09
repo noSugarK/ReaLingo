@@ -6,7 +6,7 @@ import Sheet from "./Sheet.vue";
 import { check, checkUpdate, openHome, REPO } from "../core/update";
 import { isMobile } from "../core/platform";
 import { t } from "../core/i18n";
-import appIcon from "../../app-icon.png";
+import appIcon from "../../brand/app-icon.png";
 
 defineEmits<{ close: [] }>();
 const AUTHOR = "https://github.com/noSugarK";

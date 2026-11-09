@@ -231,16 +231,16 @@ xcode-select --install
 # Windows: Visual Studio Build Tools (Desktop C++) + WebView2 (bundled with Win11)
 ```
 
-Inspecting the running UI (`tools/cdp.mjs`) — useful because WebView2 gives you no DevTools;
+Inspecting the running UI (`scripts/cdp.mjs`) — useful because WebView2 gives you no DevTools;
 it evaluates JavaScript inside the real app instead of leaving you to guess:
 
 ```bash
 # launch with a remote debugging port
 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222 npm run tauri dev
 # then, in another terminal
-node tools/cdp.mjs --list                 # list debuggable pages
-node tools/cdp.mjs probe.js               # evaluate in the main window
-node tools/cdp.mjs probe.js subtitle      # evaluate in the subtitle overlay
+node scripts/cdp.mjs --list                 # list debuggable pages
+node scripts/cdp.mjs probe.js               # evaluate in the main window
+node scripts/cdp.mjs probe.js subtitle      # evaluate in the subtitle overlay
 ```
 
 macOS and Linux bundles cannot be cross-compiled from Windows, so
@@ -289,8 +289,8 @@ rounded plate, because keying the white background out leaves fringes on the ant
 Re-run after changing the logo:
 
 ```bash
-node tools/make-icon.mjs brand/ReaLingo.png app-icon.png 1024
-npx tauri icon app-icon.png
+node scripts/make-icon.mjs brand/ReaLingo.png brand/app-icon.png 1024
+npx tauri icon brand/app-icon.png
 ```
 
 The in-app titlebar logo does not use that path: the white plate is for OS icon grids, and
@@ -298,7 +298,7 @@ inside the UI it reads as a white card stuck on the header — glaringly so in d
 comes from `make-banner.mjs` in `--mark` mode: graphic only, transparent background.
 
 ```bash
-node tools/make-banner.mjs brand/ReaLingo.png src/assets/mark.png 256 --mark
+node scripts/make-banner.mjs brand/ReaLingo.png src/assets/mark.png 256 --mark
 ```
 
 The horizontal lockup at the top of this file is produced by `make-banner.mjs`, which re-lays
@@ -308,8 +308,8 @@ would also erase the white A and 文 inside the bubbles and leave black holes on
 `make-anim.mjs` then adds a looping specular sweep:
 
 ```bash
-node tools/make-banner.mjs brand/ReaLingo.png brand/banner.png 160
-node tools/make-anim.mjs brand/banner.png brand/banner-animated.png
+node scripts/make-banner.mjs brand/ReaLingo.png brand/banner.png 160
+node scripts/make-anim.mjs brand/banner.png brand/banner-animated.png
 ```
 
 Background removal uses **two different rules**, because no single one gets both halves right:

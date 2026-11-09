@@ -5,7 +5,7 @@ import unittest
 import tempfile
 import zipfile
 
-spec = importlib.util.spec_from_file_location("apk", Path(__file__).parents[1] / ".github/scripts/check-android-apk.py")
+spec = importlib.util.spec_from_file_location("apk", Path(__file__).parents[1] / "scripts/check-android-apk.py")
 apk = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(apk)
 
