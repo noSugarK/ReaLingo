@@ -108,6 +108,13 @@ test('prepare-android keeps desktop config intact and packages one Android windo
 test('Android update codes advance past the old template and increase with each patch', () => {
   assert.ok(androidVersionCode('0.7.2') > 1_000_000);
   assert.ok(androidVersionCode('0.7.3') > androidVersionCode('0.7.2'));
+  const releases = ['0.7.3', '0.8.0-alpha.1', '0.8.0-alpha.2', '0.8.0-beta.1', '0.8.0-beta.2', '0.8.0-rc.1', '0.8.0', '0.8.1-alpha.1'];
+  const codes = releases.map(androidVersionCode);
+  assert.ok(codes[0] > 1_007_003, 'updates must advance past historical 0.7.x codes');
+  for (let i = 1; i < codes.length; i++) assert.ok(codes[i] > codes[i - 1], `${releases[i]} must be upgradeable`);
+  for (const invalid of ['0.8.0-beta.0', '0.8.0-beta.100', '0.8.0-preview.1', '0.1000.0', '9999.0.0']) {
+    assert.throws(() => androidVersionCode(invalid));
+  }
   assert.throws(() => androidVersionCode('bad'), /numeric/);
 });
 

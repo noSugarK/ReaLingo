@@ -48,10 +48,14 @@ if (System.getenv("ANDROID_KEYSTORE_PATH") != null) {
 const SIGNING_MARKER = '// ReaLingo CI signing';
 
 export function androidVersionCode(version) {
-  const parts = version.match(/^(\d+)\.(\d+)\.(\d+)$/)?.slice(1).map(Number);
-  if (!parts || parts[1] >= 1000 || parts[2] >= 1000) throw new Error('Android requires a numeric major.minor.patch version');
-  // Earlier projects advertised the template's 1.0 / 1000000. Keep updates above it.
-  const code = 1_000_000 + parts[0] * 1_000_000 + parts[1] * 1000 + parts[2];
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.([1-9]\d?))?$/);
+  if (!match) throw new Error('Android requires a numeric major.minor.patch version, optionally with -alpha.N, -beta.N or -rc.N');
+  const [major, minor, patch] = match.slice(1, 4).map(Number);
+  if (minor >= 1000 || patch >= 1000) throw new Error('Android numeric minor and patch versions must be below 1000');
+  // Reserve ordered prerelease slots and put stable last. All codes stay above the
+  // historical 1.0 / 1000000 template and the previous 0.7.x release encoding.
+  const stage = match[4] ? { alpha: 0, beta: 100, rc: 200 }[match[4]] + Number(match[5]) : 999;
+  const code = 1_000_000 + (major * 1_000_000 + minor * 1000 + patch) * 1000 + stage;
   if (!Number.isSafeInteger(code) || code > 2_100_000_000) throw new Error('Android versionCode exceeds the platform limit');
   return code;
 }
