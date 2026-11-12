@@ -1,7 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds, appCrashLines, overlayFrame, overlayLocked, liveNotification, keyboardVisible, editorFocused, scrollDirection, launcherAnrClose } from '../scripts/smoke-android.mjs';
+import { targetBounds, appCrashLines, overlayFrame, overlayLocked, liveNotification, keyboardVisible, dismissKeyboard, editorFocused, scrollDirection, launcherAnrClose } from '../scripts/smoke-android.mjs';
 import { decode } from '../scripts/png.mjs';
+
+test('output picker taps the clickable accessible label even when the selected value is absent', () => {
+  // API 35 WebView exposes the aria-label, not the selected option, in UIAutomator.
+  const xml = '<node text="Play through" class="android.widget.TextView" clickable="false" bounds="[91,900][456,950]" />' +
+    '<node text="Play through" class="android.view.View" clickable="true" bounds="[485,879][968,971]" />';
+  assert.equal(targetBounds(xml, ['Follow system']), null);
+  assert.deepEqual(targetBounds(xml, ['Play through', '播放到']), [727, 925]);
+});
+
+test('keyboard dismissal waits through delayed opening and closing before scrolling', async () => {
+  const visible = 'Window #7 Window{e9d9f26 u0 InputMethod}:\n mViewVisibility=0x0 mHasSurface=true isOnScreen=true\n';
+  const states = ['', '', visible, visible, '', '', ''];
+  let reads = 0, backs = 0;
+  await dismissKeyboard(() => states[reads++] ?? '', () => { backs++; }, async () => {});
+  assert.equal(backs, 1, 'Back is sent once; a closing keyboard must not navigate the page');
+  assert.equal(reads, states.length, 'wait for stable hidden snapshots');
+  await assert.rejects(dismissKeyboard(() => visible, () => {}, async () => {}), /keyboard did not close/);
+});
 
 test('only the emulator launcher ANR can be dismissed; app ANRs remain failures', () => {
   const xml = '<node text="Pixel Launcher isn\'t responding" />' +

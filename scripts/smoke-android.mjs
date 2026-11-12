@@ -9,8 +9,11 @@ import { startSessionPeer } from './session-server.mjs';
 
 export function targetBounds(xml, labels, className) {
   for (const partial of [false, true]) {
+  // Prefer the control over a separate TextView with the same accessible name.
+  for (const clickable of className ? [false] : [true, false]) {
   let labelledField = false;
   for (const node of xml.matchAll(/<node\b[^>]*>/g)) {
+    if (clickable && !node[0].includes('clickable="true"')) continue;
     const text = node[0].match(/\btext="([^"]*)"/)?.[1];
     const desc = node[0].match(/\bcontent-desc="([^"]*)"/)?.[1];
     // Android accessibility may merge a button's title and subtitle into one node.
@@ -30,6 +33,7 @@ export function targetBounds(xml, labels, className) {
     if (!bounds) continue;
     const [, x1, y1, x2, y2] = bounds.map(Number);
     if (x2 > x1 && y2 > y1) return [Math.round((x1 + x2) / 2), Math.round((y1 + y2) / 2)];
+  }
   }
   }
   return null;
@@ -69,6 +73,20 @@ export function keyboardVisible(dump) {
     /^Window #\d+ Window\{[^\n]*\bInputMethod\}/.test(section));
   return !!keyboard && /\bmViewVisibility=0x0\b/.test(keyboard) &&
     /\bmHasSurface=true\b/.test(keyboard) && /\bisOnScreen=true\b/.test(keyboard);
+}
+
+export async function dismissKeyboard(readWindows, back, sleep) {
+  let hidden = 0, sentBack = false;
+  // IME visibility can lag behind input injection. Require stable hidden snapshots;
+  // a single early false used to let scroll gestures type into the soft keyboard.
+  for (let i = 0; i < 12; i++) {
+    await sleep(250);
+    if (keyboardVisible(readWindows())) {
+      hidden = 0;
+      if (!sentBack) { back(); sentBack = true; }
+    } else if (++hidden === 3) return;
+  }
+  throw new Error('keyboard did not close before navigation');
 }
 
 export function editorFocused(xml, labels) {
@@ -170,6 +188,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     throw new Error('native subtitle overlay did not acquire a visible surface');
   };
   const scrollTo = async (labels, className, direction = 'down') => {
+    if (keyboardVisible(adb('shell', 'dumpsys', 'window', 'windows'))) await hideKeyboard();
     const size = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/);
     const width = Number(size?.[1] ?? 1080), height = Number(size?.[2] ?? 1920);
     for (let i = 0; i < 8; i++) {
@@ -185,12 +204,8 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   };
   const screenshot = (name) => writeFileSync(join(output, `${name}.png`),
     execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }));
-  const hideKeyboard = async () => {
-    if (keyboardVisible(adb('shell', 'dumpsys', 'window', 'windows'))) {
-      adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
-      await sleep(400);
-    }
-  };
+  const hideKeyboard = () => dismissKeyboard(
+    () => adb('shell', 'dumpsys', 'window', 'windows'), back, sleep);
   const fill = async (labels, text, direction = 'down', replace = false) => {
     let focused = false;
     for (let i = 0; i < 4; i++) {
@@ -261,7 +276,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     assert.equal(adb('shell', 'pidof', packageId).trim(), homePid, 'root back and reopen retain the native runtime');
     await tap(['Speak', '朗读']);
     await waitFor(['Play through', '播放到']);
-    await tap(['Follow system', '跟随系统']);
+    await tap(['Play through', '播放到']);
     await waitFor(['Speaker', '扬声器']);
     screenshot('speech-output-options');
     back(); // Android's native select popup closes before the speech sheet.
