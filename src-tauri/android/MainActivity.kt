@@ -29,6 +29,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 import androidx.annotation.Keep
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -335,6 +336,28 @@ class MainActivity : TauriActivity() {
     // LittleLobby registers its bridge in.
     override fun onWebViewCreate(webView: android.webkit.WebView) {
         super.onWebViewCreate(webView)
+        // Vue owns the local pages/sheets. Only an unhandled back reaches Android.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            private var pending = false
+
+            override fun handleOnBackPressed() {
+                if (pending) return
+                pending = true
+                webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('realingo:back', { cancelable: true }))"
+                ) { result ->
+                    pending = false
+                    if (result != "false") {
+                        isEnabled = false
+                        try {
+                            onBackPressedDispatcher.onBackPressed()
+                        } finally {
+                            isEnabled = true
+                        }
+                    }
+                }
+            }
+        })
         // Android 15+ enforces edge-to-edge, but WebView's CSS safe-area env values
         // can stay zero. Resize the actual viewport around system bars/cutouts/IME.
         ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->

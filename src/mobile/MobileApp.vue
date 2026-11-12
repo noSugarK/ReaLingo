@@ -72,6 +72,7 @@ async function onResume() {
 }
 
 onMounted(async () => {
+  window.addEventListener("realingo:back", onAndroidBack);
   try {
     await initSettings();
     await loadCaps();
@@ -104,6 +105,7 @@ function onVisible() {
   if (!document.hidden) void onResume();
 }
 onUnmounted(() => {
+  window.removeEventListener("realingo:back", onAndroidBack);
   window.clearInterval(levelTimer);
   window.clearInterval(nativeTimer);
   unlistenResume?.();
@@ -189,6 +191,16 @@ async function restartNow() {
 }
 
 const guideOpen = ref(false);
+function onAndroidBack(event: Event) {
+  if (guideOpen.value) guideOpen.value = false;
+  else if (drawer.value) drawer.value = null;
+  else if (page.value === "history" || page.value === "perms") page.value = "settings";
+  else if (page.value === "settings") page.value = "home";
+  else if (mode.value === "big") mode.value = "normal";
+  else return; // Home: let Android apply its default back behavior.
+  event.preventDefault();
+}
+
 function guideToSettings() {
   guideOpen.value = false;
   openAppSettings(true);
