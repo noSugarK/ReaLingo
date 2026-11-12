@@ -115,6 +115,7 @@ const zh = {
   copied: "已复制",
 
   history: "翻译历史",
+  historyMobileSub: "搜索、筛选并导出记录",
   historyRec: "记录",
   historyHint: "记录翻译历史：每次翻译存成一个文件，可在历史里翻看。默认不记录。",
   historyDir: "打开文件夹",
@@ -435,6 +436,7 @@ const en: typeof zh = {
   copied: "Copied",
 
   history: "History",
+  historyMobileSub: "Search, filter, and export sessions",
   historyRec: "Record",
   historyHint: "Save this run to a file you can browse later. Off by default.",
   historyDir: "Open folder",

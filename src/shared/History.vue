@@ -8,6 +8,7 @@ import { settings } from "../core/store";
 import { caps } from "../core/platform";
 import Sheet from "./Sheet.vue";
 
+const props = defineProps<{ mobile?: boolean }>();
 defineEmits<{ close: [] }>();
 
 // Both shapes come from history.rs already parsed — `meta` is null when the session's
@@ -116,15 +117,46 @@ async function remove(id: string) {
 </script>
 
 <template>
-  <Sheet :title="t('history')" wide @close="$emit('close')">
+  <component :is="props.mobile ? 'div' : Sheet" class="history-shell" :class="{ mobile: props.mobile }" :title="props.mobile ? undefined : t('history')" :wide="!props.mobile" @close="$emit('close')">
     <p v-if="err" class="err">{{ err }}</p>
 
-    <p v-if="!sessions.length" class="blank">
+    <div v-if="props.mobile && !sessions.length" class="mobile-empty">
+      <span class="empty-mark">◷</span>
+      <b>{{ settings.history ? t("historyNone") : t("historyOff") }}</b>
+      <small>{{ t("historyMobileSub") }}</small>
+      <button v-if="!settings.history" class="mobile-action primary" @click="settings.history = true">{{ t("historyGo") }}</button>
+    </div>
+
+    <p v-else-if="!sessions.length" class="blank">
       {{ settings.history ? t("historyNone") : t("historyOff") }}
-      <button v-if="!settings.history" class="chip" @click="settings.history = true">
-        {{ t("historyGo") }}
-      </button>
+      <button v-if="!settings.history" class="chip" @click="settings.history = true">{{ t("historyGo") }}</button>
     </p>
+
+    <template v-else-if="props.mobile">
+      <div class="session-strip" role="group" :aria-label="t('history')">
+        <button v-for="s in sessions" :key="s.id" class="session-card" :class="{ on: s.id === openId }" :aria-pressed="s.id === openId" @click="open(s.id)">
+          <b>{{ when(s) }}</b>
+          <small>{{ pair(s) || s.id }} · {{ s.count }} {{ t("historyUnit") }}</small>
+        </button>
+      </div>
+      <label class="history-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+        <input v-model="q" type="search" :placeholder="t('historySearch')" spellcheck="false" />
+      </label>
+      <div class="mobile-actions">
+        <button class="mobile-action" :disabled="!shown.length" @click="saveRows('txt')">TXT</button>
+        <button class="mobile-action" :disabled="!shown.length" @click="saveRows('srt')">SRT</button>
+        <button class="mobile-action danger" @click="remove(openId)">{{ armed === openId ? t("historyConfirm") : t("historyDel") }}</button>
+        <button class="mobile-action danger" @click="clearAll">{{ armed === "*" ? t("historyConfirm") : t("historyClear") }}</button>
+      </div>
+      <div class="mobile-rows">
+        <p v-if="!shown.length" class="mobile-no-rows">{{ t("historyPick") }}</p>
+        <article v-for="l in shown" :key="l.id" class="history-row">
+          <p v-if="l.source" class="src">{{ l.source }}</p>
+          <p class="tgt">{{ l.target }}</p>
+        </article>
+      </div>
+    </template>
 
     <div v-else class="panes">
       <div class="list">
@@ -170,10 +202,33 @@ async function remove(id: string) {
         </div>
       </div>
     </div>
-  </Sheet>
+  </component>
 </template>
 
 <style scoped>
+.history-shell { min-height: 0; }
+.history-shell.mobile { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.mobile-empty { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 28px; text-align: center; color: var(--ink-2); }
+.empty-mark { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 22px; background: var(--shade); color: var(--accent); font-size: 34px; }
+.mobile-empty b { font-size: 17px; color: var(--ink); }
+.mobile-empty small { max-width: 28ch; font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+.mobile-empty .mobile-action { flex: none; }
+.session-strip { display: flex; flex: none; gap: 8px; overflow-x: auto; padding: 2px 2px 5px; scroll-snap-type: x proximity; }
+.session-card { flex: 0 0 auto; max-width: 78vw; display: flex; flex-direction: column; gap: 4px; padding: 10px 13px; border-radius: 15px; text-align: left; background: var(--shade); scroll-snap-align: start; }
+.session-card b { font-size: 12px; font-weight: 680; }
+.session-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; color: var(--ink-3); }
+.session-card.on { background: var(--accent); color: #fff; }
+.session-card.on small { color: rgba(255,255,255,.82); }
+.history-search { flex: none; height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 13px; border-radius: 13px; background: var(--shade); color: var(--ink-3); }
+.history-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; }
+.mobile-actions { flex: none; display: flex; gap: 7px; overflow-x: auto; }
+.mobile-action { flex: 1 0 auto; min-height: 36px; padding: 0 11px; border-radius: 11px; background: var(--shade); color: var(--ink-2); font-size: 12px; font-weight: 680; white-space: nowrap; }
+.mobile-action:disabled { opacity: .4; }
+.mobile-action.danger { color: var(--danger); }
+.mobile-action.primary { background: var(--accent); color: white; }
+.mobile-rows { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px 2px 12px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.history-row { padding: 12px 13px; border-radius: 15px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--hairline); }
+.mobile-no-rows { margin: auto; color: var(--ink-3); font-size: 13px; }
 /* A fixed box rather than one that grows with the longest session: the sheet must not
    change size every time another row is selected. */
 .panes {

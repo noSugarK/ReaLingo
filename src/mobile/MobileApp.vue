@@ -31,9 +31,9 @@ import { perms, droid, refreshPerms, askMic, openAppSettings, openNotificationSe
 import { toast } from "./toasts";
 import { VENDOR_LOGO } from "../shared/vendorLogos";
 
-type Page = "home" | "settings" | "perms";
+type Page = "home" | "settings" | "perms" | "history";
 const page = ref<Page>("home");
-type Drawer = null | "src" | "lang" | "speak" | "model" | "about" | "uilang" | "overlay" | "history" | "diagnostics";
+type Drawer = null | "src" | "lang" | "speak" | "model" | "about" | "uilang" | "overlay" | "diagnostics";
 const drawer = ref<Drawer>(null);
 const langSide = ref<"source" | "target">("target");
 function openLang(side: "source" | "target") {
@@ -507,7 +507,7 @@ async function askFromCenter() {
               <span class="m-tx"><b>{{ t("historySave") }}</b><small>{{ t("historyHint") }}</small></span>
               <span class="sw" :class="{ on: settings.history }" />
             </button>
-            <button class="m-row" @click="drawer = 'history'">
+            <button class="m-row" @click="page = 'history'">
               <span class="m-tx"><b>{{ t("historyBrowse") }}</b></span>
               <svg class="m-chev" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 4 4 4-4 4"/></svg>
             </button>
@@ -527,6 +527,20 @@ async function askFromCenter() {
           </div>
         </section>
       </div>
+    </div>
+
+    <!-- ══ TRANSLATION HISTORY ══ -->
+    <div v-show="page === 'history'" class="page sub">
+      <header class="topbar">
+        <button class="icobtn sm back" :aria-label="t('back')" @click="page = 'settings'">
+          <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg>
+        </button>
+        <div class="pt">
+          <div class="pt1">{{ t("history") }}</div>
+          <div class="pt2">{{ t("historyMobileSub") }}</div>
+        </div>
+      </header>
+      <History v-if="page === 'history'" mobile />
     </div>
 
     <!-- ══ PERMISSION CENTER ══ -->
@@ -583,7 +597,6 @@ async function askFromCenter() {
 
     <!-- ══ drawers ══ -->
     <DiagnosticsSheet v-if="drawer === 'diagnostics'" @close="drawer = null" />
-    <History v-if="drawer === 'history'" @close="drawer = null" />
     <OverlaySheet v-if="drawer === 'overlay'" @close="drawer = null" @toggle="toggleOverlay" @fullscreen="drawer = null; mode = 'big'" />
     <SourceSheet v-if="drawer === 'src'" @close="drawer = null" />
     <LangSheet v-if="drawer === 'lang'" :side="langSide" @close="drawer = null" />
