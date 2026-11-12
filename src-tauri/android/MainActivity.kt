@@ -135,6 +135,22 @@ class MainActivity : TauriActivity() {
         }
 
         @JavascriptInterface
+        fun openNotificationSettings() {
+            runOnUiThread {
+                val appSettings = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try {
+                    val notifications = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(notifications)
+                } catch (_: ActivityNotFoundException) {
+                    runCatching { startActivity(appSettings) }
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun openBatterySettings() {
             runOnUiThread {
                 try {

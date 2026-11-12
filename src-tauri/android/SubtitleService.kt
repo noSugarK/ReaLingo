@@ -30,6 +30,7 @@ class SubtitleService : Service() {
     @Volatile private var panel: LinearLayout? = null
     private var source: TextView? = null
     private var target: TextView? = null
+    private var lockButton: ImageView? = null
     private var handle: View? = null
     private var resize: View? = null
     private var layout: WindowManager.LayoutParams? = null
@@ -188,21 +189,32 @@ class SubtitleService : Service() {
         data.optDouble(key, fallback).takeIf { it.isFinite() }?.coerceIn(min, max)?.toFloat() ?: fallback.toFloat()
     private fun removePanel() {
         panel?.let { runCatching { wm.removeView(it) } }
-        panel = null; source = null; target = null; layout = null
+        panel = null; source = null; target = null; lockButton = null; layout = null
     }
     private fun makePanel() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(6), dp(12), dp(6)) }
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = "⠿  ReaLingo"; textSize = 12f; setTextColor(Color.WHITE); setPadding(0, dp(5), 0, dp(5)) }
+        val lock = ImageView(this).apply {
+            setImageResource(R.drawable.ic_overlay_lock)
+            setPadding(dp(10), dp(9), dp(10), dp(9))
+            contentDescription = data.optString("overlayLock", "Lock subtitles")
+            setOnClickListener {
+                data.put("locked", true)
+                pendingLockChange = true
+                render()
+                refreshForeground()
+            }
+        }
         val close = TextView(this).apply { text = "×"; textSize = 24f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; contentDescription = data.optString("close", "Hide subtitles") }
-        bar.addView(title, LinearLayout.LayoutParams(0, dp(36), 1f)); bar.addView(close, LinearLayout.LayoutParams(dp(40), dp(36)))
+        bar.addView(title, LinearLayout.LayoutParams(0, dp(36), 1f)); bar.addView(lock, LinearLayout.LayoutParams(dp(40), dp(36))); bar.addView(close, LinearLayout.LayoutParams(dp(40), dp(36)))
         close.setOnClickListener { visible = false; render(); stopIfIdle() }
         root.addView(bar)
         source = TextView(this).also { root.addView(it) }
         target = TextView(this).also { root.addView(it) }
         val grip = TextView(this).apply { text = "↘"; textSize = 20f; gravity = Gravity.END; setTextColor(Color.WHITE); contentDescription = data.optString("resize", "Resize subtitles") }
         root.addView(grip, LinearLayout.LayoutParams(-1, dp(28)))
-        handle = bar; resize = grip
+        handle = bar; resize = grip; lockButton = lock
         val width = prefs.getInt("width", (screenWidth() * number("mobileWidth", 88.0, 40.0, 100.0) / 100).toInt())
         layout = WindowManager.LayoutParams(width.coerceIn(minOf(dp(180), screenWidth()), screenWidth()), -2,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
@@ -255,6 +267,7 @@ class SubtitleService : Service() {
         if (lastWidthSetting >= 0 && widthSetting != lastWidthSetting) p.width = screenWidth() * widthSetting / 100
         lastWidthSetting = widthSetting
         val locked = data.optBoolean("locked", false)
+        lockButton?.visibility = if (locked) View.GONE else View.VISIBLE
         p.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or if (locked) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0
         // Android 12 blocks pass-through touches behind an opaque untrusted overlay.
         p.alpha = if (locked && Build.VERSION.SDK_INT >= 31) 0.8f else 1f
@@ -297,6 +310,7 @@ class SubtitleService : Service() {
         @Volatile private var instance: SubtitleService? = null
         private var data = JSONObject()
         @Volatile var visible = false
+        @Volatile private var pendingLockChange = false
         @Volatile var captureKind = ""
         @Volatile var ready = false
         @Volatile var systemState = "idle"
@@ -334,9 +348,14 @@ class SubtitleService : Service() {
                 service.render()
             }
         }
-        fun state(context: Context): String = JSONObject().put("granted", Settings.canDrawOverlays(context))
-            .put("visible", visible && instance?.panel != null).put("ready", ready).put("captureKind", captureKind).put("systemState", systemState)
-            .put("error", lastError).put("frames", framesRead)
-            .put("width", instance?.let { service -> service.layout?.width?.let { (it * 100f / service.screenWidth()).roundToInt() } } ?: 0).toString()
+        fun state(context: Context): String {
+            val lockChanged = pendingLockChange
+            pendingLockChange = false
+            return JSONObject().put("granted", Settings.canDrawOverlays(context))
+                .put("visible", visible && instance?.panel != null).put("ready", ready).put("captureKind", captureKind).put("systemState", systemState)
+                .put("locked", data.optBoolean("locked")).put("lockChanged", lockChanged)
+                .put("error", lastError).put("frames", framesRead)
+                .put("width", instance?.let { service -> service.layout?.width?.let { (it * 100f / service.screenWidth()).roundToInt() } } ?: 0).toString()
+        }
     }
 }

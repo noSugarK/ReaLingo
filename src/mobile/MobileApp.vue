@@ -27,7 +27,7 @@ import { PRESETS, PROTOCOLS, langName, modelName } from "../core/languages";
 import { locale, t, tf } from "../core/i18n";
 import { checkUpdateAtStartup } from "../core/update";
 import { isRunning, lines, current, status, errorMsg, warnMsg, fileProgress, saveAs, pollHealth, detectedLang } from "../core/stream";
-import { perms, droid, refreshPerms, askMic, openAppSettings, openBatterySettings, pendingList, setKeepScreenOn, pickAudio } from "./perms";
+import { perms, droid, refreshPerms, askMic, openAppSettings, openNotificationSettings, openBatterySettings, pendingList, setKeepScreenOn, pickAudio } from "./perms";
 import { toast } from "./toasts";
 import { VENDOR_LOGO } from "../shared/vendorLogos";
 
@@ -62,6 +62,7 @@ watch(resolvedTheme, (theme) => droid?.setSystemBars(theme), { immediate: true }
 async function onResume() {
   await refreshPerms();
   refreshNative();
+  if (native.visible && native.lockChanged) settings.sub.locked = native.locked;
   await handleNotificationCommand();
   if (pendingOverlay && native.granted) { pendingOverlay = false; await toggleOverlay(); }
   if (perms.pendingStart && perms.mic === "granted") {
@@ -81,6 +82,7 @@ onMounted(async () => {
       void pollHealth().catch((e) => { errorMsg.value = String(e); });
       void handleNotificationCommand();
       refreshNative();
+      if (native.visible && native.lockChanged) settings.sub.locked = native.locked;
       settings.sub.show = native.visible;
       if (native.visible && native.width >= 40 && native.width <= 100) settings.sub.mobileWidth = native.width;
       if (native.error && native.error !== lastNativeError) toast(native.error);
@@ -253,6 +255,7 @@ function syncOverlay() {
   const pair = active ? { source: current.source + current.sourceStash, target: current.target + current.targetStash } : lines.value[lines.value.length - 1];
   updateOverlay({ ...settings.sub, source: pair?.source ?? "", target: pair?.target ?? "",
     empty: emptyText.value, close: t("subHide"), resize: t("overlayWidth"),
+    overlayLock: t("overlayLock"),
     notification: t("captureNotification"), captureEnded: t("captureEnded"),
     notifStart: t("notifStart"), notifStop: t("notifStop"), notifSubOn: t("notifSubOn"), notifSubOff: t("notifSubOff"),
     notifUnlock: t("notifUnlock") });
@@ -559,7 +562,8 @@ async function askFromCenter() {
         <div class="card flat">
           <span class="tint g"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 0 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></svg></span>
           <span class="tx"><b>{{ t("pmNotif") }}</b><small>{{ t("pmNotifSub") }}</small></span>
-          <span class="statpill g">{{ perms.notif ? t("pmOn") : t("pmUnset") }}</span>
+          <button v-if="!perms.notif" class="chipm warn" @click="openNotificationSettings">{{ t("pmGo") }}</button>
+          <span v-else class="statpill g">{{ t("pmOn") }}</span>
         </div>
 
         <div class="card flat">

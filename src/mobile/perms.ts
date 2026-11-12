@@ -25,6 +25,7 @@ interface Droid {
   notifEnabled(): boolean;
   batteryIgnored(): boolean;
   openAppSettings(): void;
+  openNotificationSettings(): void;
   openBatterySettings(): void;
   setKeepScreenOn(on: boolean): void;
   deviceName(): string;
@@ -121,6 +122,11 @@ export async function askMic(autoStart = false): Promise<MicState> {
 export function openAppSettings(autoStart: boolean) {
   perms.pendingStart = autoStart;
   if (droid) droid.openAppSettings();
+  else void invoke("open_app_settings").catch(() => {});
+}
+
+export function openNotificationSettings() {
+  if (droid) droid.openNotificationSettings();
   else void invoke("open_app_settings").catch(() => {});
 }
 
