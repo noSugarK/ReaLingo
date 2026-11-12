@@ -77,7 +77,10 @@ cd src-tauri && cargo test --lib
 
 ## 提交
 
-- 提交信息用中文 conventional commit：`type: 描述`（`feat` / `fix` / `docs` / `chore(release)` 等），
-  正文写为什么这样改。
+- 提交信息遵循 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)：
+  `type(scope): description`，`scope` 可选；描述可用中文或英文，简明说明改动。
+  新功能用 `feat`，修复用 `fix`；其他常用类型包括 `docs`、`refactor`、`test`、`build`、`ci`、`chore`。
+- 正文和页脚按需补充：正文说明修改原因、背景或取舍，页脚可关联 issue。
+  破坏性变更用 `type(scope)!: description` 或 `BREAKING CHANGE: 说明` 页脚标记。
 - **按功能分开提交**，一个提交只做一件事；一个文件混了几件事就按代码段拆开。
 - 仓库文本文件统一 LF 行尾。
