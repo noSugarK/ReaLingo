@@ -39,7 +39,10 @@ defineEmits<{ close: [] }>();
   border-radius: 32px 32px 0 0;
   padding: 10px 20px calc(26px + env(safe-area-inset-bottom));
   animation: rise 0.32s var(--ease);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
 }
+/* The shared glass rim flashes as a white outline while this panel moves over the scrim. */
+.sheet::after { display: none; }
 .sheet-close { position: absolute; top: 10px; right: 12px; width: 36px; height: 36px; border-radius: 50%; background: var(--shade); color: var(--ink-2); display: grid; place-items: center; }
 @keyframes rise { from { transform: translateY(6%); opacity: 0.6; } }
 
