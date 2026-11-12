@@ -21,6 +21,7 @@ import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import kotlin.math.roundToInt
+import java.util.concurrent.atomic.AtomicBoolean
 
 private class CappedScrollView(context: Context, private val maxHeightPx: Int) : ScrollView(context) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -219,14 +220,14 @@ class SubtitleService : Service() {
             contentDescription = data.optString("overlayLock", "Lock subtitles")
             setOnClickListener {
                 data.put("locked", true)
-                pendingLockChange = true
+                pendingLockChange.set(true)
                 render()
                 refreshForeground()
             }
         }
         val close = TextView(this).apply { text = "×"; textSize = 24f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; contentDescription = data.optString("close", "Hide subtitles") }
         bar.addView(title, LinearLayout.LayoutParams(0, dp(36), 1f)); bar.addView(capture, LinearLayout.LayoutParams(-2, dp(36))); bar.addView(lock, LinearLayout.LayoutParams(dp(40), dp(36))); bar.addView(close, LinearLayout.LayoutParams(dp(40), dp(36)))
-        close.setOnClickListener { visible = false; render(); stopIfIdle() }
+        close.setOnClickListener { visible = false; render(); refreshForeground(); stopIfIdle() }
         root.addView(bar)
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         source = TextView(this).apply { setPadding(0, 0, 0, dp(4)) }.also { content.addView(it) }
@@ -353,7 +354,7 @@ class SubtitleService : Service() {
         @Volatile private var instance: SubtitleService? = null
         private var data = JSONObject()
         @Volatile var visible = false
-        @Volatile private var pendingLockChange = false
+        private val pendingLockChange = AtomicBoolean(false)
         @Volatile var captureKind = ""
         @Volatile var ready = false
         @Volatile var systemState = "idle"
@@ -380,9 +381,14 @@ class SubtitleService : Service() {
         fun update(json: String) {
             if (json.length > 64_000) { lastError = "Subtitle payload is too large"; return }
             val next = runCatching { JSONObject(json) }.getOrElse { lastError = "Invalid subtitle payload"; return }
-            val lockChanged = data.optBoolean("locked") != next.optBoolean("locked")
+            // Streaming text must not overwrite a lock click waiting for the Vue poll.
+            next.put("locked", data.optBoolean("locked"))
             data = next
-            instance?.let { service -> try { service.render(); if (lockChanged) service.refreshForeground() } catch (e: Exception) { service.fail(e) } }
+            instance?.let { service -> try { service.render() } catch (e: Exception) { service.fail(e) } }
+        }
+        fun setLocked(locked: Boolean) {
+            data.put("locked", locked)
+            instance?.let { service -> try { service.render(); service.refreshForeground() } catch (e: Exception) { service.fail(e) } }
         }
         fun resetPosition(context: Context) {
             context.getSharedPreferences("subtitle-window", MODE_PRIVATE).edit().clear().apply()
@@ -392,8 +398,7 @@ class SubtitleService : Service() {
             }
         }
         fun state(context: Context): String {
-            val lockChanged = pendingLockChange
-            pendingLockChange = false
+            val lockChanged = pendingLockChange.getAndSet(false)
             return JSONObject().put("granted", Settings.canDrawOverlays(context))
                 .put("visible", visible && instance?.panel != null).put("ready", ready).put("captureKind", captureKind).put("systemState", systemState)
                 .put("locked", data.optBoolean("locked")).put("lockChanged", lockChanged)

@@ -54,6 +54,7 @@ let unlistenResume: (() => void) | undefined;
 const bootError = ref("");
 const reload = () => window.location.reload();
 watch(resolvedTheme, (theme) => droid?.setSystemBars(theme), { immediate: true });
+watch(() => settings.sub.locked, (locked) => droid?.setOverlayLocked(locked), { immediate: true, flush: "sync" });
 
 /** Coming back to the app re-checks permissions (the design's "改完不用重启") and fires a
  *  start the guide dialog promised. `tauri://resume` is mobile's lifecycle event;
@@ -62,7 +63,6 @@ watch(resolvedTheme, (theme) => droid?.setSystemBars(theme), { immediate: true }
 async function onResume() {
   await refreshPerms();
   refreshNative();
-  if (native.visible && native.lockChanged) settings.sub.locked = native.locked;
   await handleNotificationCommand();
   if (pendingOverlay && native.granted) { pendingOverlay = false; await toggleOverlay(); }
   if (perms.pendingStart && perms.mic === "granted") {
@@ -83,7 +83,6 @@ onMounted(async () => {
       void pollHealth().catch((e) => { errorMsg.value = String(e); });
       void handleNotificationCommand();
       refreshNative();
-      if (native.visible && native.lockChanged) settings.sub.locked = native.locked;
       settings.sub.show = native.visible;
       if (native.visible && native.width >= 40 && native.width <= 100) settings.sub.mobileWidth = native.width;
       if (native.error && native.error !== lastNativeError) toast(native.error);

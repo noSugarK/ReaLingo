@@ -3,12 +3,15 @@ import { registerHooks } from 'node:module';
 import test from 'node:test';
 
 let bridge;
+const settings = { sub: { locked: false } };
+globalThis.__nativeSettings = settings;
 globalThis.__nativeBridge = () => bridge;
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier === 'vue') return { url: 'test:vue', shortCircuit: true };
     if (specifier === './perms' && context.parentURL.includes('/mobile/native.ts')) return { url: 'test:bridge?' + context.parentURL.split('?')[1], shortCircuit: true };
     if (specifier === '../core/i18n' && context.parentURL.includes('/mobile/native.ts')) return { url: 'test:i18n', shortCircuit: true };
+    if (specifier === '../core/store' && context.parentURL.includes('/mobile/native.ts')) return { url: 'test:store', shortCircuit: true };
     return next(specifier);
   },
   load(url, context, next) {
@@ -16,6 +19,7 @@ registerHooks({
       'test:vue': 'export const reactive = x => x;',
       'test:bridge': 'export const droid = globalThis.__nativeBridge();',
       'test:i18n': 'export const t = x => x;',
+      'test:store': 'export const settings = globalThis.__nativeSettings;',
     }[url.split('?')[0]];
     return source ? { format: 'module', source, shortCircuit: true } : next(url);
   },
@@ -52,4 +56,16 @@ test('capture failures clean up the native recorder and unsupported systems fail
 test('missing native bridge is an explicit error rather than a silent recording', async () => {
   const m = await fresh(null);
   await assert.rejects(m.beginCapture('mic'), /nativeUnavailable/);
+});
+
+test('every native status consumer preserves a lock click before another subtitle update', async () => {
+  settings.sub.locked = false;
+  const state = { granted: true, visible: true, locked: true, lockChanged: true };
+  const m = await fresh(fake(state));
+  // showOverlay/beginCapture and the timer all use refreshNative; none may swallow it.
+  m.refreshNative();
+  assert.equal(settings.sub.locked, true);
+  state.lockChanged = false;
+  m.refreshNative();
+  assert.equal(settings.sub.locked, true);
 });

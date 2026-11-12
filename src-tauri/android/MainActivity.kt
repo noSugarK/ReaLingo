@@ -184,6 +184,7 @@ class MainActivity : TauriActivity() {
             }
         }
         @JavascriptInterface fun updateOverlay(json: String) { runOnUiThread { SubtitleService.update(json) } }
+        @JavascriptInterface fun setOverlayLocked(locked: Boolean) { runOnUiThread { SubtitleService.setLocked(locked) } }
         @JavascriptInterface fun resetOverlayPosition() { runOnUiThread { SubtitleService.resetPosition(this@MainActivity) } }
         @JavascriptInterface fun startCapture(kind: String) {
             if (kind != "mic" && kind != "file") return

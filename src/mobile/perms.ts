@@ -38,6 +38,7 @@ interface Droid {
   requestOverlay(): void;
   showOverlay(show: boolean): void;
   updateOverlay(json: string): void;
+  setOverlayLocked(locked: boolean): void;
   resetOverlayPosition(): void;
   startCapture(kind: string): void;
   stopCapture(): void;
