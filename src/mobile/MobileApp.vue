@@ -606,7 +606,7 @@ async function askFromCenter() {
 
     <!-- ══ drawers ══ -->
     <DiagnosticsSheet v-if="drawer === 'diagnostics'" @close="drawer = null" />
-    <OverlaySheet v-if="drawer === 'overlay'" @close="drawer = null" @toggle="toggleOverlay" @fullscreen="drawer = null; mode = 'big'" />
+    <OverlaySheet v-if="drawer === 'overlay'" @close="drawer = null" @toggle="toggleOverlay" />
     <SourceSheet v-if="drawer === 'src'" @close="drawer = null" />
     <LangSheet v-if="drawer === 'lang'" :side="langSide" @close="drawer = null" />
     <SpeakSheet v-if="drawer === 'speak'" @close="drawer = null" />

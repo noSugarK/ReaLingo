@@ -44,12 +44,12 @@ function toggle() {
 
 <template>
   <Sheet :title="t('dockSpeak')" @close="$emit('close')">
-    <button class="master" :class="{ on }" role="switch" :aria-checked="on" :disabled="running || !!blocked" @click="toggle">
+    <button class="m-master" :class="{ on }" role="switch" :aria-checked="on" :disabled="running || !!blocked" @click="toggle">
       <span class="tx">
         <b>{{ t('speak') }}</b>
         <small>{{ blocked ? t(blocked) : running ? t('speakLocked') : t('speakNote') }}</small>
       </span>
-      <span class="tog" :class="{ on }" aria-hidden="true" />
+      <span class="m-toggle" :class="{ on }" aria-hidden="true" />
     </button>
 
     <section :class="{ off: !on }">
@@ -80,22 +80,6 @@ function toggle() {
 </template>
 
 <style scoped>
-.master {
-  display: flex; align-items: center; gap: 14px; width: 100%; padding: 15px 16px; text-align: left;
-  border-radius: 18px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline); color: var(--ink);
-  transition: background 0.25s var(--ease), box-shadow 0.25s var(--ease);
-}
-.master.on { background: rgba(10, 132, 255, 0.12); box-shadow: inset 0 0 0 1.2px rgba(10, 132, 255, 0.45); }
-.master:disabled { cursor: default; }
-.master .tx { flex: 1; min-width: 0; }
-.master b { display: block; font-size: 16px; font-weight: 700; }
-.master small { display: block; margin-top: 3px; font-size: 12px; line-height: 1.5; color: var(--ink-2); }
-.tog { position: relative; flex: none; width: 50px; height: 30px; border-radius: 999px; background: var(--hairline); transition: background 0.25s var(--ease); }
-.tog::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); transition: transform 0.25s var(--ease); }
-.tog.on { background: var(--accent); }
-.tog.on::after { transform: translateX(20px); }
-.master:disabled .tog { opacity: 0.45; }
-
 
 section { display: flex; flex-direction: column; transition: opacity 0.25s var(--ease); }
 section.off { opacity: 0.55; }

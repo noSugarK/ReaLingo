@@ -3,7 +3,7 @@ import Sheet from "./Sheet.vue";
 import { settings } from "../core/store";
 import { t } from "../core/i18n";
 import { native, resetOverlayPosition } from "./native";
-defineEmits<{ close: []; toggle: []; fullscreen: [] }>();
+defineEmits<{ close: []; toggle: [] }>();
 
 const MODES = [["both", "subBoth"], ["target", "subTarget"], ["source", "subSource"]] as const;
 const ALIGNS = [["left", "alignLeft"], ["center", "alignCenter"], ["right", "alignRight"]] as const;
@@ -13,16 +13,13 @@ const SWITCHES = [["outline", "subOutline"], ["grow", "subGrow"], ["locked", "su
 <template>
   <Sheet :title="t('subTitle')" @close="$emit('close')">
     <!-- The one thing people open this for: on or off. Everything else tunes it. -->
-    <div class="hero">
-      <button class="m-btn" :class="native.visible ? '' : 'primary'" @click="$emit('toggle')">
-        {{ native.visible ? t('subHide') : native.granted ? t('subShow') : t('overlayAuthorize') }}
-      </button>
-      <button class="m-btn" @click="$emit('fullscreen')">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>
-        {{ t('fullscreenSub') }}
-      </button>
-      <p>{{ t('overlayHint') }}</p>
-    </div>
+    <button class="m-master" :class="{ on: native.visible }" role="switch" :aria-checked="native.visible" @click="$emit('toggle')">
+      <span class="tx">
+        <b>{{ native.granted ? t('subShow') : t('overlayAuthorize') }}</b>
+        <small>{{ t('overlayHint') }}</small>
+      </span>
+      <span class="m-toggle" :class="{ on: native.visible }" aria-hidden="true" />
+    </button>
 
     <section>
       <span class="m-glabel">{{ t('subGroupText') }}</span>
@@ -78,7 +75,5 @@ const SWITCHES = [["outline", "subOutline"], ["grow", "subGrow"], ["locked", "su
 
 <style scoped>
 section { display: flex; flex-direction: column; }
-.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.hero p { grid-column: 1 / -1; margin: 0 4px; font-size: 12px; line-height: 1.55; color: var(--ink-3); }
 .reset { width: 100%; color: var(--ink-2); }
 </style>
