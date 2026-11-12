@@ -35,6 +35,7 @@ type Page = "home" | "settings" | "perms" | "history";
 const page = ref<Page>("home");
 type Drawer = null | "src" | "lang" | "speak" | "model" | "about" | "uilang" | "overlay" | "diagnostics";
 const drawer = ref<Drawer>(null);
+const THEME_OPTIONS = [["system", "themeSystem"], ["light", "themeLight"], ["dark", "themeDark"]] as const;
 const langSide = ref<"source" | "target">("target");
 function openLang(side: "source" | "target") {
   langSide.value = side;
@@ -478,15 +479,12 @@ async function askFromCenter() {
               <b>{{ t("streamSrcSize") }}<output>{{ settings.stream.srcSize }}</output></b>
               <input v-model.number="settings.stream.srcSize" class="m-range" type="range" :min="STREAM_SIZE.min" :max="STREAM_SIZE.max" />
             </label>
-            <label class="m-row m-pick">
-              <span class="m-tx"><b>{{ t("theme") }}</b></span>
-              <select v-model="settings.theme">
-                <option value="system">{{ t("themeSystem") }}</option>
-                <option value="light">{{ t("themeLight") }}</option>
-                <option value="dark">{{ t("themeDark") }}</option>
-              </select>
-              <svg class="m-chev" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
-            </label>
+            <div class="m-field">
+              <b>{{ t("theme") }}</b>
+              <div class="m-seg" role="group" :aria-label="t('theme')">
+                <button v-for="[value, label] in THEME_OPTIONS" :key="value" :class="{ on: settings.theme === value }" :aria-pressed="settings.theme === value" @click="settings.theme = value">{{ t(label) }}</button>
+              </div>
+            </div>
             <button class="m-row" @click="drawer = 'uilang'">
               <span class="m-tx"><b>{{ t("uiLang") }}</b></span>
               <span class="m-val">{{ settings.uiLang === "system" ? t("uiSystem") : settings.uiLang === "zh" ? "简体中文" : "English" }}</span>
