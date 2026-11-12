@@ -6,8 +6,12 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      full:
+        description: Build ARM64 as well as x86_64 and test both Android page sizes
+        type: boolean
+        default: true
       apk_run_id:
-        description: Reuse APKs from this run when only the test harness changed
+        description: With full=false, reuse an APK only when app/build inputs match
         type: string
         default: ''
 
@@ -22,13 +26,35 @@ concurrency:
 jobs:
   resolve:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       apk_run_id: ${{ steps.reuse.outputs.run_id }}
+      run: ${{ steps.plan.outputs.run }}
+      targets: ${{ steps.plan.outputs.targets }}
+      devices: ${{ steps.plan.outputs.devices }}
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 10
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Select Android coverage
+        id: plan
+        env:
+          BEFORE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          ANDROID_TEST_FULL: ${{ inputs.full }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            git diff --name-only -z "$BEFORE"...HEAD > "$RUNNER_TEMP/android-files"
+          elif [[ -n "$BEFORE" && "$BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            git diff --name-only -z "$BEFORE" HEAD > "$RUNNER_TEMP/android-files"
+          else
+            git ls-files -z > "$RUNNER_TEMP/android-files"
+          fi
+          node scripts/android-test-plan.mjs < "$RUNNER_TEMP/android-files" >> "$GITHUB_OUTPUT"
       - name: Reuse APKs when only launch tests changed
+        if: steps.plan.outputs.run == 'true'
         id: reuse
         env:
           GH_TOKEN: ${{ github.token }}
@@ -36,6 +62,8 @@ jobs:
         shell: bash
         run: |
           run_id="$APK_RUN_ID"
+          # A full run must produce both architectures from its own checkout.
+          if [[ "${{ inputs.full }}" == true ]]; then run_id=''; fi
           if [[ -z "$run_id" && "$GITHUB_EVENT_NAME" == push ]] && git rev-parse HEAD^ >/dev/null 2>&1; then
             workflow='.github/workflows/android-test.yml'
             sed -n '/^  apk:/,/^  launch:/p' "$workflow" > "$RUNNER_TEMP/apk-after.yml"
@@ -46,11 +74,20 @@ jobs:
               if ! cmp -s "$RUNNER_TEMP/apk-before.yml" "$RUNNER_TEMP/apk-after.yml" || ! git diff --quiet "$previous" HEAD -- . ':!tests/**' ':!scripts/smoke-android.mjs' ':!scripts/session-server.mjs' ':!.github/workflows/android-test.yml'; then break; fi
               run_id=$(gh run list --workflow android-test.yml --commit "$previous" --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
               if [[ -n "$run_id" ]]; then
-                count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" --jq '[.artifacts[] | select(.expired == false and (.name == "android-aarch64-apk" or .name == "android-x86_64-apk"))] | length' || true)
-                if [[ "$count" != 2 ]]; then run_id=''; fi
+                count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" --jq '[.artifacts[] | select(.expired == false and .name == "android-x86_64-apk")] | length' || true)
+                if [[ "$count" != 1 ]]; then run_id=''; fi
               fi
               if [[ -n "$run_id" ]]; then break; fi
             done
+          fi
+          if [[ -n "$run_id" ]]; then
+            source_sha=$(gh run view "$run_id" --json headSha --jq .headSha)
+            git show "$source_sha:.github/workflows/android-test.yml" | sed -n '/^  apk:/,/^  launch:/p' > "$RUNNER_TEMP/reused-apk.yml"
+            sed -n '/^  apk:/,/^  launch:/p' .github/workflows/android-test.yml > "$RUNNER_TEMP/current-apk.yml"
+            if ! cmp -s "$RUNNER_TEMP/reused-apk.yml" "$RUNNER_TEMP/current-apk.yml" || ! git diff --quiet "$source_sha" HEAD -- . ':!tests/**' ':!scripts/smoke-android.mjs' ':!scripts/session-server.mjs' ':!.github/workflows/android-test.yml'; then
+              echo 'Refusing to reuse an APK whose application/build inputs differ.' >&2
+              exit 1
+            fi
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           if [[ -n "$run_id" ]]; then
@@ -64,13 +101,6 @@ jobs:
           path: reused-apks
           run-id: ${{ steps.reuse.outputs.run_id }}
           github-token: ${{ github.token }}
-      - name: Retain the ARM64 test APK in this run
-        if: steps.reuse.outputs.run_id != ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: android-aarch64-apk
-          path: reused-apks/android-aarch64-apk/
-          if-no-files-found: error
       - name: Retain the x86_64 test APK in this run
         if: steps.reuse.outputs.run_id != ''
         uses: actions/upload-artifact@v6
@@ -81,12 +111,13 @@ jobs:
 
   apk:
     needs: resolve
-    if: needs.resolve.outputs.apk_run_id == ''
+    if: needs.resolve.outputs.run == 'true' && needs.resolve.outputs.apk_run_id == ''
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64, aarch64]
+        target: ${{ fromJSON(needs.resolve.outputs.targets) }}
     env:
       ANDROID_NDK_VERSION: '28.2.13676358'
       ANDROID_REQUIRE_SIGNING: ${{ github.event_name != 'pull_request' }}
@@ -121,6 +152,16 @@ jobs:
         with:
           workspaces: src-tauri
           key: android-test-${{ matrix.target }}
+      - name: Cache verified Gradle distribution and Kotlin dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ${{ runner.temp }}/realingo-gradle
+            ${{ runner.temp }}/realingo-maven
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/fetch-gradle.mjs', 'scripts/cache-gradle-kotlin.py', 'scripts/prepare-android.mjs') }}
+          restore-keys: android-gradle-${{ runner.os }}-
       - run: npm ci
       - run: npm test
       - run: python3 -m unittest discover -s tests -p 'test_*.py'
@@ -162,20 +203,12 @@ jobs:
 
   launch:
     needs: [resolve, apk]
-    if: always() && needs.resolve.result == 'success' && (needs.apk.result == 'success' || needs.resolve.outputs.apk_run_id != '')
+    if: always() && !cancelled() && needs.resolve.result == 'success' && needs.resolve.outputs.run == 'true' && (needs.apk.result == 'success' || needs.resolve.outputs.apk_run_id != '')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - api: 35
-            tag: google_apis
-            page-size: 4096
-          # The API 35 16 KB preview ships WebView 124, which aborts in MemoryInfra.
-          # Keep API 35 coverage above and run 16 KB sessions on the stable API 36 image.
-          - api: 36
-            tag: google_apis_ps16k
-            page-size: 16384
+      matrix: ${{ fromJSON(needs.resolve.outputs.devices) }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

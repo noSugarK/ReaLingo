@@ -243,6 +243,8 @@ macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，由 `.github/wo
 发布流程是「先建草稿 → 四个平台分别上传 → **构建、同一提交的 main CI 与 Android 15/16 模拟器测试全部通过后**才公开发布」，
 所以任一平台挂掉时 release 会停在草稿状态，不会放出半套包。tag 与
 `src-tauri/Cargo.toml` 里的 `version` 不一致会直接失败，避免发出版本号对不上的包。
+Android CI 按改动分层：PR 跑单套模拟器，main 跑两种页大小，纯 Markdown 改动跳过重型任务；
+发版仍要求同一提交的两套模拟器实际通过，必要时手动运行完整测试，见 [Android 测试流程](development/android-testing.md)。
 
 版本号只有一处：`src-tauri/Cargo.toml` 的 `[package] version`。`tauri.conf.json` 不写
 `version` 字段，Tauri 会回落到 Cargo.toml；`package.json` 是 `private` 的，也不带版本号。

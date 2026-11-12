@@ -57,6 +57,9 @@ cd src-tauri && cargo test --lib
   （`openai_streams_are_cut_into_turns_at_sentence_ends`）。
 - 有分支的解析、配对、时间计算都要有测试；协议相关的测试用实测帧。
 - 前端没有测试框架。前端里有分支的纯计算（如 SRT 时间轴）改动后，至少用 node 跑一遍边界情况再提交。
+- 新增交互和缺陷修复补充能检查实际行为的回归测试；涉及 Android Activity、通知、权限或悬浮窗时，
+  同步更新设备冒烟用例。Node 契约检查、编译和设备运行分别记录，不能互相替代。
+  CI 分层与发布前设备验证要求见 [Android 测试流程](development/android-testing.md)。
 
 ## 界面文案
 

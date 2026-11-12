@@ -59,7 +59,30 @@ Home; records/searches history; streams long subtitles while locking the native 
 and uses notification actions to unlock, hide/show subtitles, stop and restart capture.
 The lock test requires touch-through to remain enabled while new translations arrive.
 
-`.github/workflows/android-test.yml` runs on main pushes, PRs, and manual dispatch. It builds release ARM64 and x86_64 APKs, then runs the latter on API 35 with 4 KB pages and API 36 (`google_apis_ps16k`) with 16 KB pages. The API 35 16 KB preview's older WebView is not used. The page size is asserted on the emulator. The API 26
+`.github/workflows/android-test.yml` runs on main pushes, PRs, and manual dispatch:
+
+| Change / trigger | APK builds | Emulator coverage |
+| --- | --- | --- |
+| Markdown-only push or PR | Skipped | Skipped; the workflow still resolves |
+| Other PR changes | x86_64 | API 35 / 4 KB |
+| Other main pushes | x86_64 | API 35 / 4 KB and API 36 / 16 KB |
+| Manual run, `full=true` (default) | x86_64 and ARM64 | Both page sizes |
+
+The release workflow separately builds and verifies ARM64. APK-only reuse remains
+available when test-harness changes leave all app/build inputs unchanged; full manual
+runs always rebuild. Gradle/Kotlin dependency caches reduce repeated setup work.
+Fast Node, Python and Rust checks remain in `ci.yml`. Screenshots are diagnostic
+artifacts, not automated proof of colors or other visual details.
+
+Before releasing, require successful smoke jobs for **both page sizes on the exact
+release commit**. A skipped documentation run cannot satisfy this gate. If that commit
+only changes notes/version documentation, dispatch Android tests on it before tagging:
+
+```bash
+gh workflow run android-test.yml --ref main -f full=true
+```
+
+The API 35 16 KB preview's older WebView is not used. The page size is asserted on the emulator. The API 26
 default emulator image has no WebView provider; testing older supported devices requires
 an installed, current WebView and remains a separate device check. Both this
 workflow and the ARM64 release workflow check APK ZIP alignment and every native

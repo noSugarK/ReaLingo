@@ -238,12 +238,13 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - name: Require CI and Android smoke tests for the release commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          for workflow in ci.yml android-test.yml; do
+          for workflow in ci.yml; do
             run_id=$(gh run list --workflow "$workflow" --branch main --commit "$GITHUB_SHA" --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')
             if [[ -z "$run_id" ]]; then
               echo "No $workflow run found for release commit $GITHUB_SHA" >&2
@@ -251,6 +252,19 @@ jobs:
             fi
             gh run watch "$run_id" --exit-status --interval 30
           done
+          # Docs-only runs succeed with skipped devices. Require real 4 KB + 16 KB
+          # smoke results on this exact commit, including manually requested runs.
+          android_ready=false
+          for run_id in $(gh run list --workflow android-test.yml --branch main --commit "$GITHUB_SHA" --limit 20 --json databaseId --jq '.[].databaseId'); do
+            if gh run watch "$run_id" --exit-status --interval 30 && gh run view "$run_id" --json jobs | node scripts/android-test-plan.mjs --release-ready; then
+              android_ready=true
+              break
+            fi
+          done
+          if [[ "$android_ready" != true ]]; then
+            echo 'Run Android tests manually on this release commit with full=true before publishing.' >&2
+            exit 1
+          fi
       # `needs` already guarantees every platform succeeded, so the draft can go public.
       - name: Publish
         env:
