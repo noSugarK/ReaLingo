@@ -35,6 +35,22 @@ class MainActivity : TauriActivity() {
     @Volatile private var keepFlag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
     @Volatile private var micRequesting = false
     private var systemRequestPending = false
+    private val notificationCommand = AtomicReference("")
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        acceptNotificationCommand(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        acceptNotificationCommand(intent)
+    }
+
+    private fun acceptNotificationCommand(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_NOTIFICATION_COMMAND)?.let { notificationCommand.set(it) }
+    }
 
     // One-slot result for the file picker: busy while the dialog/copy lives, then a
     // terminal JSON the frontend reads and resets. "picked" carries a real path the
@@ -47,6 +63,8 @@ class MainActivity : TauriActivity() {
     // WebView resolves these names through reflection, outside R8's call graph.
     @Keep
     inner class Bridge {
+        @JavascriptInterface
+        fun takeNotificationCommand(): String = notificationCommand.getAndSet("")
         /// {"granted":bool,"rationale":bool} — the same shape the Rust command answered,
         /// so the state machine in src/mobile/perms.ts did not change: rationale is the
         /// line between "denied once" and "never ask again".
@@ -304,6 +322,7 @@ class MainActivity : TauriActivity() {
     }
 
     companion object {
+        const val EXTRA_NOTIFICATION_COMMAND = "notificationCommand"
         private const val PICK_AUDIO = 42
         private const val REQUEST_MIC = 43
         private const val REQUEST_SYSTEM_AUDIO = 44

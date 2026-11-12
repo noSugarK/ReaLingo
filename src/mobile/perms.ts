@@ -31,6 +31,7 @@ interface Droid {
   pickAudioFile(): void;
   pickResult(): string;
   overlayStatus(): string;
+  takeNotificationCommand(): string;
   systemAudioSupported(): boolean;
   requestOverlay(): void;
   showOverlay(show: boolean): void;

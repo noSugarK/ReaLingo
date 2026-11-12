@@ -61,6 +61,7 @@ const reload = () => window.location.reload();
 async function onResume() {
   await refreshPerms();
   refreshNative();
+  await handleNotificationCommand();
   if (pendingOverlay && native.granted) { pendingOverlay = false; await toggleOverlay(); }
   if (perms.pendingStart && perms.mic === "granted") {
     perms.pendingStart = false;
@@ -77,6 +78,7 @@ onMounted(async () => {
     syncOverlay();
     nativeTimer = window.setInterval(() => {
       void pollHealth().catch((e) => { errorMsg.value = String(e); });
+      void handleNotificationCommand();
       refreshNative();
       settings.sub.show = native.visible;
       if (native.visible && native.width >= 40 && native.width <= 100) settings.sub.mobileWidth = native.width;
@@ -165,6 +167,15 @@ async function stop() {
   catch (e) { errorMsg.value = String(e); status.value = "error"; }
 }
 
+async function handleNotificationCommand() {
+  if (!droid) return;
+  const command = droid.takeNotificationCommand();
+  if (command === "start") await start();
+  else if (command === "stop" && isRunning()) await stop();
+  else if (command === "subtitles") await toggleOverlay();
+  else if (command === "unlock") settings.sub.locked = false;
+}
+
 /** The toast's "重新开始": stop, then start again with the new wire format. Stopping is
  *  asynchronous on the server's tail, so the restart waits for the status to settle. */
 async function restartNow() {
@@ -241,7 +252,9 @@ function syncOverlay() {
   const pair = active ? { source: current.source + current.sourceStash, target: current.target + current.targetStash } : lines.value[lines.value.length - 1];
   updateOverlay({ ...settings.sub, source: pair?.source ?? "", target: pair?.target ?? "",
     empty: emptyText.value, close: t("subHide"), resize: t("overlayWidth"),
-    notification: t("captureNotification"), captureEnded: t("captureEnded") });
+    notification: t("captureNotification"), captureEnded: t("captureEnded"),
+    notifStart: t("notifStart"), notifStop: t("notifStop"), notifSubOn: t("notifSubOn"), notifSubOff: t("notifSubOff"),
+    notifUnlock: t("notifUnlock") });
 }
 watch([() => settings.sub, current, lines, locale], syncOverlay, { deep: true });
 /** Ask from the permission centre: on a permanent denial the same guide the start button

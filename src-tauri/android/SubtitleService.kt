@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.content.pm.ServiceInfo
 import android.graphics.Color
+import android.graphics.drawable.Icon
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.media.*
@@ -66,14 +67,36 @@ class SubtitleService : Service() {
 
     private fun notification(): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val hide = PendingIntent.getService(this, 1, Intent(this, SubtitleService::class.java).setAction(HIDE), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        return Notification.Builder(this, CHANNEL)
+        fun command(name: String, requestCode: Int) = PendingIntent.getActivity(
+            this, requestCode,
+            Intent(this, MainActivity::class.java).setAction("com.nosugark.realingo.NOTIFICATION_$name")
+                .putExtra(MainActivity.EXTRA_NOTIFICATION_COMMAND, name),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val running = captureKind.isNotEmpty()
+        val locked = data.optBoolean("locked")
+        val builder = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("ReaLingo")
             .setContentText(data.optString("notification", "Live translation and subtitles"))
             .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
-            .addAction(Notification.Action.Builder(null, data.optString("close", "Hide subtitles"), hide).build())
-            .build()
+            .addAction(Notification.Action.Builder(
+                Icon.createWithResource(this, if (running) R.drawable.ic_notif_stop else R.drawable.ic_notif_start),
+                data.optString(if (running) "notifStop" else "notifStart", if (running) "Stop" else "Start"),
+                command(if (running) "stop" else "start", 1)
+            ).build())
+            .addAction(Notification.Action.Builder(
+                Icon.createWithResource(this, if (visible) R.drawable.ic_notif_subtitles_off else R.drawable.ic_notif_subtitles_on),
+                data.optString(if (visible) "notifSubOff" else "notifSubOn", if (visible) "Sub off" else "Sub on"),
+                command("subtitles", 2)
+            ).build())
+        val showUnlock = visible && locked
+        if (showUnlock) builder.addAction(Notification.Action.Builder(
+            Icon.createWithResource(this, R.drawable.ic_notif_unlock),
+            data.optString("notifUnlock", "Unlock"), command("unlock", 3)
+        ).build())
+        val indices = if (showUnlock) intArrayOf(0, 1, 2) else intArrayOf(0, 1)
+        return builder.setStyle(Notification.MediaStyle().setShowActionsInCompactView(*indices)).build()
     }
     private fun refreshForeground() {
         var types = 0
@@ -295,12 +318,14 @@ class SubtitleService : Service() {
             if (on) {
                 try { ContextCompat.startForegroundService(context, Intent(context, SubtitleService::class.java)) }
                 catch (e: RuntimeException) { visible = false; lastError = e.message ?: "Cannot show subtitles" }
-            } else instance?.let { it.render(); it.stopIfIdle() }
+        } else instance?.let { it.render(); it.refreshForeground(); it.stopIfIdle() }
         }
         fun update(json: String) {
             if (json.length > 64_000) { lastError = "Subtitle payload is too large"; return }
-            data = runCatching { JSONObject(json) }.getOrElse { lastError = "Invalid subtitle payload"; return }
-            instance?.let { service -> try { service.render() } catch (e: Exception) { service.fail(e) } }
+            val next = runCatching { JSONObject(json) }.getOrElse { lastError = "Invalid subtitle payload"; return }
+            val lockChanged = data.optBoolean("locked") != next.optBoolean("locked")
+            data = next
+            instance?.let { service -> try { service.render(); if (lockChanged) service.refreshForeground() } catch (e: Exception) { service.fail(e) } }
         }
         fun resetPosition(context: Context) {
             context.getSharedPreferences("subtitle-window", MODE_PRIVATE).edit().clear().apply()
