@@ -56,6 +56,23 @@ const stream = await import('../src/core/stream.ts');
 const { useSession } = await import('../src/core/session.ts');
 const emit = (kind, values = {}) => events.get('rt://event')({ payload: { kind, text: '', id: '', stash: '', lang: '', done: false, ...values } });
 
+test('desktop source stays transient while the phone retains its remembered source', async () => {
+  const previous = globalThis.localStorage;
+  const writes = [];
+  globalThis.localStorage = { getItem: () => 'file', setItem: (...args) => writes.push(args) };
+  try {
+    const desktop = useSession(false), mobile = useSession();
+    assert.equal(desktop.sourceKind.value, 'mic');
+    assert.equal(mobile.sourceKind.value, 'file');
+    desktop.sourceKind.value = 'system';
+    await nextTick();
+    assert.deepEqual(writes, []);
+    mobile.sourceKind.value = 'mic';
+    await nextTick();
+    assert.deepEqual(writes, [['sourceKind', 'mic']]);
+  } finally { globalThis.localStorage = previous; }
+});
+
 test('connection and stopping stay distinct from listening and diagnostic progress resets for a new session', async () => {
   const s = useSession();
   stream.status.value = 'connecting';

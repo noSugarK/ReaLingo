@@ -14,9 +14,11 @@ import Settings from "./components/Settings.vue";
 import About from "./components/About.vue";
 import History from "../shared/History.vue";
 import { locale, setLocale, t } from "../core/i18n";
-import { canSpeak, langName, languageCodes, modelName, PROTOCOLS, VOICE_LISTS, voiceLabel } from "../core/languages";
+import { langName, modelName } from "../core/languages";
+import { AUDIO_EXT, useSession } from "../core/session";
+import { caps, loadCaps } from "../core/platform";
 import { check, checkUpdateAtStartup, openHome } from "../core/update";
-import { activeKey, settings, initSettings, resolvedTheme, SUB_SIZE, type SubAlign, type SubMode, type SubtitleStyle } from "../core/store";
+import { settings, initSettings, resolvedTheme, SUB_SIZE, type SubAlign, type SubMode, type SubtitleStyle } from "../core/store";
 import {
   current,
   detectedLang,
@@ -26,27 +28,21 @@ import {
   isRunning,
   lines,
   rawLog,
-  speaking,
-  start,
   status,
-  stop,
   warnMsg,
 } from "../core/stream";
-
-type SourceKind = "mic" | "system" | "file";
 
 const win = getCurrentWindow();
 const showSettings = ref(false);
 const showAbout = ref(false);
 const showHistory = ref(false);
 const showDiag = ref(false);
-const sourceKind = ref<SourceKind>("mic");
-const devices = ref<{ id: string; name: string; loopback: boolean }[]>([]);
-const deviceId = ref("");
-const filePath = ref("");
-const level = ref(0);
-/** What the host OS can do; decides whether the "system audio" tab has real devices. */
-const caps = ref({ os: "", loopback: true });
+const desktopSession = useSession(false);
+const {
+  sourceKind, deviceId, filePath, level, fileName, deviceOptions, canStart,
+  sourceMode, sourceLangOptions, targetLangOptions, canTwoWay, twoWay,
+  voiceList, voiceOptions, speakBlocked, statusKey, pollLevel,
+} = desktopSession;
 const streamEl = ref<HTMLElement | null>(null);
 
 const maximized = ref(false);
@@ -62,47 +58,10 @@ function cycleTheme() {
   settings.theme = isDark.value ? "light" : "dark";
 }
 
-const AUDIO_EXT = ["mp3", "wav", "m4a", "mp4", "aac", "flac", "ogg", "oga"];
-
-// Where loopback is unavailable (Linux), the "system audio" tab still lists ordinary inputs:
-// the user routes our recording stream to a monitor source outside the app.
-const wantLoopback = computed(() => sourceKind.value === "system" && caps.value.loopback);
-const visibleDevices = computed(() =>
-  devices.value.filter((d) => d.loopback === wantLoopback.value)
-);
-const fileName = computed(() => filePath.value.split(/[\\/]/).pop() ?? "");
-const deviceOptions = computed(() =>
-  visibleDevices.value.map((d) => ({ value: d.id, label: d.name }))
-);
-const canStart = computed(() =>
-  sourceKind.value === "file" ? !!filePath.value : !!deviceId.value
-);
-
-const statusKey = computed(() => {
-  if (!activeKey().trim()) return "statusNoKey" as const;
-  if (status.value === "error") return "statusError" as const;
-  if (status.value === "connecting") return "statusConnecting" as const;
-  if (status.value === "stopping") return "statusStopping" as const;
-  if (status.value === "connected") return speaking.value ? ("statusListening" as const) : ("statusConnected" as const);
-  return "statusIdle" as const;
-});
-
 async function refreshDevices() {
-  caps.value = await invoke("platform");
-  devices.value = await invoke("list_devices");
-  await pickDefaultDevice();
+  await loadCaps();
+  await desktopSession.refreshDevices();
 }
-
-async function pickDefaultDevice() {
-  if (sourceKind.value === "file") return;
-  if (visibleDevices.value.some((d) => d.id === deviceId.value)) return;
-  const preferred = await invoke<string | null>("default_device", {
-    loopback: wantLoopback.value,
-  });
-  deviceId.value = preferred ?? visibleDevices.value[0]?.id ?? "";
-}
-
-watch(sourceKind, pickDefaultDevice);
 
 async function chooseFile() {
   const picked = await openDialog({
@@ -113,58 +72,8 @@ async function chooseFile() {
   if (typeof picked === "string") filePath.value = picked;
 }
 
-/* ---------- read aloud ---------- */
-// The note says what the voice sounds like; search matches names and descriptions in both
-// UI languages, so typing "温柔" or "British" narrows the list.
-/** The protocol's voice list; null when the service picks the voice itself. */
-const voiceList = computed(() => PROTOCOLS[settings.protocol].voices);
-const voiceOptions = computed(() =>
-  VOICE_LISTS[voiceList.value ?? "qwen"].map((v) => ({
-    value: v.id,
-    label: voiceLabel(v, locale.value),
-    note: locale.value === "zh" ? v.descZh : v.descEn,
-    keywords: `${v.zh} ${v.descZh} ${v.descEn}`,
-  }))
-);
-// One `voice` setting serves every list, so each list's pick is parked on the way out and
-// brought back on the way in — a round trip through Volcengine keeps the Qwen voice.
-watch(voiceList, (now, was) => {
-  if (was) settings.savedVoices[was] = settings.voice;
-  if (!now) return;
-  const list = VOICE_LISTS[now];
-  const back = settings.savedVoices[now];
-  if (back && list.some((v) => v.id === back)) settings.voice = back;
-  else if (!list.some((v) => v.id === settings.voice)) settings.voice = list[0].id;
-}, { immediate: true });
-// How the source language is set (see PROTOCOLS): some services always detect it.
-const sourceMode = computed(() => PROTOCOLS[settings.protocol].source);
-watch(sourceMode, (mode) => {
-  if (mode === "detected") settings.sourceLang = "auto";
-}, { immediate: true });
-// Why speaking cannot happen with the current choices, if it cannot. Linux has no way to
-// leave our own playback out of a monitor source, so system audio would hear itself.
-const speakBlocked = computed(() => {
-  // Two-way speaks Chinese and English, both always speakable where two-way exists.
-  if (!twoWay.value && !canSpeak(settings.protocol, settings.targetLang)) return "speakNoLang" as const;
-  if (caps.value.os === "linux" && sourceKind.value === "system") return "speakLinuxSystem" as const;
-  return null;
-});
-
 async function toggle() {
-  if (isRunning()) {
-    await stop();
-    return;
-  }
-  if (!activeKey().trim()) {
-    showSettings.value = true;
-    return;
-  }
-  await start(
-    sourceKind.value === "file"
-      ? { kind: "file", path: filePath.value }
-      : { kind: "device", id: deviceId.value },
-    settings.speak && !speakBlocked.value
-  );
+  if (!await desktopSession.toggle()) showSettings.value = true;
 }
 
 /* ---------- subtitle overlay ---------- */
@@ -209,45 +118,8 @@ watch(() => settings.sub.show, showOverlay);
 watch(() => settings.sub.locked, setOverlayClickThrough);
 
 /* ---------- model / languages ---------- */
-const langCodes = computed(() => languageCodes(settings.protocol, settings.model));
 /** Under the app name, so the language list shrinking to 13 never comes out of nowhere. */
 const modelLabel = computed(() => modelName(settings.protocol, settings.model));
-
-/** The picker matches on both UI languages, so a zh user can still type "japanese". */
-const langOptions = computed(() =>
-  langCodes.value.map((c) => ({
-    value: c,
-    label: langName(c, locale.value),
-    note: c,
-    keywords: `${langName(c, "zh")} ${langName(c, "en")}`,
-  }))
-);
-/** Volcengine wants Chinese or English on one side of every pair (PROTOCOLS `hub`). */
-const hub = computed(() => PROTOCOLS[settings.protocol].hub);
-const onHub = (code: string) => !hub.value.length || hub.value.includes(code);
-/** Once one side is off the hub, the other side may only offer the hub's languages. */
-const pairableWith = (other: string) =>
-  onHub(other) ? langOptions.value : langOptions.value.filter((o) => onHub(o.value));
-const sourceLangOptions = computed(() => [
-  ...(sourceMode.value === "named" ? [] : [{ value: "auto", label: langName("auto", locale.value) }]),
-  ...(sourceMode.value === "detected" ? [] : pairableWith(settings.targetLang)),
-]);
-const targetLangOptions = computed(() => pairableWith(settings.sourceLang));
-
-// Switching to the smaller model can strand a language it cannot translate into; the
-// session would then be refused server-side, so repair the selection here instead. The
-// pickers keep a pair valid from then on; this covers arriving with one already invalid.
-watch([langCodes, sourceMode, hub], ([codes, mode]) => {
-  const ok = new Set(codes);
-  if (settings.sourceLang !== "auto" && !ok.has(settings.sourceLang)) settings.sourceLang = "auto";
-  if (!ok.has(settings.targetLang)) settings.targetLang = ok.has("en") ? "en" : codes[0];
-  if (mode === "named" && settings.sourceLang === "auto") settings.sourceLang = settings.targetLang === "zh" ? "en" : "zh";
-  if (!onHub(settings.sourceLang) && !onHub(settings.targetLang)) settings.targetLang = hub.value[0];
-}, { immediate: true });
-
-/** Chinese ⇄ English in one session; only where the protocol can, and then pickers step aside. */
-const canTwoWay = computed(() => PROTOCOLS[settings.protocol].twoWay);
-const twoWay = computed(() => canTwoWay.value && settings.twoWay);
 
 /** Stored 0–1, edited as whole percent — "0.53" in a number field reads badly. */
 const subOpacityPct = computed({
@@ -319,9 +191,7 @@ onMounted(async () => {
   await refreshDevices();
   await showOverlay(settings.sub.show);
   await syncTray();
-  levelTimer = window.setInterval(async () => {
-    level.value = isRunning() ? await invoke<number>("input_level") : 0;
-  }, 60);
+  levelTimer = window.setInterval(() => void pollLevel(), 60);
 });
 
 onUnmounted(() => window.clearInterval(levelTimer));

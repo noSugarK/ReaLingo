@@ -20,7 +20,7 @@ import LiveCard from "./LiveCard.vue";
 import Toaster from "./Toaster.vue";
 import Icon from "./Icon.vue";
 import mark from "../assets/mark.png";
-import { session } from "../core/session";
+import { AUDIO_EXT, session } from "../core/session";
 import { loadCaps } from "../core/platform";
 import { settings, STREAM_SIZE, activeKey, setActiveKey, keyringOk, initSettings, resolvedTheme } from "../core/store";
 import { PRESETS, PROTOCOLS, langName, modelName } from "../core/languages";
@@ -213,7 +213,6 @@ function guideUseFile() {
 }
 
 /* ---------- file source ---------- */
-const AUDIO_EXT = ["mp3", "wav", "m4a", "mp4", "aac", "flac", "ogg", "oga"];
 async function chooseFile() {
   // Android: the Kotlin bridge owns the picker (ACTION_OPEN_DOCUMENT plus a cache copy —
   // Tauri's dialog plugin has no mobile file dialog, and content:// paths would not open

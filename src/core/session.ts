@@ -8,6 +8,7 @@ import { current, detectedLang, errorMsg, fileProgress, isRunning, lines, rawLog
 
 /** Which audio the session reads. */
 export type SourceKind = "mic" | "system" | "file";
+export const AUDIO_EXT = ["mp3", "wav", "m4a", "mp4", "aac", "flac", "ogg", "oga"];
 
 /**
  * Everything a session needs that is not a window: picking a device or a file, keeping the
@@ -16,12 +17,12 @@ export type SourceKind = "mic" | "system" | "file";
  * Lives here rather than inside `App.vue` because the phone shell and the desktop window ask
  * for exactly the same answers, and a per-protocol rule written twice is a rule that drifts.
  */
-export function useSession() {
+export function useSession(rememberSource = true) {
   // The phone's choice survives launches (localStorage, not settings.json: the desktop
   // keeps its own tab state and the Rust Settings would only ignore a foreign field).
-  const saved = localStorage.getItem("sourceKind");
+  const saved = rememberSource ? localStorage.getItem("sourceKind") : null;
   const sourceKind = ref<SourceKind>(saved === "system" || saved === "file" ? saved : "mic");
-  watch(sourceKind, (v) => localStorage.setItem("sourceKind", v));
+  if (rememberSource) watch(sourceKind, (v) => localStorage.setItem("sourceKind", v));
   const devices = ref<{ id: string; name: string; loopback: boolean }[]>([]);
   const deviceId = ref("");
   const filePath = ref("");
@@ -172,8 +173,8 @@ export type Session = ReturnType<typeof useSession>;
 /**
  * One session for the phone shell, created at module level: the mobile components
  * (top-bar chip, source drawer, run page, permission pages) all need the same refs, and
- * prop-drilling a composable through five sheets buys nothing. The desktop App.vue keeps
- * its own instance and never imports this.
+ * prop-drilling a composable through five sheets buys nothing. The desktop creates its
+ * own instance with useSession(false), sharing the rules but keeping its tab transient.
  */
 export const session: Session = useSession();
 
