@@ -92,8 +92,8 @@ export interface Settings {
   /** Read the translation aloud. Only takes effect where `canSpeak` allows it. */
   speak: boolean;
   voice: string;
-  /** Phone only: where the voice plays. "" is the system's choice; see `output_kinds`. */
-  output: "" | OutputKind;
+  /** Phone only: "" follows the system; built-in kinds or a device|... identifier select an output. */
+  output: string;
   /** Chinese<->English both ways in one session, where the protocol can (`twoWay`). */
   twoWay: boolean;
   theme: Theme;
@@ -103,8 +103,6 @@ export interface Settings {
   sub: SubtitleStyle;
   stream: StreamStyle;
 }
-
-export type OutputKind = "speaker" | "earpiece" | "headphones";
 
 export const settings = reactive<Settings>({
   protocol: "qwen38",

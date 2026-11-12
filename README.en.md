@@ -87,7 +87,7 @@ reopen the app and grant it again — the ad-hoc signature differs per version, 
 2. Select languages and an audio source: microphone, system audio, or audio file. Press Start.
 3. Grant microphone permission when asked. System audio needs Android 10+ and fresh system consent for each session; protected media, calls, or apps that block capture may be silent.
 4. Allow “Display over other apps” for floating subtitles. Drag or resize the overlay; locking lets touches pass through. Fullscreen subtitles stay inside the app.
-5. Route speech to the speaker, earpiece, or headphones; search the voice list. History and TXT/SRT exports use the system document picker.
+5. Speech follows the system output by default. The compact output picker lists the speaker, earpiece and detected Bluetooth, wired, USB or other devices; changes apply to the next session. The speech switch and searchable voices stay in one sheet. History and TXT/SRT exports use the system document picker.
 
 Permission center and Session diagnostics show authorization and actual audio-upload status. Vendor-specific background restrictions still need device testing.
 The `.debug` test package and official package are separate apps; settings/history do not migrate automatically.

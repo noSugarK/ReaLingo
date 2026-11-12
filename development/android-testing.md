@@ -58,6 +58,10 @@ It also presses the Android Back key through sheets, Permissions, History, Setti
 Home; records/searches history; streams long subtitles while locking the native overlay;
 and uses notification actions to unlock, hide/show subtitles, stop and restart capture.
 The lock test requires touch-through to remain enabled while new translations arrive.
+The speech check opens the compact native output picker, requires an enumerated speaker,
+and searches voices without leaving the speech sheet. Bluetooth/USB device enumeration,
+disconnect refresh and legacy preferences have host tests; actual Bluetooth routing and
+connection changes during playback still require physical hardware verification.
 
 `.github/workflows/android-test.yml` runs on main pushes, PRs, and manual dispatch:
 

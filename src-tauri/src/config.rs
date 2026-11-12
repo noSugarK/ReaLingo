@@ -119,7 +119,7 @@ pub struct Settings {
     #[serde(default = "default_voice")]
     pub voice: String,
     /// Phone only: where the voice plays: "" (the system's choice), "speaker", "earpiece"
-    /// or "headphones". See `player::output_kinds`.
+    /// or a "device|..." output identifier. The old "headphones" choice remains supported.
     #[serde(default)]
     pub output: String,
     /// Translate both ways between the two languages. Only Volc (Chinese–English) does.

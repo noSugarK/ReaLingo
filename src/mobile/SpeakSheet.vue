@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { computed, ref } from "vue";
 import Sheet from "./Sheet.vue";
 import { session } from "../core/session";
-import { settings, type OutputKind } from "../core/store";
+import { settings } from "../core/store";
 import { isRunning } from "../core/stream";
 import { t } from "../core/i18n";
+import { selectedOutput, useOutputDevices } from "./outputs";
 
 defineEmits<{ close: [] }>();
 
@@ -25,16 +25,14 @@ const voices = computed(() => {
   return q ? all.filter((v) => `${v.label} ${v.value} ${v.note ?? ""} ${v.keywords}`.toLowerCase().includes(q)) : all;
 });
 
-// Outputs present now (headphones only while connected). Empty on hosts that cannot tell
-// a speaker from an earpiece, and then the row is not shown at all.
-const ORDER: OutputKind[] = ["speaker", "earpiece", "headphones"];
-const LABEL = { speaker: "outSpeaker", earpiece: "outEarpiece", headphones: "outHeadphones" } as const;
-const kinds = ref<OutputKind[]>([]);
-onMounted(async () => {
-  const have = await invoke<OutputKind[]>("output_kinds").catch((): OutputKind[] => []);
-  kinds.value = ORDER.filter((k) => have.includes(k));
+const { devices, options, loading, failed, refresh } = useOutputDevices();
+const selected = computed({
+  get: () => selectedOutput(settings.output, devices.value),
+  set: (value: string) => { settings.output = value; },
 });
-const missing = computed(() => settings.output !== "" && kinds.value.length > 0 && !kinds.value.includes(settings.output));
+const unlisted = computed(() => !!settings.output && !options.value.some(option => option.value === selected.value));
+const missing = computed(() => !loading.value && !failed.value && unlisted.value);
+const previousLabel = computed(() => settings.output === "speaker" ? t("outSpeaker") : settings.output === "earpiece" ? t("outEarpiece") : settings.output === "headphones" ? t("outHeadphones") : t("outputMissingShort"));
 
 function toggle() {
   if (running.value || blocked.value) return;
@@ -52,20 +50,19 @@ function toggle() {
       <span class="tog" :class="{ on }" />
     </button>
 
-    <section v-if="kinds.length" :class="{ off: !on }">
+    <section :class="{ off: !on }">
       <div class="m-group">
         <label class="m-row m-pick">
           <span class="m-tx"><b>{{ t('outputTitle') }}</b></span>
-          <select v-model="settings.output" :disabled="running">
-            <option value="">{{ t('outAuto') }}</option>
-            <option v-for="k in kinds" :key="k" :value="k">{{ t(LABEL[k]) }}</option>
+          <select v-model="selected" :disabled="running" :aria-label="t('outputTitle')">
+            <option v-for="option in options" :key="option.value" :value="option.value">{{ option.label }}{{ option.detail ? `（${option.detail}）` : '' }}</option>
             <!-- keep a disconnected pick visible instead of showing a blank value -->
-            <option v-if="missing" :value="settings.output">{{ t(LABEL[settings.output as OutputKind]) }}</option>
+            <option v-if="unlisted" :value="settings.output" disabled>{{ previousLabel }}</option>
           </select>
           <svg class="m-chev" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
         </label>
       </div>
-      <p class="hint" :class="{ warn: missing }">{{ missing ? t('outputMissing') : t('outputHint') }}</p>
+      <p class="hint" :class="{ warn: missing || failed }">{{ failed ? t('outputReadFailed') : loading ? t('outputLoading') : missing ? t('outputMissing') : t('outputHint') }} <button v-if="failed" @click="refresh">{{ t('retry') }}</button></p>
     </section>
 
     <section v-if="session.voiceList.value" :class="{ off: !on }">

@@ -259,6 +259,17 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     launchApp();
     await waitFor(['Start', '开始翻译']);
     assert.equal(adb('shell', 'pidof', packageId).trim(), homePid, 'root back and reopen retain the native runtime');
+    await tap(['Speak', '朗读']);
+    await waitFor(['Play through', '播放到']);
+    await tap(['Follow system', '跟随系统']);
+    await waitFor(['Speaker', '扬声器']);
+    screenshot('speech-output-options');
+    back(); // Android's native select popup closes before the speech sheet.
+    await fill(['Voice', '音色'], 'Tina');
+    await waitFor(['Tina']);
+    screenshot('speech-voice-search');
+    back();
+    await waitFor(['Start', '开始翻译']);
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
     await sleep(1000);
     launchApp();

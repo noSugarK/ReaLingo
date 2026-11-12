@@ -16,11 +16,16 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.WindowManager
 import android.view.ViewGroup
@@ -39,6 +44,7 @@ class MainActivity : TauriActivity() {
     @Volatile private var micRequesting = false
     private var systemRequestPending = false
     private val notificationCommand = AtomicReference("")
+    private var outputDevicesCallback: AudioDeviceCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +55,12 @@ class MainActivity : TauriActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         acceptNotificationCommand(intent)
+    }
+
+    override fun onDestroy() {
+        outputDevicesCallback?.let { (getSystemService(AUDIO_SERVICE) as AudioManager).unregisterAudioDeviceCallback(it) }
+        outputDevicesCallback = null
+        super.onDestroy()
     }
 
     private fun acceptNotificationCommand(intent: Intent?) {
@@ -337,6 +349,19 @@ class MainActivity : TauriActivity() {
     // LittleLobby registers its bridge in.
     override fun onWebViewCreate(webView: android.webkit.WebView) {
         super.onWebViewCreate(webView)
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        outputDevicesCallback?.let { audioManager.unregisterAudioDeviceCallback(it) }
+        val callback = object : AudioDeviceCallback() {
+            private fun changed(devices: Array<out AudioDeviceInfo>) {
+                if (devices.any { it.isSink }) webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('realingo:outputs'))", null
+                )
+            }
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) { changed(addedDevices) }
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) { changed(removedDevices) }
+        }
+        outputDevicesCallback = callback
+        audioManager.registerAudioDeviceCallback(callback, Handler(Looper.getMainLooper()))
         // Vue owns the local pages/sheets. Only an unhandled back reaches Android.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             private var pending = false

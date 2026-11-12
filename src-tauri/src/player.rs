@@ -1,5 +1,4 @@
-//! Plays the spoken translation on the default output device, or on a phone on the kind of
-//! output the user picked (speaker, earpiece, headphones).
+//! Plays spoken translations through the system default or the output the user selected.
 //!
 //! Playback stays in this process on purpose: the "exclude myself" system-audio capture
 //! (see [`crate::audio`]) works per process, and audio played by the webview would come out
@@ -89,44 +88,58 @@ impl Drop for Player {
     }
 }
 
-/// Which user-facing output a device is. Stored as a kind, not a device id: ids change
-/// whenever headphones are plugged in or a Bluetooth link comes back.
-fn kind_of(device: DeviceType, interface: InterfaceType) -> Option<&'static str> {
-    match (device, interface) {
-        (DeviceType::Earpiece, _) => Some("earpiece"),
-        (DeviceType::Speaker, InterfaceType::BuiltIn) => Some("speaker"),
-        (DeviceType::Headphones | DeviceType::Headset, _) => Some("headphones"),
-        // A2DP earbuds report no device type, only how they are connected.
-        (_, InterfaceType::Bluetooth | InterfaceType::Usb) => Some("headphones"),
-        _ => None,
+#[derive(Debug, serde::Serialize)]
+pub struct OutputDevice {
+    value: String,
+    name: String,
+    kind: &'static str,
+}
+
+fn describe_output(id: &str, name: &str, device: DeviceType, interface: InterfaceType) -> OutputDevice {
+    let kind = match (device, interface) {
+        (DeviceType::Speaker, InterfaceType::BuiltIn) => "speaker",
+        (DeviceType::Earpiece, InterfaceType::BuiltIn) => "earpiece",
+        (_, InterfaceType::Bluetooth) => "bluetooth",
+        (_, InterfaceType::Usb) => "usb",
+        (DeviceType::Headphones | DeviceType::Headset, _) => "headphones",
+        _ => "other",
+    };
+    OutputDevice {
+        // Include the name so an Android id reused for a different device does not silently match.
+        value: if matches!(kind, "speaker" | "earpiece") { kind.into() } else { format!("device|{id}|{}", name.trim()) },
+        name: name.trim().into(),
+        kind,
     }
 }
 
-fn output_devices() -> Vec<(&'static str, cpal::Device)> {
-    let Ok(devices) = cpal::default_host().output_devices() else { return Vec::new() };
-    devices
-        .filter_map(|d| {
-            let desc = d.description().ok()?;
-            Some((kind_of(desc.device_type(), desc.interface_type())?, d))
-        })
-        .collect()
+fn playback_outputs() -> Result<Vec<(OutputDevice, cpal::Device)>, cpal::DevicesError> {
+    Ok(cpal::default_host().output_devices()?.filter_map(|device| {
+        let desc = device.description().ok()?;
+        let id = device.id().ok()?.to_string();
+        Some((describe_output(&id, desc.name(), desc.device_type(), desc.interface_type()), device))
+    }).collect())
 }
 
-/// The output kinds present right now, for the picker. Empty where the host does not
-/// describe its devices that way (the desktops), so the picker stays hidden there.
+fn matches_output(device: &OutputDevice, choice: &str) -> bool {
+    device.value == choice || (choice == "headphones" && matches!(device.kind, "headphones" | "bluetooth" | "usb"))
+}
+
+/// Connected outputs, including individual Bluetooth/USB devices instead of one headphones bucket.
 #[tauri::command]
-pub fn output_kinds() -> Vec<&'static str> {
-    let mut kinds: Vec<_> = output_devices().into_iter().map(|(k, _)| k).collect();
-    kinds.sort_unstable();
-    kinds.dedup();
-    kinds
+pub fn output_devices() -> Result<Vec<OutputDevice>, String> {
+    let mut devices: Vec<_> = playback_outputs().map_err(|e| e.to_string())?.into_iter().map(|(desc, _)| desc).collect();
+    devices.sort_by_key(|d| match d.kind { "speaker" => 0, "earpiece" => 1, _ => 2 });
+    devices.dedup_by(|a, b| a.value == b.value);
+    Ok(devices)
 }
 
 /// The stream plus the device rate the queue has to be filled at.
 fn build(queue: Arc<Mutex<VecDeque<f32>>>, output: &str) -> Result<(cpal::Stream, u32)> {
     // A kind that is no longer connected (headphones unplugged) falls back to the system's
     // own routing rather than failing the session.
-    let picked = output_devices().into_iter().find(|(k, _)| *k == output).map(|(_, d)| d);
+    let picked = if output.is_empty() { None } else {
+        playback_outputs().unwrap_or_default().into_iter().find(|(d, _)| matches_output(d, output)).map(|(_, d)| d)
+    };
     let device = match picked {
         Some(d) => d,
         None => cpal::default_host().default_output_device().ok_or_else(|| anyhow!("no audio output device"))?,
@@ -159,15 +172,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn devices_map_to_the_three_outputs_a_user_can_pick() {
-        assert_eq!(kind_of(DeviceType::Earpiece, InterfaceType::BuiltIn), Some("earpiece"));
-        assert_eq!(kind_of(DeviceType::Speaker, InterfaceType::BuiltIn), Some("speaker"));
-        assert_eq!(kind_of(DeviceType::Headphones, InterfaceType::Unknown), Some("headphones"));
-        assert_eq!(kind_of(DeviceType::Headset, InterfaceType::Usb), Some("headphones"));
-        assert_eq!(kind_of(DeviceType::Unknown, InterfaceType::Bluetooth), Some("headphones"));
-        // A Bluetooth speaker is not the phone's own speaker; HDMI and mics are not outputs to offer.
-        assert_eq!(kind_of(DeviceType::Speaker, InterfaceType::Bluetooth), Some("headphones"));
-        assert_eq!(kind_of(DeviceType::Unknown, InterfaceType::Hdmi), None);
-        assert_eq!(kind_of(DeviceType::Microphone, InterfaceType::BuiltIn), None);
+    fn bluetooth_and_usb_outputs_keep_their_names_and_distinct_device_ids() {
+        let first = describe_output("AAudio:12", " Buds A ", DeviceType::Unknown, InterfaceType::Bluetooth);
+        let second = describe_output("AAudio:13", "Buds B", DeviceType::Headset, InterfaceType::Bluetooth);
+        let usb = describe_output("AAudio:14", "USB DAC", DeviceType::Unknown, InterfaceType::Usb);
+        assert_eq!(first.name, "Buds A");
+        assert_eq!(first.kind, "bluetooth");
+        assert_ne!(first.value, second.value);
+        assert_eq!(second.value, "device|AAudio:13|Buds B");
+        assert!(matches_output(&second, &second.value));
+        assert!(!matches_output(&first, &second.value));
+        let replaced = describe_output("AAudio:13", "Different headset", DeviceType::Headset, InterfaceType::Bluetooth);
+        assert!(!matches_output(&replaced, &second.value));
+        assert!(matches_output(&first, "headphones"));
+        assert!(matches_output(&usb, "headphones"));
+        assert!(!matches_output(&first, ""));
+        assert!(!matches_output(&first, "device|AAudio:99"));
+    }
+
+    #[test]
+    fn built_in_choices_remain_stable_and_other_outputs_are_not_hidden() {
+        let speaker = describe_output("AAudio:1", "Phone", DeviceType::Speaker, InterfaceType::BuiltIn);
+        let earpiece = describe_output("AAudio:2", "Phone", DeviceType::Earpiece, InterfaceType::BuiltIn);
+        let hdmi = describe_output("AAudio:3", "Monitor", DeviceType::Unknown, InterfaceType::Hdmi);
+        assert_eq!(speaker.value, "speaker");
+        assert_eq!(earpiece.value, "earpiece");
+        assert_eq!(hdmi.kind, "other");
+        assert!(!matches_output(&hdmi, "headphones"));
     }
 }

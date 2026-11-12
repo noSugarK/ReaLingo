@@ -107,3 +107,16 @@ test('where a credential store exists persisted settings never contain API keys'
   assert.equal(persisted.at(-1).apiKey, '');
   assert.equal(store.activeKey(), 'must-not-persist');
 });
+
+test('system output remains the default and old or specific device preferences are preserved', async () => {
+  secure = false;
+  for (const output of [undefined, 'headphones', 'speaker', 'device|AAudio:12|Buds A']) {
+    saved = output === undefined ? {} : { output };
+    const store = await fresh();
+    await store.initSettings();
+    assert.equal(store.settings.output, output ?? '');
+    store.settings.output = '';
+    await nextTick();
+    if (output) assert.equal(persisted.at(-1).output, '');
+  }
+});
