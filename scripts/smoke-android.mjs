@@ -103,6 +103,9 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
   const adb = (...args) => execFileSync('adb', args.map(String), { encoding: 'utf8', timeout: 30000 });
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const component = `${packageId}/com.nosugark.realingo.MainActivity`;
+  // Use the same root intent as the launcher, including Android's root-Back semantics.
+  const launchApp = () => assert.doesNotMatch(adb('shell', 'am', 'start', '-W',
+    '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', '-n', component), /Error:|Exception/);
   const peer = await startSessionPeer(8766);
   let lastXml = '';
   let launcherDismissed = false;
@@ -222,7 +225,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     try { adb('logcat', '-b', 'crash', '-c'); } catch {}
     for (let launch = 0; launch < 2; launch++) {
       adb('shell', 'am', 'force-stop', packageId);
-      assert.doesNotMatch(adb('shell', 'am', 'start', '-W', '-n', component), /Error:|Exception/);
+      launchApp();
       await waitFor(['Start', '开始翻译']);
       await sleep(3000);
       await waitFor(['Settings', '设置']);
@@ -248,21 +251,23 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await waitFor(['Settings', '设置']);
     back();
     await waitFor(['Start', '开始翻译']);
+    const homePid = adb('shell', 'pidof', packageId).trim();
     back();
     await sleep(700);
     const foreground = adb('shell', 'dumpsys', 'window', 'windows').split('\n').find(line => line.includes('mCurrentFocus=')) ?? '';
     assert.ok(!foreground.includes(packageId), 'home back hands control to Android');
-    adb('shell', 'am', 'start', '-W', '-n', component);
+    launchApp();
     await waitFor(['Start', '开始翻译']);
+    assert.equal(adb('shell', 'pidof', packageId).trim(), homePid, 'root back and reopen retain the native runtime');
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
     await sleep(1000);
-    adb('shell', 'am', 'start', '-W', '-n', component);
+    launchApp();
     await waitFor(['Start', '开始翻译']);
     // Runtime revocation forces a fresh process. Starting after a grant/revoke must
     // remain possible even though the device list and permission state changed.
     adb('shell', 'pm', 'grant', packageId, 'android.permission.RECORD_AUDIO');
     adb('shell', 'am', 'force-stop', packageId);
-    adb('shell', 'am', 'start', '-W', '-n', component);
+    launchApp();
     await waitFor(['Start', '开始翻译']);
     await tap(['Audio source', '音频来源']);
     await tap(['Test microphone', '测试麦克风']);
@@ -284,7 +289,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await sleep(1000);
     assert.match(adb('shell', 'dumpsys', 'activity', 'activities'), /Settings|settings/, 'overlay authorization opens Android settings');
     adb('shell', 'appops', 'set', packageId, 'SYSTEM_ALERT_WINDOW', 'allow');
-    adb('shell', 'am', 'start', '-W', '-n', component);
+    launchApp();
     // Returning from authorization opens the requested overlay automatically.
     // UIAutomator dumps only the focused window; this intentionally non-focusable
     // native overlay is verified through WindowManager and real input instead.
@@ -312,7 +317,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     adb('shell', 'input', 'tap', Math.round(resized[2] - 32 * density), Math.round(resized[1] + 24 * density));
     await sleep(500);
     assert.equal(overlayFrame(adb('shell', 'dumpsys', 'window', 'windows')), null, 'the native close button removes the surface');
-    adb('shell', 'am', 'start', '-W', '-n', component);
+    launchApp();
     await tap(['Close', '关闭']);
     await tap(['Settings', '设置']);
     await fill(['Hotwords', '热词'], 'AI=Artificial%sIntelligence');
@@ -459,10 +464,10 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await tap(['Close', '关闭']);
     await tap(['Back', '返回']);
     adb('shell', 'pm', 'revoke', packageId, 'android.permission.RECORD_AUDIO');
-    adb('shell', 'am', 'start', '-W', '-n', component);
+    launchApp();
     await waitFor(['Start', '开始翻译']);
     const crashes = adb('logcat', '-v', 'threadtime', '-b', 'crash', '-d');
-    assert.doesNotMatch(appCrashLines(crashes, appPids), /FATAL EXCEPTION|Fatal signal|Abort message/);
+    assert.doesNotMatch(appCrashLines(crashes, appPids), /FATAL EXCEPTION|Fatal signal|Abort message|FORTIFY:/);
     console.log('Android smoke passed: launches, navigation, microphone capture, native floating subtitles on Home, system capture consent/cancellation, permission revocation');
   } finally {
     writeFileSync(join(output, 'session-peer.json'), JSON.stringify(await peer.snapshot(), null, 2));

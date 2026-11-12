@@ -54,5 +54,24 @@ test('back listener is removed on unmount; native fallback cannot call itself', 
   assert.match(vue, /window.addEventListener\("realingo:back", onAndroidBack\)/);
   assert.match(vue, /window.removeEventListener\("realingo:back", onAndroidBack\)/);
   assert.match(kotlin, /onBackPressedDispatcher.addCallback\(this, object : OnBackPressedCallback\(true\)/);
-  assert.match(kotlin, /if \(result != "false"\) \{\s+isEnabled = false\s+try \{\s+onBackPressedDispatcher.onBackPressed\(\)\s+\} finally \{\s+isEnabled = true/);
+  assert.match(kotlin, /isEnabled = false\s+try \{\s+onBackPressedDispatcher.onBackPressed\(\)\s+\} finally \{\s+isEnabled = true/);
+});
+
+test('unhandled home back backgrounds the root task without destroying its native runtime', () => {
+  // The result branch uses syntax common to Kotlin and JS, so execute the real branch.
+  const fallback = kotlin.match(/if \(result != "false"\) \{[\s\S]*?^ {20}\}/m)[0];
+  for (const isTaskRoot of [true, false]) {
+    const calls = [];
+    const state = { result: 'true', isTaskRoot, isEnabled: true,
+      moveTaskToBack: value => { calls.push(['background', value]); return true; },
+      onBackPressedDispatcher: { onBackPressed: () => calls.push(['default']) },
+    };
+    runInNewContext(fallback, state);
+    assert.deepEqual(calls, isTaskRoot ? [['background', true]] : [['default']]);
+    assert.equal(state.isEnabled, true);
+    calls.length = 0;
+    state.result = 'false';
+    runInNewContext(fallback, state);
+    assert.deepEqual(calls, [], 'a handled sheet/page back must never background the app');
+  }
 });

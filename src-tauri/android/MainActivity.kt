@@ -349,11 +349,16 @@ class MainActivity : TauriActivity() {
                 ) { result ->
                     pending = false
                     if (result != "false") {
-                        isEnabled = false
-                        try {
-                            onBackPressedDispatcher.onBackPressed()
-                        } finally {
-                            isEnabled = true
+                        if (isTaskRoot) {
+                            // Match launcher-root Back behavior and retain Tauri's native runtime.
+                            moveTaskToBack(true)
+                        } else {
+                            isEnabled = false
+                            try {
+                                onBackPressedDispatcher.onBackPressed()
+                            } finally {
+                                isEnabled = true
+                            }
                         }
                     }
                 }
