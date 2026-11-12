@@ -5,7 +5,8 @@ import type { Line } from "../core/stream";
 import { current } from "../core/session";
 import { t } from "../core/i18n";
 
-const props = defineProps<{ lines: Line[]; empty?: string; big?: boolean }>();
+/** `live=false` hands the in-list live sentence to LiveCard (normal mode); face/big keep it. */
+const props = withDefaults(defineProps<{ lines: Line[]; empty?: string; big?: boolean; live?: boolean }>(), { live: true });
 
 /** Pin-to-bottom with an escape hatch (the desktop Top3 item, in phone form): stick to the
  *  newest line while the user has not scrolled away; a finger scroll up breaks the pin and
@@ -41,7 +42,7 @@ watch([() => current.target, () => current.targetStash, () => props.lines.length
       <p class="tgt">{{ l.target }}</p>
     </article>
 
-    <article v-if="current.source || current.target || current.sourceStash || current.targetStash" class="line-item live">
+    <article v-if="live && (current.source || current.target || current.sourceStash || current.targetStash)" class="line-item live">
       <p v-if="current.source || current.sourceStash" class="src">
         {{ current.source }}<span class="stash">{{ current.sourceStash }}</span>
       </p>
@@ -89,9 +90,9 @@ watch([() => current.target, () => current.targetStash, () => props.lines.length
 }
 /* Bottom-anchor a short list without justify-content:flex-end, which pushes the overflow of
    a long one past the scroll start where the oldest lines can't be scrolled back to. */
-.stream > article:first-of-type { margin-top: auto; }
+.stream.big > article:first-of-type { margin-top: auto; }
 .empty {
-  margin: auto;
+  margin: 0 auto auto;
   text-align: center;
   font-size: 14.5px;
   line-height: 1.68;

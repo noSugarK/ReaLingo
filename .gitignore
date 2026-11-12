@@ -7,3 +7,4 @@ src-tauri/gen/
 promo/
 .claude/
 .scratch/
+__pycache__/

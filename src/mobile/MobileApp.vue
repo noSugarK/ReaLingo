@@ -16,6 +16,7 @@ import ModelSheet from "./ModelSheet.vue";
 import AboutSheet from "./AboutSheet.vue";
 import UiLangSheet from "./UiLangSheet.vue";
 import StreamList from "./StreamList.vue";
+import LiveCard from "./LiveCard.vue";
 import Toaster from "./Toaster.vue";
 import Icon from "./Icon.vue";
 import mark from "../assets/mark.png";
@@ -25,7 +26,7 @@ import { settings, STREAM_SIZE, activeKey, setActiveKey, keyringOk, initSettings
 import { PRESETS, PROTOCOLS, langName, modelName } from "../core/languages";
 import { locale, t, tf } from "../core/i18n";
 import { checkUpdateAtStartup } from "../core/update";
-import { isRunning, lines, current, status, errorMsg, warnMsg, fileProgress, saveAs, pollHealth } from "../core/stream";
+import { isRunning, lines, current, status, errorMsg, warnMsg, fileProgress, saveAs, pollHealth, detectedLang } from "../core/stream";
 import { perms, droid, refreshPerms, askMic, openAppSettings, openBatterySettings, pendingList, setKeepScreenOn, pickAudio } from "./perms";
 import { toast } from "./toasts";
 import { VENDOR_LOGO } from "../shared/vendorLogos";
@@ -41,7 +42,7 @@ function openLang(side: "source" | "target") {
 }
 
 /** Modes layered over the home layout: the room reads these, the hand does not. */
-const mode = ref<"normal" | "face" | "big">("normal");
+const mode = ref<"normal" | "big">("normal");
 
 /* ---------- boot ---------- */
 let nativeTimer: number | undefined;
@@ -243,13 +244,6 @@ function syncOverlay() {
     notification: t("captureNotification"), captureEnded: t("captureEnded") });
 }
 watch([() => settings.sub, current, lines, locale], syncOverlay, { deep: true });
-function toggleFace() {
-  mode.value = mode.value === "face" ? "normal" : "face";
-  // Face-to-face only makes sense where the protocol speaks both ways; entering it turns
-  // two-way on if the API can (the picker rule keeps zh/en as the pair).
-  if (mode.value === "face" && PROTOCOLS[settings.protocol].twoWay) settings.twoWay = true;
-}
-
 /** Ask from the permission centre: on a permanent denial the same guide the start button
  *  uses, otherwise just the system dialog. */
 async function askFromCenter() {
@@ -298,6 +292,7 @@ async function askFromCenter() {
         <button class="side" @click="openLang('source')">
           <span class="cap">{{ t("from") }}</span>
           <span class="val dim">{{ settings.sourceLang === "auto" || session.sourceMode.value === "detected" ? langName("auto", locale) : langName(settings.sourceLang, locale) }}</span>
+          <span v-if="settings.sourceLang === 'auto' && detectedLang" class="det">{{ tf("detectedPrefix", { lang: langName(detectedLang, locale) }) }}</span>
         </button>
         <button class="swap" :aria-label="t('swap')" :disabled="session.sourceMode.value === 'detected'" @click="swap">
           <Icon name="swap" :size="19" />
@@ -308,37 +303,34 @@ async function askFromCenter() {
         </button>
       </div>
 
-      <!-- stream -->
-      <div class="stream-card glass" :class="{ face: mode === 'face', big: mode === 'big' }">
-        <div class="stream-head">
-          <span class="dotstat" :class="{ ok: running }" />
-          <span class="st" :class="{ ok: status === 'connected' }">{{ t(session.statusKey.value) }}</span>
-          <span v-if="fileProgress" class="meta">
-            {{ fileProgress.total ? `${Math.round((fileProgress.sent / fileProgress.total) * 100)}%` : "…" }}
-          </span>
-          <span class="spacer" />
-          <template v-if="lines.length">
-            <button class="exp" @click="exportRows('txt')">TXT</button>
-            <button class="exp" @click="exportRows('srt')">SRT</button>
-            <button class="exp" :aria-label="t('clear')" @click="lines = []">
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6"/></svg>
-            </button>
-          </template>
-          <button class="exp" :aria-label="t('fullscreenSub')" @click="mode = 'big'">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>
+      <!-- stream: cardless — history lines run full-width, the status row stands alone above
+           and the live sentence carries its own emphasis card (LiveCard) below -->
+      <div v-if="mode !== 'big'" class="stream-head">
+        <span class="dotstat" :class="{ ok: running }" />
+        <span class="st" :class="{ ok: status === 'connected' }">{{ t(session.statusKey.value) }}</span>
+        <span v-if="fileProgress" class="meta">
+          {{ fileProgress.total ? `${Math.round((fileProgress.sent / fileProgress.total) * 100)}%` : "…" }}
+        </span>
+        <span v-if="running" class="lvl"><i :style="{ transform: 'scaleX(' + Math.min(1, session.level.value) + ')' }" /></span>
+        <span class="spacer" />
+        <template v-if="lines.length">
+          <button class="exp" @click="exportRows('txt')">TXT</button>
+          <button class="exp" @click="exportRows('srt')">SRT</button>
+          <button class="exp" :aria-label="t('clear')" @click="lines = []">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6"/></svg>
           </button>
-        </div>
+        </template>
+        <button class="exp" :aria-label="t('fullscreenSub')" @click="mode = 'big'">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>
+        </button>
+      </div>
+      <div class="stream-area" :class="{ big: mode === 'big' }">
         <div class="stream-half top">
-          <StreamList :lines="lines" :empty="emptyText" :big="mode === 'big'" />
-        </div>
-        <!-- face-to-face: the lower half turns 180° toward the person opposite -->
-        <div v-if="mode === 'face'" class="stream-half bottom">
-          <div class="flip">
-            <div class="mini-head">{{ langName(settings.targetLang, locale) }}</div>
-            <StreamList :lines="lines" big />
-          </div>
+          <StreamList :lines="lines" :empty="emptyText" :big="mode === 'big'" :live="mode !== 'normal'" />
         </div>
       </div>
+      <!-- Normal mode keeps the live sentence separate from the scrollable history. -->
+      <LiveCard v-if="mode === 'normal'" />
 
       <p v-if="errorMsg" class="err-line" role="alert" :aria-label="errorMsg">{{ errorMsg }}</p>
       <p v-else-if="warnMsg" class="warn-line" role="status" :aria-label="warnMsg">{{ warnMsg }}</p>
@@ -349,10 +341,6 @@ async function askFromCenter() {
         <button class="tool" :class="{ on: native.visible }" :aria-label="t('subTitle')" @click="toggleSub">
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="3" width="13" height="10" rx="2.4"/><path d="M4.5 9.4h4M4.5 6.8h7"/></svg>
           <span>{{ t("dockSub") }}</span>
-        </button>
-        <button v-if="PROTOCOLS[settings.protocol].twoWay" class="tool" :class="{ on: mode === 'face' }" :title="t('faceModeHint')" @click="toggleFace">
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v13M8 5 5.5 2.5M8 5l2.5-2.5M8 11 5.5 13.5M8 11l2.5 2.5"/></svg>
-          <span>{{ t("faceMode") }}</span>
         </button>
         <button class="tool" :class="{ on: settings.speak && !session.speakBlocked.value }" @click="drawer = 'speak'">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.5 7 8H4v4h3l4 3.5z"/><path d="M14 7.6a3.4 3.4 0 0 1 0 4.8"/></svg>
@@ -651,6 +639,7 @@ async function askFromCenter() {
 .langcard .side { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 14px; text-align: left; }
 .langcard .side.right { text-align: right; }
 .cap { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.det { display: block; margin-top: 2px; font-size: 10.5px; font-weight: 700; color: var(--accent); }
 .val { display: block; margin-top: 3px; font-size: 15px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .val.dim { color: var(--ink-3); }
 .val.strong { font-size: 17px; font-weight: 730; letter-spacing: -0.02em; color: var(--ink); }
@@ -658,9 +647,12 @@ async function askFromCenter() {
 .swap:disabled { opacity: 0.35; }
 
 /* ---------- stream ---------- */
-.stream-card { flex: 1; min-height: 0; border-radius: 26px; display: flex; flex-direction: column; overflow: hidden; }
-.stream-card.face { border-radius: 0; }
-.stream-head { flex: none; padding: 14px 18px 10px; display: flex; align-items: center; gap: 9px; }
+/* History lines run full-width; the live sentence carries its own emphasis card below. */
+.stream-area { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.stream-head { flex: none; padding: 2px 2px 6px; display: flex; align-items: center; gap: 9px; }
+/* Input meter beside the status: a thin track that fills at the level-poll cadence. */
+.lvl { flex: 0 1 120px; height: 4px; border-radius: 999px; background: var(--shade); overflow: hidden; }
+.lvl i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transform-origin: left; transform: scaleX(0); transition: transform 0.12s linear; }
 .dotstat { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
 .dotstat.ok { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
 .st { font-size: 12.5px; font-weight: 700; }
@@ -669,23 +661,23 @@ async function askFromCenter() {
 .exp { min-width: 32px; height: 30px; padding: 0 9px; display: grid; place-items: center; border-radius: 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; color: var(--ink-2); background: var(--shade); }
 .stream-head .exp + .exp { margin-left: -3px; }
 .stream-half { flex: 1; min-height: 0; display: flex; }
-.stream-half.bottom { border-top: 1px solid var(--hairline); }
-.flip { flex: 1; min-height: 0; display: flex; flex-direction: column; transform: rotate(180deg); }
-.mini-head { padding: 8px 18px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
-/* Full screen: an opaque layer over everything (the glass would let the home page show
-   through), with the safe areas honoured and the head replaced by one exit control. */
-.stream-card.big {
-  position: fixed; inset: 0; z-index: 20; border-radius: 0; background: var(--canvas); box-shadow: none;
+/* Full screen: an opaque layer over everything (the page would show through otherwise),
+   with the safe areas honoured and the head replaced by one exit control. */
+.stream-area.big {
+  position: fixed; inset: 0; z-index: 20; background: var(--canvas);
   padding: calc(env(safe-area-inset-top) + 64px) 12px calc(env(safe-area-inset-bottom) + 16px);
 }
-.stream-card.big .stream-head { display: none; }
 
 .err-line, .warn-line { flex: none; margin: 0; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.45; }
 .err-line { color: var(--danger); user-select: text; }
 .warn-line { color: #b7791f; }
 
 /* ---------- dock ---------- */
-.dock { flex: none; display: flex; gap: 8px; align-items: center; }
+.dock { flex: none; display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }
+.dock .tool:first-child { order: 1; }
+.dock .go { order: 2; flex: none; width: 68px; height: 68px; padding: 0; flex-direction: column; gap: 2px; font-size: 10px; }
+.dock .go svg { width: 19px; height: 19px; }
+.dock .tool:nth-child(2) { order: 3; }
 .tool {
   width: 58px; height: 56px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   border-radius: 17px; background: var(--shade); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--hairline);
