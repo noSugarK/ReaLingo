@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { t } from "../../core/i18n";
+import { filterOptions, type SearchOption } from "../../core/options";
 
-export type PickerOption = {
-  value: string;
-  label: string;
-  /** Trailing muted text — a language code, a device kind, … */
-  note?: string;
-  /** Extra text the search box matches on, e.g. the same name in the other UI language. */
-  keywords?: string;
+export type PickerOption = SearchOption & {
   /** Leading image (a vendor mark); `iconMono` inverts it in the dark theme. */
   icon?: string;
   iconMono?: boolean;
@@ -38,13 +33,7 @@ const searchable = computed(() => props.options.length > SEARCH_FROM);
 const picked = computed(() => props.options.find((o) => o.value === props.modelValue));
 const label = computed(() => picked.value?.label ?? props.placeholder ?? "");
 
-const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return props.options;
-  return props.options.filter((o) =>
-    `${o.value} ${o.label} ${o.note ?? ""} ${o.keywords ?? ""}`.toLowerCase().includes(q)
-  );
-});
+const filtered = computed(() => filterOptions(props.options, query.value));
 
 /**
  * The popup is teleported to <body> and positioned by hand. It has to be: every card is a

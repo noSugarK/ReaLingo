@@ -7,6 +7,7 @@ import { settings } from "../core/store";
 import { isRunning } from "../core/stream";
 import { t } from "../core/i18n";
 import { selectedOutput, useOutputDevices } from "./outputs";
+import { filterOptions } from "../core/options";
 
 defineEmits<{ close: [] }>();
 
@@ -20,11 +21,7 @@ const on = computed(() => settings.speak && !blocked.value);
 // Qwen alone has 47 voices: searched by name and by trait ("gentle", "male", accent),
 // the same keywords the desktop picker matches.
 const query = ref("");
-const voices = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  const all = session.voiceOptions.value;
-  return q ? all.filter((v) => `${v.label} ${v.value} ${v.note ?? ""} ${v.keywords}`.toLowerCase().includes(q)) : all;
-});
+const voices = computed(() => filterOptions(session.voiceOptions.value, query.value));
 const voiceChoices = computed(() => voices.value.map(voice => ({ value: voice.value, label: voice.label, description: voice.note })));
 
 const { devices, options, loading, failed, refresh } = useOutputDevices();

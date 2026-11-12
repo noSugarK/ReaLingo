@@ -5,6 +5,7 @@ import ChoiceList from "./ChoiceList.vue";
 import { session } from "../core/session";
 import { settings } from "../core/store";
 import { t } from "../core/i18n";
+import { filterOptions } from "../core/options";
 
 const props = withDefaults(defineProps<{ side?: "source" | "target" }>(), { side: "target" });
 defineEmits<{ close: [] }>();
@@ -19,11 +20,7 @@ const detectedOnly = computed(() => session.sourceMode.value === "detected");
 // pickers share. Searched rather than dropdowned because 60 entries do not fit a thumb.
 const options = computed(() => (tab.value === "target" ? session.targetLangOptions.value : session.sourceLangOptions.value));
 const selected = computed(() => (tab.value === "target" ? settings.targetLang : settings.sourceLang));
-const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return options.value;
-  return options.value.filter((o) => `${o.label} ${o.value} ${"keywords" in o ? o.keywords ?? "" : ""}`.toLowerCase().includes(q));
-});
+const filtered = computed(() => filterOptions(options.value, query.value));
 const choices = computed(() => filtered.value.map(option => ({ value: option.value, label: option.label,
   suffix: option.value === "auto" ? undefined : option.value })));
 

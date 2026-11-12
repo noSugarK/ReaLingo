@@ -4,6 +4,7 @@ import { computed, ref, reactive, compile, createSSRApp } from 'vue';
 import { renderToString } from '@vue/server-renderer';
 import { readFileSync } from 'node:fs';
 import { vueScript } from './helpers/vue-script.mjs';
+import { filterOptions } from '../src/core/options.ts';
 
 test('the shared list renders labelled native radios, optional notes and one selection', async () => {
   const template = readFileSync(new URL('../src/mobile/ChoiceList.vue', import.meta.url), 'utf8').match(/<template>([\s\S]*?)<\/template>/)[1];
@@ -25,7 +26,7 @@ test('speech keeps voice search and its switch together with a compact output pr
     { value: 'one', label: 'One', note: '温柔', keywords: 'gentle' }, { value: 'two', label: 'Two', keywords: 'male' },
   ]) };
   const speech = vueScript(new URL('../src/mobile/SpeakSheet.vue', import.meta.url), {
-    computed, ref, settings, session, isRunning: () => running.value, t: key => key,
+    computed, ref, settings, session, filterOptions, isRunning: () => running.value, t: key => key,
     defineEmits: () => {}, selectedOutput: value => value,
     useOutputDevices: () => ({ devices, options: computed(() => [{ value: '', label: 'System' }, ...devices.value]), loading: ref(false), failed: ref(false), refresh: () => {} }),
   }, ['toggle', 'query', 'voiceChoices', 'selected', 'missing']);
