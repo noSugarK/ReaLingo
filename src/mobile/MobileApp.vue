@@ -22,7 +22,7 @@ import Icon from "./Icon.vue";
 import mark from "../assets/mark.png";
 import { session } from "../core/session";
 import { loadCaps } from "../core/platform";
-import { settings, STREAM_SIZE, activeKey, setActiveKey, keyringOk, initSettings } from "../core/store";
+import { settings, STREAM_SIZE, activeKey, setActiveKey, keyringOk, initSettings, resolvedTheme } from "../core/store";
 import { PRESETS, PROTOCOLS, langName, modelName } from "../core/languages";
 import { locale, t, tf } from "../core/i18n";
 import { checkUpdateAtStartup } from "../core/update";
@@ -53,6 +53,7 @@ let levelTimer: number | undefined;
 let unlistenResume: (() => void) | undefined;
 const bootError = ref("");
 const reload = () => window.location.reload();
+watch(resolvedTheme, (theme) => droid?.setSystemBars(theme), { immediate: true });
 
 /** Coming back to the app re-checks permissions (the design's "改完不用重启") and fires a
  *  start the guide dialog promised. `tauri://resume` is mobile's lifecycle event;

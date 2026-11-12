@@ -8,4 +8,5 @@ import "./styles/glass.css";
 // synchronously, before the first paint, so neither build ever renders the other's chrome
 // for a frame. (`platform.ts`'s `loadCaps` confirms from the backend once mounted.)
 const mobile = /android/i.test(navigator.userAgent);
+if (mobile) document.documentElement.dataset.mobile = "true";
 createApp(mobile ? MobileApp : App).mount("#app");

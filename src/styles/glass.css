@@ -57,6 +57,9 @@ html, body, #app { height: 100%; margin: 0; }
   overflow: hidden;
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
+/* Android is a full-screen phone surface, not a rounded desktop window. */
+:root[data-mobile] #app { border-radius: 0; box-shadow: none; }
+:root[data-mobile] .ambient { border-radius: 0; }
 /* Maximized: no rounded corners, or the desktop shows through at the four corners. */
 :root[data-maximized] #app { border-radius: 0; }
 .subtitle-body #app { border-radius: 0; box-shadow: none; overflow: visible; }

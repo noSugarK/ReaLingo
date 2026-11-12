@@ -14,6 +14,8 @@ package com.nosugark.realingo
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
@@ -63,6 +65,25 @@ class MainActivity : TauriActivity() {
     // WebView resolves these names through reflection, outside R8's call graph.
     @Keep
     inner class Bridge {
+        @JavascriptInterface
+        fun setSystemBars(theme: String) {
+            val dark = theme == "dark"
+            val background = Color.parseColor(if (dark) "#0b0d13" else "#eef1f7")
+            runOnUiThread {
+                window.setBackgroundDrawable(ColorDrawable(background))
+                window.statusBarColor = background
+                window.navigationBarColor = background
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    window.isStatusBarContrastEnforced = false
+                    window.isNavigationBarContrastEnforced = false
+                }
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
+        }
+
         @JavascriptInterface
         fun takeNotificationCommand(): String = notificationCommand.getAndSet("")
         /// {"granted":bool,"rationale":bool} — the same shape the Rust command answered,
@@ -314,6 +335,10 @@ class MainActivity : TauriActivity() {
         webView.post { ViewCompat.requestApplyInsets(webView) }
         val lightBars = resources.configuration.uiMode and
             android.content.res.Configuration.UI_MODE_NIGHT_MASK != android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val barColor = Color.parseColor(if (lightBars) "#eef1f7" else "#0b0d13")
+        window.setBackgroundDrawable(ColorDrawable(barColor))
+        window.statusBarColor = barColor
+        window.navigationBarColor = barColor
         WindowCompat.getInsetsController(window, webView).apply {
             isAppearanceLightStatusBars = lightBars
             isAppearanceLightNavigationBars = lightBars
