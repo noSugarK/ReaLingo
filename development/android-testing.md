@@ -64,11 +64,12 @@ The lock test requires touch-through to remain enabled while new translations ar
 | Change / trigger | APK builds | Emulator coverage |
 | --- | --- | --- |
 | Markdown-only push or PR | Skipped | Skipped; the workflow still resolves |
-| Other PR changes | x86_64 | API 35 / 4 KB |
-| Other main pushes | x86_64 | API 35 / 4 KB and API 36 / 16 KB |
+| Other PR changes | x86_64 and ARM64 | API 35 / 4 KB |
+| Other main pushes | x86_64 and ARM64 | API 35 / 4 KB and API 36 / 16 KB |
 | Manual run, `full=true` (default) | x86_64 and ARM64 | Both page sizes |
 
-The release workflow separately builds and verifies ARM64. APK-only reuse remains
+Every app/test run builds and verifies both architectures; emulators execute x86_64.
+The release workflow also builds ARM64. APK-only reuse requires both artifacts and remains
 available when test-harness changes leave all app/build inputs unchanged; full manual
 runs always rebuild. Gradle/Kotlin dependency caches reduce repeated setup work.
 Fast Node, Python and Rust checks remain in `ci.yml`. Screenshots are diagnostic

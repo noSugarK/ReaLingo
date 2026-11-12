@@ -5,7 +5,7 @@ export function androidTestPlan(files, { event, full = false } = {}) {
   const run = event === 'workflow_dispatch' || files.some(file => !file.endsWith('.md'));
   return {
     run,
-    targets: full ? ['x86_64', 'aarch64'] : ['x86_64'],
+    targets: ['x86_64', 'aarch64'],
     devices: event === 'pull_request' && !full
       ? [{ api: 35, tag: 'google_apis', 'page-size': 4096 }]
       : [{ api: 35, tag: 'google_apis', 'page-size': 4096 },

@@ -268,7 +268,7 @@ macOS and Linux bundles cannot be cross-compiled from Windows, so
 | Pushing a `v*` tag | The same, plus a GitHub release with the installers attached |
 
 Releasing goes draft → each of the four platforms uploads → **publish only after all builds, main CI, and Android 15/16 emulator tests pass for that commit**. A failure leaves the release as a draft. Tags must match `[package] version` in `src-tauri/Cargo.toml`.
-Android CI uses one emulator for PRs and both page sizes on main; Markdown-only changes skip heavy jobs.
+Android CI builds ARM64 and x86_64 APKs, using one emulator for PRs and both page sizes on main; Markdown-only changes skip heavy jobs.
 Releases still require real successful smoke jobs for both page sizes on the exact commit, with a full manual run when needed; see [Android testing](development/android-testing.md).
 
 The version lives in exactly one place: `[package] version` in `src-tauri/Cargo.toml`.
