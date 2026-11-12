@@ -63,6 +63,11 @@ and searches voices without leaving the speech sheet. Bluetooth/USB device enume
 disconnect refresh and legacy preferences have host tests; actual Bluetooth routing and
 connection changes during playback still require physical hardware verification.
 
+After changing system-bar styling, manually cold-launch with the OS in light and dark
+mode, then select Light, Dark and System in app settings. Check that status/navigation
+bar backgrounds match the app and their icons stay readable, including after returning
+from the background. Browser previews cannot verify these native bars.
+
 `.github/workflows/android-test.yml` runs on main pushes, PRs, and manual dispatch:
 
 | Change / trigger | APK builds | Emulator coverage |

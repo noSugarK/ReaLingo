@@ -67,6 +67,21 @@ class MainActivity : TauriActivity() {
         intent?.getStringExtra(EXTRA_NOTIFICATION_COMMAND)?.let { notificationCommand.set(it) }
     }
 
+    private fun applySystemBars(dark: Boolean) {
+        val background = Color.parseColor(if (dark) "#0b0d13" else "#eef1f7")
+        window.setBackgroundDrawable(ColorDrawable(background))
+        window.statusBarColor = background
+        window.navigationBarColor = background
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
+
     // One-slot result for the file picker: busy while the dialog/copy lives, then a
     // terminal JSON the frontend reads and resets. "picked" carries a real path the
     // decode pipeline can open (the SAF content:// uri is copied into cache first).
@@ -80,21 +95,7 @@ class MainActivity : TauriActivity() {
     inner class Bridge {
         @JavascriptInterface
         fun setSystemBars(theme: String) {
-            val dark = theme == "dark"
-            val background = Color.parseColor(if (dark) "#0b0d13" else "#eef1f7")
-            runOnUiThread {
-                window.setBackgroundDrawable(ColorDrawable(background))
-                window.statusBarColor = background
-                window.navigationBarColor = background
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    window.isStatusBarContrastEnforced = false
-                    window.isNavigationBarContrastEnforced = false
-                }
-                WindowCompat.getInsetsController(window, window.decorView).apply {
-                    isAppearanceLightStatusBars = !dark
-                    isAppearanceLightNavigationBars = !dark
-                }
-            }
+            runOnUiThread { applySystemBars(theme == "dark") }
         }
 
         @JavascriptInterface
@@ -403,16 +404,8 @@ class MainActivity : TauriActivity() {
             WindowInsetsCompat.CONSUMED
         }
         webView.post { ViewCompat.requestApplyInsets(webView) }
-        val lightBars = resources.configuration.uiMode and
-            android.content.res.Configuration.UI_MODE_NIGHT_MASK != android.content.res.Configuration.UI_MODE_NIGHT_YES
-        val barColor = Color.parseColor(if (lightBars) "#eef1f7" else "#0b0d13")
-        window.setBackgroundDrawable(ColorDrawable(barColor))
-        window.statusBarColor = barColor
-        window.navigationBarColor = barColor
-        WindowCompat.getInsetsController(window, webView).apply {
-            isAppearanceLightStatusBars = lightBars
-            isAppearanceLightNavigationBars = lightBars
-        }
+        applySystemBars(resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES)
         webView.addJavascriptInterface(Bridge(), "ReaLingoAndroid")
     }
 
