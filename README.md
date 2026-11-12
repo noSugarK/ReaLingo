@@ -248,8 +248,9 @@ macOS 和 Ubuntu 的安装包没法在 Windows 上交叉编译，由 `.github/wo
 `version` 字段，Tauri 会回落到 Cargo.toml；`package.json` 是 `private` 的，也不带版本号。
 CI 就按这一处校验 tag。预发布标签会标记为 Pre-release，不替换稳定版 Latest；Windows MSI 不接受文字预发布后缀，若发布 Beta 等版本须先配置独立的数字 MSI 版本。
 
-发布说明写在 `.github/release-notes/v<版本号>.md`，随 tag 一起提交；CI 建 release 时把它放在最前面，
-后面接 GitHub 自动生成的提交列表。没有这个文件就只有自动生成的部分。
+打 tag 前必须将发布说明提交到 `.github/release-notes/v<版本号>.md`；CI 建 release 时把它放在最前面，
+后面接 GitHub 自动生成的提交列表。说明按 Keep a Changelog 分类，保留对应的中英文内容；
+版本、格式及发布前核对要求见[编码规范「版本与发布」](CODING_STANDARDS.md#版本与发布)。
 
 ```bash
 # X.Y.Z 替换为要发布的版本；更新 Cargo.toml / Cargo.lock 和对应发布说明后提交

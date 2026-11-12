@@ -273,9 +273,10 @@ The version lives in exactly one place: `[package] version` in `src-tauri/Cargo.
 `tauri.conf.json` omits the `version` field so Tauri falls back to Cargo.toml, and
 `package.json` is `private` and carries none. CI checks the tag against that one place. Prerelease tags are marked Pre-release and do not replace stable Latest. Windows MSI rejects textual prerelease suffixes; configure a separate numeric MSI version before shipping a Beta or similar version.
 
-Release notes go in `.github/release-notes/v<version>.md`, committed before the tag; CI puts them at the
-top of the release, followed by GitHub's generated list of changes. Without that file only the generated
-part appears.
+Release notes must be committed to `.github/release-notes/v<version>.md` before tagging; CI puts them at
+the top of the release, followed by GitHub's generated list of changes. Use Keep a Changelog categories
+with matching Chinese and English content. See the [version and release standards](CODING_STANDARDS.md#版本与发布)
+for versioning, formatting, and pre-release checks.
 
 ```bash
 # Replace X.Y.Z with the intended version; update Cargo.toml / Cargo.lock and release notes, then commit.
