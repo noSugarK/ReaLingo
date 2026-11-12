@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ref, computed } from 'vue';
+import { ref, computed, compile, createSSRApp } from 'vue';
+import { renderToString } from '@vue/server-renderer';
+import { readFileSync } from 'node:fs';
 import { vueScript } from './helpers/vue-script.mjs';
 
 test('mobile history loads, searches, exports and confirms deletion of the selected session', async () => {
@@ -18,10 +20,13 @@ test('mobile history loads, searches, exports and confirms deletion of the selec
       if (cmd === 'history_clear') sessions.length = 0;
     },
     saveAs: async (...args) => exports.push(args),
-  }, ['load', 'open', 'q', 'shown', 'saveRows', 'remove', 'clearAll', 'openId', 'sessions']);
+  }, ['load', 'open', 'q', 'shown', 'saveRows', 'remove', 'clearAll', 'openId', 'sessions', 'props', 'err', 'settings', 't', 'when', 'pair', 'armed']);
   await history.load();
   assert.equal(history.openId.value, 'old');
   await history.open('new');
+  const template = readFileSync(new URL('../src/shared/History.vue', import.meta.url), 'utf8').match(/<template>([\s\S]*?)<\/template>\s*<style/)[1];
+  const html = await renderToString(createSSRApp({ setup: () => history, render: compile(template) }));
+  assert.match(html, /<input[^>]*aria-label="historySearch"/, 'search must have an accessible name, not only a placeholder');
   history.q.value = ' 世界 ';
   assert.equal(history.shown.value.length, 1);
   await history.saveRows('srt');

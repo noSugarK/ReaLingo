@@ -141,7 +141,7 @@ async function remove(id: string) {
       </div>
       <label class="history-search">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
-        <input v-model="q" type="search" :placeholder="t('historySearch')" spellcheck="false" />
+        <input v-model="q" type="search" :aria-label="t('historySearch')" :placeholder="t('historySearch')" spellcheck="false" />
       </label>
       <div class="mobile-actions">
         <button class="mobile-action" :disabled="!shown.length" @click="saveRows('txt')">TXT</button>
