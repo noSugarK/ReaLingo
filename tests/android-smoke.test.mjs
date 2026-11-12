@@ -11,6 +11,23 @@ test('output picker taps the clickable accessible label even when the selected v
   assert.deepEqual(targetBounds(xml, ['Play through', '播放到']), [727, 925]);
 });
 
+test('output picker finds the actual view when WebView exposes its value instead of its label', () => {
+  const xml = '<node text="Play through" class="android.widget.TextView" clickable="false" bounds="[91,900][456,950]" />' +
+    '<node text="Follow system" class="android.view.View" clickable="true" bounds="[485,879][968,971]" />';
+  assert.deepEqual(targetBounds(xml, ['Play through', '播放到'], 'android.view.View'), [727, 925]);
+  assert.deepEqual(targetBounds(xml.replace('text="Follow system"', 'text="Play through"'), ['Play through', '播放到'], 'android.view.View'), [727, 925]);
+});
+
+test('an explicitly unnamed editor selector requires exactly one visible field', () => {
+  // API 35 omits the history search aria-label and placeholder from its XML.
+  const field = '<node NAF="true" text="" class="android.widget.EditText" focused="true" bounds="[147,391][1008,488]" />';
+  assert.deepEqual(targetBounds(field, [], 'android.widget.EditText'), [578, 440]);
+  assert.equal(editorFocused(field, []), true);
+  assert.equal(targetBounds(field + field, [], 'android.widget.EditText'), null);
+  assert.equal(targetBounds(field.replace('[147,391][1008,488]', '[0,0][0,0]'), [], 'android.widget.EditText'), null);
+  assert.equal(targetBounds(field, ['Search this session…'], 'android.widget.EditText'), null);
+});
+
 test('keyboard dismissal waits through delayed opening and closing before scrolling', async () => {
   const visible = 'Window #7 Window{e9d9f26 u0 InputMethod}:\n mViewVisibility=0x0 mHasSurface=true isOnScreen=true\n';
   const states = ['', '', visible, visible, '', '', ''];

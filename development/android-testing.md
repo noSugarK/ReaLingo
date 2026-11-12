@@ -60,7 +60,9 @@ and uses notification actions to unlock, hide/show subtitles, stop and restart c
 The lock test requires touch-through to remain enabled while new translations arrive.
 The speech check opens the compact native output picker, requires an enumerated speaker,
 and searches voices without leaving the speech sheet. It locates the picker by its
-accessible name (Play through), since older WebViews omit the selected option text.
+label (Play through) and actual view class: WebViews may expose either the label or
+the selected value on the view. History search explicitly selects its sole visible
+editor when older WebViews omit the accessible name; multiple editors remain an error.
 Form input waits for the soft keyboard to remain hidden before navigation; scrolling
 also checks for a visible keyboard so swipes cannot silently edit the focused URL.
 Bluetooth/USB device enumeration,

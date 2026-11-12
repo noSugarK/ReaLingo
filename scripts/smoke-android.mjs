@@ -8,6 +8,15 @@ import { pathToFileURL } from 'node:url';
 import { startSessionPeer } from './session-server.mjs';
 
 export function targetBounds(xml, labels, className) {
+  // A caller may explicitly select the sole visible editor when an old WebView
+  // omits its accessible name. Never guess if there is more than one candidate.
+  if (!labels.length && className) {
+    const candidates = [...xml.matchAll(/<node\b[^>]*>/g)]
+      .filter(([node]) => node.includes(`class="${className}"`))
+      .map(([node]) => targetBounds(node, [node.match(/\btext="([^"]*)"/)?.[1] ?? ''], className))
+      .filter(Boolean);
+    return candidates.length === 1 ? candidates[0] : null;
+  }
   for (const partial of [false, true]) {
   // Prefer the control over a separate TextView with the same accessible name.
   for (const clickable of className ? [false] : [true, false]) {
@@ -145,7 +154,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     }
     return lastXml;
   };
-  const waitFor = async (labels) => {
+  const waitFor = async (labels, className) => {
     for (let i = 0; i < 20; i++) {
       // Yield between blocking adb calls so worker replies and UI updates can settle.
       await sleep(100);
@@ -154,13 +163,13 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
       for (const pid of pids.split(/\s+/)) appPids.add(pid);
       let xml;
       try { xml = ui(); } catch { await sleep(500); continue; }
-      const bounds = targetBounds(xml, labels);
+      const bounds = targetBounds(xml, labels, className);
       if (bounds) return bounds;
       await sleep(500);
     }
     throw new Error(`phone UI did not render ${labels.join(' / ')}`);
   };
-  const tap = async (labels) => adb('shell', 'input', 'tap', ...await waitFor(labels));
+  const tap = async (labels, className) => adb('shell', 'input', 'tap', ...await waitFor(labels, className));
   const back = () => adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
   const notificationAction = async labels => {
     adb('shell', 'cmd', 'statusbar', 'expand-notifications');
@@ -200,7 +209,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
       adb('shell', 'input', 'swipe', Math.round(width / 2), Math.round(height * (move === 'down' ? .78 : .35)), Math.round(width / 2), Math.round(height * (move === 'down' ? .35 : .78)), 350);
       await sleep(400);
     }
-    throw new Error(`Could not scroll to ${labels.join(' / ')}`);
+    throw new Error(`Could not scroll to ${labels.join(' / ') || `unique ${className}`}`);
   };
   const screenshot = (name) => writeFileSync(join(output, `${name}.png`),
     execFileSync('adb', ['exec-out', 'screencap', '-p'], { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }));
@@ -214,7 +223,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
       try { focused = editorFocused(ui(), labels); } catch { continue; }
       if (focused) break;
     }
-    assert.ok(focused, `editor did not gain focus: ${labels.join(' / ')}`);
+    assert.ok(focused, `editor did not gain focus: ${labels.join(' / ') || 'unique editor'}`);
     if (replace) {
       adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A');
       adb('shell', 'input', 'keyevent', 'KEYCODE_DEL');
@@ -276,7 +285,7 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     assert.equal(adb('shell', 'pidof', packageId).trim(), homePid, 'root back and reopen retain the native runtime');
     await tap(['Speak', '朗读']);
     await waitFor(['Play through', '播放到']);
-    await tap(['Play through', '播放到']);
+    await tap(['Play through', '播放到'], 'android.view.View');
     await waitFor(['Speaker', '扬声器']);
     screenshot('speech-output-options');
     back(); // Android's native select popup closes before the speech sheet.
@@ -378,7 +387,8 @@ export async function smokeAndroid(apk, packageId = 'com.nosugark.realingo.debug
     await tap(['Browse history', '查看历史记录']);
     await waitFor(['Android session verified.']);
     screenshot('history-recorded');
-    await fill(['Search this session…', '搜索本场…'], 'verified');
+    // This history page has one editor; WebView 124 omits both its name and hint.
+    await fill([], 'verified');
     await waitFor(['Android session verified.']);
     back();
     await waitFor(['Settings', '设置']);
