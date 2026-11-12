@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import Sheet from "./Sheet.vue";
+import ChoiceList from "./ChoiceList.vue";
 import { session } from "../core/session";
 import { settings } from "../core/store";
 import { isRunning } from "../core/stream";
@@ -24,6 +25,7 @@ const voices = computed(() => {
   const all = session.voiceOptions.value;
   return q ? all.filter((v) => `${v.label} ${v.value} ${v.note ?? ""} ${v.keywords}`.toLowerCase().includes(q)) : all;
 });
+const voiceChoices = computed(() => voices.value.map(voice => ({ value: voice.value, label: voice.label, description: voice.note })));
 
 const { devices, options, loading, failed, refresh } = useOutputDevices();
 const selected = computed({
@@ -47,7 +49,7 @@ function toggle() {
         <b>{{ t('speak') }}</b>
         <small>{{ blocked ? t(blocked) : running ? t('speakLocked') : t('speakNote') }}</small>
       </span>
-      <span class="tog" :class="{ on }" />
+      <span class="tog" :class="{ on }" aria-hidden="true" />
     </button>
 
     <section :class="{ off: !on }">
@@ -71,17 +73,7 @@ function toggle() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg>
         <input v-model="query" type="search" :placeholder="t('voiceSearchPh')" :aria-label="t('voice')" spellcheck="false" autocomplete="off">
       </label>
-      <div class="list" role="radiogroup" :aria-label="t('voice')">
-        <button
-          v-for="v in voices" :key="v.value" class="vrow" role="radio"
-          :aria-checked="settings.voice === v.value" :class="{ on: settings.voice === v.value }"
-          :disabled="running" @click="settings.voice = v.value"
-        >
-          <span class="nm"><b>{{ v.label }}</b><small v-if="v.note">{{ v.note }}</small></span>
-          <svg class="ck" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
-        </button>
-        <p v-if="!voices.length" class="none">{{ t('voiceNoMatch') }}</p>
-      </div>
+      <ChoiceList class="list" :label="t('voice')" :value="settings.voice" :options="voiceChoices" :disabled="running" :empty="t('voiceNoMatch')" @select="settings.voice = $event" />
     </section>
     <p v-else class="note">{{ t('voiceServer') }}</p>
   </Sheet>
@@ -104,20 +96,11 @@ function toggle() {
 .tog.on::after { transform: translateX(20px); }
 .master:disabled .tog { opacity: 0.45; }
 
+
 section { display: flex; flex-direction: column; transition: opacity 0.25s var(--ease); }
 section.off { opacity: 0.55; }
 .glabel { font-size: 12px; font-weight: 700; color: var(--ink-3); margin: 0 4px 9px; }
-.list { margin-top: 10px; border-radius: 15px; background: var(--shade); box-shadow: inset 0 0 0 1px var(--hairline); }
-.vrow { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 8px 16px; text-align: left; color: var(--ink); }
-.vrow + .vrow { box-shadow: inset 0 1px 0 var(--hairline); }
-.vrow .nm { flex: 1; min-width: 0; }
-.vrow b { display: block; font-size: 15px; font-weight: 600; }
-.vrow small { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-3); }
-.vrow .ck { flex: none; color: var(--accent); visibility: hidden; }
-.vrow.on .ck { visibility: visible; }
-.vrow.on b { color: var(--accent); font-weight: 700; }
-.vrow:disabled { cursor: default; }
-.none { margin: 0; padding: 14px; text-align: center; color: var(--ink-2); font-size: 13.5px; }
+.list { margin-top: 10px; }
 .hint { margin: 8px 4px 0; font-size: 12px; line-height: 1.55; color: var(--ink-3); }
 .hint.warn { color: #b7791f; }
 .note { margin: 0; padding: 14px; border-radius: 15px; background: var(--shade); text-align: center; color: var(--ink-2); font-size: 13.5px; line-height: 1.6; }
