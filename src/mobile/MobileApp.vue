@@ -381,7 +381,7 @@ async function askFromCenter() {
     <!-- ══ SETTINGS ══ -->
     <div v-show="page === 'settings'" class="page sub">
       <header class="topbar">
-        <button class="icobtn sm" :aria-label="t('back')" @click="page = 'home'">
+        <button class="icobtn sm back" :aria-label="t('back')" @click="page = 'home'">
           <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg>
         </button>
         <div class="pt">
@@ -532,7 +532,7 @@ async function askFromCenter() {
     <!-- ══ PERMISSION CENTER ══ -->
     <div v-show="page === 'perms'" class="page sub">
       <header class="topbar">
-        <button class="icobtn sm" :aria-label="t('back')" @click="page = 'settings'">
+        <button class="icobtn sm back" :aria-label="t('back')" @click="page = 'settings'">
           <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg>
         </button>
         <div class="pt">
@@ -620,6 +620,8 @@ async function askFromCenter() {
 }
 .page { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; }
 .page.sub { gap: 6px; }
+.page.sub .topbar { gap: 4px; }
+.page.sub .topbar .back { width: 32px; height: 32px; border-radius: 0; background: transparent; box-shadow: none; }
 
 /* ---------- topbar ---------- */
 .topbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 2px; }
@@ -730,8 +732,8 @@ async function askFromCenter() {
 
 /* ---------- settings ---------- */
 .pt { flex: 1; }
-.pt1 { font-size: 22px; font-weight: 730; letter-spacing: -0.03em; }
-.pt2 { font-size: 11px; color: var(--ink-3); font-weight: 600; margin-top: 2px; }
+.pt1 { font-size: 20px; line-height: 1.15; font-weight: 730; letter-spacing: -0.03em; }
+.pt2 { font-size: 10px; line-height: 1.15; color: var(--ink-3); font-weight: 600; margin-top: 1px; }
 .settings-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; padding-bottom: 8px; }
 section { display: flex; flex-direction: column; }
 .vendor-tile { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--hairline); }

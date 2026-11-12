@@ -22,6 +22,14 @@ import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
+private class CappedScrollView(context: Context, private val maxHeightPx: Int) : ScrollView(context) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val parentHeight = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) maxHeightPx
+            else minOf(maxHeightPx, MeasureSpec.getSize(heightMeasureSpec))
+        super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(parentHeight, MeasureSpec.AT_MOST))
+    }
+}
+
 /** Owns background capture and a native overlay; neither needs the Activity to stay visible. */
 @Keep
 class SubtitleService : Service() {
@@ -31,6 +39,9 @@ class SubtitleService : Service() {
     private var source: TextView? = null
     private var target: TextView? = null
     private var lockButton: ImageView? = null
+    private var captureButton: TextView? = null
+    private var textScroll: ScrollView? = null
+    private var textPinnedToLatest = true
     private var handle: View? = null
     private var resize: View? = null
     private var layout: WindowManager.LayoutParams? = null
@@ -189,12 +200,19 @@ class SubtitleService : Service() {
         data.optDouble(key, fallback).takeIf { it.isFinite() }?.coerceIn(min, max)?.toFloat() ?: fallback.toFloat()
     private fun removePanel() {
         panel?.let { runCatching { wm.removeView(it) } }
-        panel = null; source = null; target = null; lockButton = null; layout = null
+        panel = null; source = null; target = null; lockButton = null; captureButton = null; textScroll = null; layout = null
     }
     private fun makePanel() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(6), dp(12), dp(6)) }
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = "⠿  ReaLingo"; textSize = 12f; setTextColor(Color.WHITE); setPadding(0, dp(5), 0, dp(5)) }
+        val capture = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(8), 0, dp(8), 0)
+            setOnClickListener { openCaptureCommand(if (captureKind.isEmpty()) "start" else "stop") }
+        }
         val lock = ImageView(this).apply {
             setImageResource(R.drawable.ic_overlay_lock)
             setPadding(dp(10), dp(9), dp(10), dp(9))
@@ -207,14 +225,26 @@ class SubtitleService : Service() {
             }
         }
         val close = TextView(this).apply { text = "×"; textSize = 24f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; contentDescription = data.optString("close", "Hide subtitles") }
-        bar.addView(title, LinearLayout.LayoutParams(0, dp(36), 1f)); bar.addView(lock, LinearLayout.LayoutParams(dp(40), dp(36))); bar.addView(close, LinearLayout.LayoutParams(dp(40), dp(36)))
+        bar.addView(title, LinearLayout.LayoutParams(0, dp(36), 1f)); bar.addView(capture, LinearLayout.LayoutParams(-2, dp(36))); bar.addView(lock, LinearLayout.LayoutParams(dp(40), dp(36))); bar.addView(close, LinearLayout.LayoutParams(dp(40), dp(36)))
         close.setOnClickListener { visible = false; render(); stopIfIdle() }
         root.addView(bar)
-        source = TextView(this).also { root.addView(it) }
-        target = TextView(this).also { root.addView(it) }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        source = TextView(this).apply { setPadding(0, 0, 0, dp(4)) }.also { content.addView(it) }
+        target = TextView(this).also { content.addView(it) }
+        val scroll = CappedScrollView(this, maxOf(dp(140), (screenHeight() * 0.34f).roundToInt())).apply {
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(content, FrameLayout.LayoutParams(-1, -2))
+            setOnScrollChangeListener { view, _, scrollY, _, _ ->
+                val scroller = view as ScrollView
+                textPinnedToLatest = (scroller.getChildAt(0)?.height ?: 0) - scrollY - scroller.height <= dp(28)
+            }
+        }
+        textScroll = scroll
+        root.addView(scroll, LinearLayout.LayoutParams(-1, -2))
         val grip = TextView(this).apply { text = "↘"; textSize = 20f; gravity = Gravity.END; setTextColor(Color.WHITE); contentDescription = data.optString("resize", "Resize subtitles") }
         root.addView(grip, LinearLayout.LayoutParams(-1, dp(28)))
-        handle = bar; resize = grip; lockButton = lock
+        handle = bar; resize = grip; lockButton = lock; captureButton = capture
         val width = prefs.getInt("width", (screenWidth() * number("mobileWidth", 88.0, 40.0, 100.0) / 100).toInt())
         layout = WindowManager.LayoutParams(width.coerceIn(minOf(dp(180), screenWidth()), screenWidth()), -2,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
@@ -259,6 +289,13 @@ class SubtitleService : Service() {
             p.y = p.y.coerceIn(0, maxOf(0, screenHeight() - (panel?.height?.coerceAtLeast(dp(80)) ?: dp(80))))
         }
     }
+    private fun openCaptureCommand(command: String) {
+        runCatching {
+            startActivity(Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_NOTIFICATION_COMMAND, command))
+        }.onFailure { lastError = it.message ?: "Cannot open translation controls" }
+    }
     private fun render() {
         if (!visible || !Settings.canDrawOverlays(this)) { visible = false; removePanel(); return }
         if (panel == null) makePanel()
@@ -268,6 +305,8 @@ class SubtitleService : Service() {
         lastWidthSetting = widthSetting
         val locked = data.optBoolean("locked", false)
         lockButton?.visibility = if (locked) View.GONE else View.VISIBLE
+        captureButton?.visibility = if (locked) View.GONE else View.VISIBLE
+        captureButton?.text = data.optString(if (captureKind.isEmpty()) "notifStart" else "notifStop", if (captureKind.isEmpty()) "Start" else "Stop")
         p.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or if (locked) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0
         // Android 12 blocks pass-through touches behind an opaque untrusted overlay.
         p.alpha = if (locked && Build.VERSION.SDK_INT >= 31) 0.8f else 1f
@@ -275,8 +314,8 @@ class SubtitleService : Service() {
         resize?.visibility = if (locked) View.GONE else View.VISIBLE
         panel?.background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(Color.argb((number("opacity", 0.5, 0.0, 1.0) * 255).toInt(), 6, 8, 14)) }
         val mode = data.optString("mode", "both")
-        val src = data.optString("source").take(4000)
-        val tgt = data.optString("target").take(4000)
+        val src = data.optString("source")
+        val tgt = data.optString("target")
         fun style(label: TextView?, text: String, show: Boolean, size: String, tint: String) {
             if (label == null) return
             label.text = text
@@ -284,14 +323,18 @@ class SubtitleService : Service() {
             label.textSize = number(size, if (size == "srcSize") 19.0 else 30.0, 12.0, 72.0)
             label.setTextColor(color(tint, Color.WHITE))
             label.gravity = when (data.optString("align")) { "left" -> Gravity.START; "right" -> Gravity.END; else -> Gravity.CENTER }
-            label.maxLines = if (data.optBoolean("grow", true)) 6 else 1
-            label.ellipsize = if (data.optBoolean("grow", true)) TextUtils.TruncateAt.END else TextUtils.TruncateAt.START
+            val grow = data.optBoolean("grow", true)
+            label.maxLines = if (grow) Int.MAX_VALUE else 1
+            label.ellipsize = if (grow) null else TextUtils.TruncateAt.START
             label.setShadowLayer(if (data.optBoolean("outline", true)) dp(2).toFloat() else 0f, 0f, 0f, Color.BLACK)
         }
         style(source, src, mode != "target" && src.isNotEmpty(), "srcSize", "srcColor")
         style(target, tgt, mode != "source" && tgt.isNotEmpty(), "tgtSize", "color")
         if (source?.visibility == View.GONE && target?.visibility == View.GONE) {
             target?.text = data.optString("empty", "Waiting for speech…"); target?.visibility = View.VISIBLE
+        }
+        textScroll?.let { scroll ->
+            if (textPinnedToLatest) scroll.post { scroll.scrollTo(0, scroll.getChildAt(0)?.height ?: 0) }
         }
         clampPosition(); wm.updateViewLayout(panel, p)
     }
@@ -325,7 +368,7 @@ class SubtitleService : Service() {
         }
         fun endCapture(context: Context) {
             captureKind = ""
-            instance?.let { it.stopPlayback(); if (visible) it.refreshForeground(); it.stopIfIdle() }
+            instance?.let { it.stopPlayback(); if (visible) { it.render(); it.refreshForeground() }; it.stopIfIdle() }
         }
         fun setVisible(context: Context, on: Boolean) {
             lastError = ""; visible = on
