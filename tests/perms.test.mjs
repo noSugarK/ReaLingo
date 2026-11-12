@@ -198,3 +198,16 @@ test('returning from settings refreshes revoked permissions and battery status',
   assert.equal(m.perms.mic, 'denied');
   assert.deepEqual(m.pendingList(), ['battery']);
 });
+
+test('notification authorization opens notification settings, with a desktop fallback', async () => {
+  let opened = 0;
+  bridge = { openNotificationSettings: () => opened++ };
+  const native = await fresh();
+  native.openNotificationSettings();
+  assert.equal(opened, 1);
+  bridge = null;
+  invokeLog = [];
+  const fallback = await fresh();
+  fallback.openNotificationSettings();
+  assert.deepEqual(invokeLog, ['open_app_settings']);
+});

@@ -58,3 +58,23 @@ test('the peer can withhold setup acknowledgement or reject setup without sendin
     ws.close();
   }
 });
+
+test('the peer injects repeated long subtitles and stops updating finished sessions', async t => {
+  const peer = await startSessionPeer(); t.after(() => peer.close());
+  const messages = [], ws = new WebSocket(peer.url);
+  ws.onmessage = event => messages.push(JSON.parse(event.data));
+  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+  ws.send(JSON.stringify({ type: 'session.update' }));
+  ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: Buffer.alloc(3200).toString('base64') }));
+  await waitUntil(() => messages.some(value => value.type === 'response.text.done'));
+  await peer.pushSubtitle();
+  await peer.pushSubtitle();
+  await waitUntil(() => messages.filter(value => value.type === 'response.text.done').length >= 3);
+  assert.ok(messages.some(value => value.type === 'response.text.done' && value.text.length > 800));
+  ws.send(JSON.stringify({ type: 'session.finish' }));
+  await waitUntil(() => messages.some(value => value.type === 'session.finished'));
+  const before = (await peer.snapshot())[0].translations;
+  await peer.pushSubtitle();
+  assert.equal((await peer.snapshot())[0].translations, before);
+  ws.close();
+});

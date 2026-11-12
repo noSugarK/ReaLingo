@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { targetBounds, appCrashLines, overlayFrame, keyboardVisible, editorFocused, scrollDirection, launcherAnrClose } from '../scripts/smoke-android.mjs';
+import { targetBounds, appCrashLines, overlayFrame, overlayLocked, liveNotification, keyboardVisible, editorFocused, scrollDirection, launcherAnrClose } from '../scripts/smoke-android.mjs';
 import { decode } from '../scripts/png.mjs';
 
 test('only the emulator launcher ANR can be dismissed; app ANRs remain failures', () => {
@@ -19,6 +19,22 @@ test('native overlay checks select its own surfaced window and support Android f
   assert.deepEqual(overlayFrame(dump.replace('frame=[64', 'mFrame=[64')), [64, 1200, 1016, 1600]);
   assert.equal(overlayFrame(dump.replaceAll('mHasSurface=true', 'mHasSurface=false')), null);
   assert.equal(overlayFrame('Window #0 Window{a u0 Other}: mHasSurface=true mFrame=[0,0][1080,1920]'), null);
+});
+
+test('lock assertions inspect the surfaced overlay flags rather than another window', () => {
+  const dump = 'Window #0 Window{a u0 Other}:\n mHasSurface=true NOT_TOUCHABLE\n' +
+    'Window #1 Window{b u0 ReaLingo subtitles}:\n mHasSurface=true\n fl=NOT_FOCUSABLE NOT_TOUCHABLE\n';
+  assert.equal(overlayLocked(dump), true);
+  assert.equal(overlayLocked(dump.replace('fl=NOT_FOCUSABLE NOT_TOUCHABLE', 'fl=NOT_FOCUSABLE')), false);
+  assert.equal(overlayLocked(dump.replaceAll('mHasSurface=true', 'mHasSurface=false')), false);
+});
+
+test('notification assertions select this app live service notification', () => {
+  const other = 'NotificationRecord(a: pkg=com.other user=UserHandle{0} id=73)\n actions={ "Sub off" }\n';
+  const own = 'NotificationRecord(b: pkg=com.nosugark.realingo user=UserHandle{0} id=73)\n actions={ "Sub on" }\n';
+  const extra = 'NotificationRecord(c: pkg=com.nosugark.realingo user=UserHandle{0} id=74)\n';
+  assert.equal(liveNotification(other + own + extra, 'com.nosugark.realingo'), own);
+  assert.equal(liveNotification(other, 'com.nosugark.realingo'), '');
 });
 
 test('keyboard dismissal requires the current visible IME window, not stale input-method history', () => {

@@ -35,7 +35,7 @@ export async function startSessionPeer(port = 0) {
     worker.postMessage({ id, action, value });
   });
   const url = await call('ready');
-  return { url, setMode: value => call('mode', value), snapshot: () => call('snapshot'),
+  return { url, setMode: value => call('mode', value), pushSubtitle: () => call('subtitle'), snapshot: () => call('snapshot'),
     close: async () => { await call('close'); await worker.terminate(); } };
 }
 
@@ -46,6 +46,7 @@ if (!isMainThread) {
       let result;
       if (action === 'ready') result = peer.url;
       else if (action === 'mode') peer.setMode(value);
+      else if (action === 'subtitle') peer.pushSubtitle();
       else if (action === 'snapshot') result = peer.snapshot();
       else if (action === 'close') await peer.close();
       else throw new Error('invalid CI peer operation');
@@ -57,6 +58,7 @@ if (!isMainThread) {
 export async function startSessionServer(port = 0) {
   const sockets = new Set();
   const sessions = [];
+  const subtitleWriters = new Set();
   let mode = 'normal';
   const server = createServer((_req, res) => { res.end('ReaLingo CI session peer'); });
   server.on('upgrade', (req, socket, head) => {
@@ -65,10 +67,17 @@ export async function startSessionServer(port = 0) {
     const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
     socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
     sockets.add(socket);
-    const state = { mode, updates: 0, audioBytes: 0, finished: false, error: '' };
+    const state = { mode, updates: 0, audioBytes: 0, translations: 0, finished: false, error: '' };
     sessions.push(state);
     let pending = Buffer.alloc(0), translated = false, heartbeat;
     const send = value => socket.write(frame(1, JSON.stringify(value)));
+    const pushSubtitle = () => {
+      if (!translated || state.finished) return;
+      const id = `ci-stream-${++state.translations}`;
+      send({ type: 'conversation.item.created', item: { id, type: 'message', role: 'assistant' } });
+      send({ type: 'response.text.done', item_id: id, text: 'Android session verified. '.repeat(35) });
+    };
+    subtitleWriters.add(pushSubtitle);
     send({ type: 'session.created' });
     function message(value) {
       if (value.type === 'session.update') {
@@ -82,6 +91,7 @@ export async function startSessionServer(port = 0) {
           send({ type: 'conversation.item.created', item: { id: 'ci-answer', type: 'message', role: 'assistant' }, previous_item_id: 'ci-input' });
           send({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'ci-input', transcript: '安卓语音链路测试', language: 'zh' });
           send({ type: 'response.text.done', item_id: 'ci-answer', text: 'Android session verified.' });
+          state.translations++;
         }
       } else if (value.type === 'session.finish') {
         state.finished = true;
@@ -119,13 +129,14 @@ export async function startSessionServer(port = 0) {
     }
     socket.on('data', consume);
     socket.on('error', error => { state.error = error.message; });
-    socket.on('close', () => { clearInterval(heartbeat); sockets.delete(socket); });
+    socket.on('close', () => { clearInterval(heartbeat); subtitleWriters.delete(pushSubtitle); sockets.delete(socket); });
     if (head.length) consume(head);
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
   return {
     url: `ws://127.0.0.1:${server.address().port}/`,
     setMode(value) { if (!['normal', 'stall', 'reject', 'linger'].includes(value)) throw new Error('invalid CI scenario'); mode = value; },
+    pushSubtitle() { for (const write of subtitleWriters) write(); },
     snapshot: () => structuredClone(sessions),
     close: () => { for (const socket of sockets) socket.destroy(); return new Promise(resolve => server.close(resolve)); },
   };

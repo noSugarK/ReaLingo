@@ -54,6 +54,11 @@ and actual AudioPlaybackCapture frames. It saves screenshots, UI XML and logcat 
 `android-smoke/` (override with `ANDROID_SMOKE_OUTPUT`). Never use the smoke runner
 against an installation containing settings/history you want to keep.
 
+It also presses the Android Back key through sheets, Permissions, History, Settings and
+Home; records/searches history; streams long subtitles while locking the native overlay;
+and uses notification actions to unlock, hide/show subtitles, stop and restart capture.
+The lock test requires touch-through to remain enabled while new translations arrive.
+
 `.github/workflows/android-test.yml` runs on main pushes, PRs, and manual dispatch. It builds release ARM64 and x86_64 APKs, then runs the latter on API 35 with 4 KB pages and API 36 (`google_apis_ps16k`) with 16 KB pages. The API 35 16 KB preview's older WebView is not used. The page size is asserted on the emulator. The API 26
 default emulator image has no WebView provider; testing older supported devices requires
 an installed, current WebView and remains a separate device check. Both this
