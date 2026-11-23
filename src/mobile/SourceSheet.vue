@@ -47,7 +47,16 @@ const canSystem = computed(() => caps.value.loopback && native.systemSupported);
 
 // session.deviceOptions is already filtered to non-loopback inputs while the mic source is
 // active, so it is exactly the microphone list — built-in, wired headset, USB, Bluetooth.
-const micDevices = computed(() => session.deviceOptions.value);
+// AAudio enumerates the same physical mic once per supported channel/rate, so collapse by
+// label: a long duplicated list would push the test button below the sheet's fold.
+const micDevices = computed(() => {
+  const seen = new Set<string>();
+  return session.deviceOptions.value.filter((d) => {
+    if (seen.has(d.label)) return false;
+    seen.add(d.label);
+    return true;
+  });
+});
 const micDeviceId = session.deviceId;
 function pickDevice(id: string) { micDeviceId.value = id; }
 
@@ -100,6 +109,13 @@ const micBadge = computed(() =>
       </button>
     </div>
 
+    <!-- Keep the test button above the device list: on Android the list can be long
+         (one entry per AAudio channel/rate), and pushing the button below the fold leaves
+         it with zero bounds, which the device smoke test cannot tap. -->
+    <button v-if="source !== 'file'" class="test-mic" :disabled="testing || isRunning()" @click="testMic">{{ testing ? t("micTesting") : t(source === 'system' ? "systemTest" : "micTest") }}</button>
+    <p v-if="testError" role="alert" class="test-error">{{ testError }}</p>
+    <p v-if="testResult" role="status">{{ testResult }}</p>
+
     <div v-if="source === 'mic'" class="grp mic-device">
       <span class="glabel">{{ t('micDevice') }}</span>
       <ChoiceList
@@ -112,10 +128,6 @@ const micBadge = computed(() =>
       />
       <p class="hint">{{ t('micDeviceHint') }}</p>
     </div>
-
-    <button v-if="source !== 'file'" class="test-mic" :disabled="testing || isRunning()" @click="testMic">{{ testing ? t("micTesting") : t(source === 'system' ? "systemTest" : "micTest") }}</button>
-    <p v-if="testError" role="alert" class="test-error">{{ testError }}</p>
-    <p v-if="testResult" role="status">{{ testResult }}</p>
 
     <div class="grp">
       <span class="glabel">{{ t('level') }}</span>
