@@ -36,7 +36,10 @@ test('the CI peer accepts real masked WebSocket frames and returns captured prot
   // Cross both the normal and 64-bit-length frame headers used by real clients.
   for (const size of [3200, 70000]) ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: Buffer.alloc(size).toString('base64') }));
   await waitUntil(() => peer.snapshot()[0].audioBytes === 73200);
-  assert.ok(messages.some(value => value.type === 'response.text.done' && value.text === 'Android session verified.'));
+  // The server writes the response frames as soon as the first append lands, but the
+  // client's message event can fire a tick later — waiting only on server-side audioBytes
+  // asserted before delivery and failed under the load of the whole suite.
+  await waitUntil(() => messages.some(value => value.type === 'response.text.done' && value.text === 'Android session verified.'));
   ws.send(JSON.stringify({ type: 'session.finish' }));
   await waitUntil(() => messages.some(value => value.type === 'session.finished'));
   ws.close();
