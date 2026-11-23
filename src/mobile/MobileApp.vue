@@ -72,8 +72,13 @@ async function onResume() {
   }
 }
 
+/** A headset mic was plugged or unplugged: refresh the input list so the source picker
+ *  offers it without a restart (the Kotlin bridge dispatches this event). */
+function onInputDevicesChanged() { void session.refreshDevices(); }
+
 onMounted(async () => {
   window.addEventListener("realingo:back", onAndroidBack);
+  window.addEventListener("realingo:inputs", onInputDevicesChanged);
   try {
     await initSettings();
     await loadCaps();
@@ -106,6 +111,7 @@ function onVisible() {
 }
 onUnmounted(() => {
   window.removeEventListener("realingo:back", onAndroidBack);
+  window.removeEventListener("realingo:inputs", onInputDevicesChanged);
   window.clearInterval(levelTimer);
   window.clearInterval(nativeTimer);
   unlistenResume?.();

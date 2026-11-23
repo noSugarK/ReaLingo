@@ -357,6 +357,11 @@ class MainActivity : TauriActivity() {
                 if (devices.any { it.isSink }) webView.evaluateJavascript(
                     "window.dispatchEvent(new Event('realingo:outputs'))", null
                 )
+                // A wired headset / USB mic appearing or leaving must refresh the input
+                // picker too, so the newly connected microphone becomes selectable.
+                if (devices.any { it.isSource }) webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('realingo:inputs'))", null
+                )
             }
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) { changed(addedDevices) }
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) { changed(removedDevices) }
